@@ -282,6 +282,7 @@
       <button class="wmNode" id="bWmShop" style="left:190px;top:150px;width:120px;height:90px;display:none"></button>
       <button class="wmNode" id="bWmArm" style="left:480px;top:250px;width:120px;height:90px"></button>
       <button class="wmNode" id="bWmRush" style="left:270px;top:290px;width:140px;height:90px;display:none"></button>
+      <button class="wmNode" id="bWmArena" style="left:190px;top:40px;width:130px;height:100px;display:none"></button>
     </div>
     <div id="gauntletRow" style="margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap">
       <span style="font-family:'Cinzel',Georgia;letter-spacing:.2em;font-size:11px;color:#8a5a1a">THE GAUNTLET</span>
@@ -293,6 +294,14 @@
     </div>
     <button class="btn small parch" id="bWmBack" style="margin-top:10px">Back</button>
     <button class="btn small parch" id="bWmChron" style="margin-top:10px">The Chronicle</button>
+  </div>
+</div>
+<div id="arena" class="overlay hidden">
+  <div class="panel" style="background:#e9dcbc;color:#3a2c1a;border:3px double #8a6f4a;padding:24px 36px 18px;max-width:700px;max-height:86vh;overflow-y:auto;box-shadow:0 0 70px rgba(0,0,0,.55)">
+    <h2 style="font-weight:normal;letter-spacing:.28em;color:#5a3c1a;font-size:20px;text-align:center;margin-bottom:2px">THE ARENA</h2>
+    <div style="text-align:center;font-style:italic;color:#8a6f4a;font-size:12px;margin-bottom:12px">every head you have taken, waiting to be taken again &middot; fresh lives, the clock running</div>
+    <div id="arenaRows" style="text-align:left"></div>
+    <div style="text-align:center"><button class="btn small parch" id="bArenaBack" style="margin-top:12px">Back to the Map</button></div>
   </div>
 </div>
 <div id="chronicle" class="overlay hidden">
@@ -1138,6 +1147,46 @@ const RUSH_STAGES=[
   {lvl:4,kind:'boss',x:300,y:544,name:'THE HORN OF BONE'},
 ];
 let rush={on:false,i:0,lives:3,time:0,deaths:0,kills:0};
+/* ---- the Boss Arena: any head you have taken, on its own, against the clock ---- */
+let arena={on:false,i:0};
+const STAGE_KEY=st=>({1:{mboss:'cm',boss:'warden'},2:{mboss:'hunt',boss:'thorn'},3:{mboss:'gall',boss:'taproot'},4:{boss:'horn'}}[st.lvl][st.kind]);
+function loadStageAt(st){
+  pendingLevel=st.lvl; startGame();
+  for(const e of enemies) e.dead=true;
+  if(st.kind==='boss') MARENA={x0:0,x1:0,trig:1e9,cam:0};
+  ambushes=[]; setpiece={camp:2,campT:0,pack:2,packT:0,fall:2,fallT:0,volley:1,maze:2,shiver:2};
+  player.x=st.x; player.y=st.y; player.vy=0;
+  CHECKPOINTS=[st.x]; checkpoint={x:st.x}; CP_Y={[st.x]:st.y+56};
+  cam.x=clamp(st.x-W*.38,0,LEVEL-W); cam.y=clamp(st.y+56-H*.62,CAM_MIN_Y,0);
+}
+function startArena(i){
+  const st=RUSH_STAGES[i]; if(!st||!campaign.beat[STAGE_KEY(st)]) return;
+  arena={on:true,i}; rush.on=false;
+  loadStageAt(st);
+  floatText(st.x,st.y-40,st.name,'#ffd27a',true);
+  tip('arena_'+i,'The Arena — '+st.name+'. Your best: '+(campaign.arenaBest[STAGE_KEY(st)]?fmtT(campaign.arenaBest[STAGE_KEY(st)]):'none yet')+'.');
+}
+function fmtT(t){ return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0'); }
+function finishArena(){
+  arena.on=false; stopMusic(); stopDrums(); stopAmbience(); state='map'; paused=false;
+  renderArena(); show('arena'); SFX.chime();
+}
+function renderArena(){
+  const box=document.getElementById('arenaRows'); box.innerHTML='';
+  let any=false;
+  RUSH_STAGES.forEach((st,i)=>{
+    const k=STAGE_KEY(st), have=!!campaign.beat[k]; if(!have) return; any=true;
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid rgba(90,60,30,.18)';
+    const best=campaign.arenaBest[k];
+    row.innerHTML='<div><div style="font-family:Cinzel,Georgia;font-size:14px;color:#5a3c1a">'+st.name+' <span style="font-size:10px;color:#8a6f4a">· '+(st.kind==='boss'?'boss':'mini-boss')+' of level '+['','I','II','III','IV'][st.lvl]+'</span></div>'+
+      '<div style="font-size:12px;font-style:italic;color:#8a6f4a">'+(best?'best '+fmtT(best):'unfought here')+' &middot; '+((BOSS_CARDS[k]||['',''])[1])+'</div></div>';
+    const b=document.createElement('button'); b.className='btn small parch'; b.style.cssText='margin:0;padding:5px 14px;font-size:11px;min-width:90px'; b.textContent='FIGHT';
+    b.onclick=()=>{ SFX.roar(); startArena(i); };
+    row.appendChild(b); box.appendChild(row);
+  });
+  if(!any){ const d=document.createElement('div'); d.style.cssText='font-style:italic;color:#8a6f4a;padding:12px'; d.textContent='No heads taken yet. Beat a boss, and it waits for you here.'; box.appendChild(d); }
+}
 function startRush(){
   rush={on:true,i:0,lives:DIFF().lives,time:0,deaths:0,kills:0};
   loadRushStage();
@@ -2298,7 +2347,7 @@ function damageBoss(dmg,x,y){
   markSeen(b.type);
   if(dmg>=.5){SFX.bossHurt(); burst(x,y,4,mult>1?'rgb(255,240,180)':'rgb(255,179,71)',.5);}
   if(b.hp<=0){
-    b.dead=true; b.deadT=0; stopDrums();
+    b.dead=true; b.deadT=0; stopDrums(); campaign.beat[b.type]=true; if(arena.on&&RUSH_STAGES[arena.i].kind==='boss'){ const k2=b.type; campaign.arenaBest[k2]=Math.min(campaign.arenaBest[k2]||1e9,Math.round(gameTime)); } saveCampaign();
     earnEmbers(40);
     SFX.explode(); SFX.roar(); shake(20); hitstop(.14);
     spawnRing(b.x,b.y+b.h/2,'rgb(255,240,200)');
@@ -2754,7 +2803,7 @@ function damageMBoss(dmg,x,y){
   if(dmg>=.5){SFX.bossHurt(); burst(x,y,4,'rgb(255,179,71)',.5);}
   if(isFire()&&dmg>=.5&&m.burn<=0&&Math.random()<.3){m.burn=4;SFX.ignite();}
   if(m.hp<=0&&!m.dead){
-    m.dead=true; m.deadT=0;
+    m.dead=true; m.deadT=0; campaign.beat[m.type]=true; if(arena.on&&RUSH_STAGES[arena.i].kind==='mboss'){ const k2=m.type; campaign.arenaBest[k2]=Math.min(campaign.arenaBest[k2]||1e9,Math.round(gameTime)); } saveCampaign();
     earnEmbers(25);
     SFX.explode(); shake(16); hitstop(.12);
     burst(m.x,m.y+m.h/2,36,'rgb(255,154,60)');
@@ -4048,6 +4097,7 @@ function updateAmbushes(dt){
     if(setpiece.grubT<=0){ setpiece.grubT=1.1*DIFF().eCad; const g2=spawnEnemy('grub',clamp(player.x+rand(-150,150),7320,9360),player.y-520); g2.ceil=false; g2.vy=0; g2.wave=true; }
   }
   if(rush.on&&RUSH_STAGES[rush.i]&&RUSH_STAGES[rush.i].kind==='mboss'&&mboss&&mboss.dead&&mboss.deadT>1.8){ rushNext(); return; }
+  if(arena.on&&RUSH_STAGES[arena.i].kind==='mboss'&&mboss&&mboss.dead&&mboss.deadT>1.8){ finishArena(); return; }
   if(!mboss&&player.x>MARENA.trig) startMBoss();
   if(!boss&&(LVL===2?(player.onGround&&player.y+player.h<=-1396&&player.x>12520&&player.x<13780):player.x>BOSS_TRIG)) startBoss();
 }
@@ -6881,6 +6931,7 @@ function drawHUD(t){
     }
   }
   if(rush.on){ ctx.font='11px '+UIF; ctx.fillStyle='#ffd9a8'; ctx.textAlign='right'; ctx.fillText('BOSS RUSH  '+(rush.i+1)+' / '+RUSH_STAGES.length, W-30, 60); }
+  if(arena.on){ ctx.font='11px '+UIF; ctx.fillStyle='#ffd9a8'; ctx.textAlign='right'; ctx.fillText('ARENA  '+fmtT(gameTime)+(campaign.arenaBest[STAGE_KEY(RUSH_STAGES[arena.i])]?'   best '+fmtT(campaign.arenaBest[STAGE_KEY(RUSH_STAGES[arena.i])]):''), W-30, 60); }
   { const bf=[]; if(player.furyT>0) bf.push('FURY '+Math.ceil(player.furyT)+'s'); if(player.hasteT>0) bf.push('HASTE '+Math.ceil(player.hasteT)+'s'); if(bf.length){ ctx.font='10px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText(bf.join('  ·  '),30,142); } }
   if(!isPaladin()){
     const v=isFire()?player.heat:(isFrost()?player.rime:player.charge/5);
@@ -7102,7 +7153,7 @@ function drawHUD(t){
 
 /* ---------------- game over ---------------- */
 function gameOver(){
-  rush.on=false;
+  rush.on=false; arena.on=false;
   state='over';
   stopMusic(); stopDrums(); stopAmbience();
   const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
@@ -7114,6 +7165,7 @@ function gameOver(){
 
 /* ---------------- win ---------------- */
 function doWin(){
+  if(arena.on){ finishArena(); return; }
   const rushWasRun=rush.done||rush.on;
   if(rush.on&&!tutorialMode&&rushNext()) return;
   state='win';
@@ -7517,8 +7569,9 @@ function drawCharPortraits(tt){
 }
 
 /* ---------------- the campaign map ---------------- */
-let campaign={l1Cleared:false};
+let campaign={l1Cleared:false,beat:{},arenaBest:{}};
 try{Object.assign(campaign,JSON.parse(localStorage.getItem('arcanade-campaign')||'{}'));}catch(e){}
+campaign.beat=campaign.beat||{}; campaign.arenaBest=campaign.arenaBest||{};
 function saveCampaign(){try{localStorage.setItem('arcanade-campaign',JSON.stringify(campaign));}catch(e){}}
 function drawWorldMap(tt){
   const c=document.getElementById('wmCanvas'); if(!c) return;
@@ -7649,6 +7702,17 @@ function drawWorldMap(tt){
     g.beginPath();g.moveTo(744,296);g.lineTo(750,303);g.lineTo(762,287);g.stroke();
   }
   if(l3open){ g.strokeStyle='rgba(90,60,30,.5)'; g.lineWidth=2; g.setLineDash([4,6]); g.beginPath();g.moveTo(680,150);g.quadraticCurveTo(760,200,715,280);g.stroke(); g.setLineDash([]); }
+  /* the arena: heads you have taken, kept */
+  const arenaOpen=Object.keys(campaign.beat||{}).length>0;
+  document.getElementById('bWmArena').style.display=arenaOpen?'block':'none';
+  if(arenaOpen){
+    const ax=255, ay=90;
+    node(ax,ay,true,false);
+    g.strokeStyle='#5a4a36'; g.lineWidth=3; g.beginPath(); g.moveTo(ax-22,ay-8); g.lineTo(ax+22,ay-8); g.moveTo(ax-18,ay-8); g.lineTo(ax-18,ay-30); g.moveTo(ax+18,ay-8); g.lineTo(ax+18,ay-30); g.stroke();
+    g.fillStyle='#b8504a'; g.beginPath(); g.arc(ax,ay-22,7,0,TAU); g.fill();
+    g.font="12px 'Cinzel',Georgia"; g.fillStyle='#5a3c1a'; g.textAlign='center'; g.fillText('THE ARENA',ax,ay+22);
+    g.font='italic 10px Georgia'; g.fillStyle='#8a6f4a'; g.fillText(Object.keys(campaign.beat).length+' head'+(Object.keys(campaign.beat).length===1?'':'s')+' taken',ax,ay+35);
+  }
   /* the rush: every head on one spike */
   const rushOpen=!!campaign.l4Cleared;
   document.getElementById('bWmRush').style.display=rushOpen?'block':'none';
@@ -7989,7 +8053,7 @@ function renderArmory(){
 
 /* ---------------- overlays / flow ---------------- */
 const ov=id=>document.getElementById(id);
-const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover','worldmap','store','armory','jukebox','chronicle'];
+const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover','worldmap','store','armory','jukebox','chronicle','arena'];
 function refreshBestLine(){
   const el=document.getElementById('bestLine');
   if(!el) return;
@@ -8115,6 +8179,8 @@ function renderChronicle(){
 }
 document.getElementById('bWmChron').onclick=()=>{SFX.chime();renderChronicle();show('chronicle');};
 document.getElementById('bWmRush').onclick=()=>{ if(!campaign.l4Cleared){SFX.clink();return;} SFX.roar(); startRush(); };
+document.getElementById('bWmArena').onclick=()=>{ SFX.chime(); renderArena(); show('arena'); };
+document.getElementById('bArenaBack').onclick=()=>{ show('worldmap'); };
 document.getElementById('bChronBack').onclick=()=>{show('worldmap');};
 document.getElementById('bWmShop').onclick=()=>{SFX.chime();armCls=cls;renderStore();show('store');};
 document.getElementById('bStoreBack').onclick=()=>{show('worldmap');};
@@ -8132,8 +8198,8 @@ document.getElementById('bSetBack').onclick=()=>{show(settingsFrom==='pause'?'pa
 document.getElementById('bSettingsP').onclick=()=>{settingsFrom='pause';show('settings');};
 document.getElementById('bResume').onclick=()=>{paused=false;hideAll();};
 document.getElementById('bRestart').onclick=()=>{startGame();};
-document.getElementById('bTitle').onclick=()=>{paused=false;rush.on=false;state='title';stopMusic();stopDrums();stopAmbience();show('title');};
-document.getElementById('bMap').onclick=()=>{paused=false;rush.on=false;state='map';stopMusic();stopDrums();stopAmbience();show('worldmap');};
+document.getElementById('bTitle').onclick=()=>{paused=false;rush.on=false;arena.on=false;state='title';stopMusic();stopDrums();stopAmbience();show('title');};
+document.getElementById('bMap').onclick=()=>{paused=false;rush.on=false;arena.on=false;state='map';stopMusic();stopDrums();stopAmbience();show('worldmap');};
 /* ---- the sound test ---- */
 const JUKE=[['title','Teller of the Tales','the title'],['field','Celtic Impulse','Vhal and the Thornwood'],['boss','Master of the Feast','the Warden, Old Thornheart, the Taproot'],['heart','Echoes of Time','the Heartwood'],['horn','Five Armies','the Horn of Bone']];
 const JUKE_SFX=[['shoot','bolt'],['fireball','greatfire'],['iceShoot','frost'],['freeze','freeze'],['hit','hit'],['die','kill'],['shatter','ward'],['pickup','relic'],['explode','keg'],['roar','boss roar'],['clang','winded'],['ambush','ambush'],['chime','checkpoint'],['javelin','javelin'],['slam','slam']];
