@@ -360,6 +360,7 @@
     <div class="setrow"><label>Damage numbers</label><div class="toggle" id="sDmg"></div></div>
     <div class="setrow"><label>Double jump</label><div class="toggle" id="sDJ"></div></div>
     <div class="setrow"><label>Windup bars over enemies</label><div class="toggle" id="sTele"></div></div>
+    <div class="setrow"><label>Lite mode (fewer particles, no foreground, no critters, no shadows)</label><div class="toggle" id="sLite"></div></div>
     <div class="setrow"><label>Fullscreen</label><button class="btn small" id="bFull" style="margin:0;padding:5px 16px;font-size:12px">Toggle</button></div>
     <div id="bindRows" style="border-top:1px solid rgba(255,150,70,.2);margin-top:14px;padding-top:4px"></div>
     <div style="text-align:right"><button class="btn small" id="bBindReset" style="margin-top:4px;padding:5px 14px;font-size:11px">Reset keys</button></div>
@@ -529,7 +530,7 @@ const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy};
 
 /* ---------------- settings ---------------- */
 const SET={vol:.6, music:.5, shake:true, particles:'full', timer:true, glow:1, tut:true,
-  fps:false, vign:true, ragdoll:true, autopause:true, dmgNums:false, doubleJump:true, teleBars:false};
+  fps:false, vign:true, ragdoll:true, autopause:true, dmgNums:false, doubleJump:true, teleBars:false, lite:false};
 try{Object.assign(SET, JSON.parse(localStorage.getItem('arcanade-settings')||'{}'));}catch(e){}
 function saveSet(){try{localStorage.setItem('arcanade-settings',JSON.stringify(SET));}catch(e){} applySet();}
 function applySet(){
@@ -546,11 +547,12 @@ function applySet(){
   document.getElementById('sDmg').classList.toggle('on',SET.dmgNums);
   document.getElementById('sDJ').classList.toggle('on',SET.doubleJump!==false);
   document.getElementById('sTele').classList.toggle('on',!!SET.teleBars);
+  document.getElementById('sLite').classList.toggle('on',!!SET.lite);
   document.querySelectorAll('#sPart span').forEach(s=>s.classList.toggle('on',s.dataset.v===SET.particles));
   if(master) master.gain.value=SET.vol*.5;
   for(const k of ['title','field','boss']) if(MUSIC[k]) MUSIC[k].volume=SET.music*.7;
 }
-const pMul=()=>SET.particles==='full'?1:.45;
+const pMul=()=>(SET.particles==='full'?1:.45)*(SET.lite?.35:1);
 
 /* ---------------- audio: synth sfx ---------------- */
 let AC=null, master=null, noiseBuf=null, verbGain=null;
@@ -1196,6 +1198,7 @@ function updateCritters(dt){
   critters=critters.filter(c=>!c.dead);
 }
 function drawCritters(t){
+  if(SET.lite) return;
   for(const c of critters){
     if(c.x<cam.x-80||c.x>cam.x+W+80||c.y<cam.y-80||c.y>cam.y+H+80) continue;
     if(c.type==='bird'){
@@ -1306,7 +1309,7 @@ function burstNest(ns){
   ns.dead=true; SFX.woodCrack(); hiss(.4,.08,2600);
   stings.push({x:ns.x+ns.w/2,y:ns.y+ns.h/2,r:90,t:4.5});
   for(let k=0;k<18*pMul();k++) spawnPart(ns.x+ns.w/2,ns.y+ns.h/2,rand(-120,120),rand(-120,120),rand(.6,1.4),2,'rgb(230,200,90)',0,true);
-  if(!player.dead&&dist2(player.x,player.y+27,ns.x+ns.w/2,ns.y+ns.h/2)<90*90) hitPlayer();
+  if(!player.dead&&dist2(player.x,player.y+27,ns.x+ns.w/2,ns.y+ns.h/2)<90*90){ hitPlayer(); floatText(player.x,player.y-24,'STUNG','#e8c060',true); }
   tip('nest','A hornet nest. The cloud stings — shoot the next one from a bough away.');
 }
 function spawnGrub(x,ceilY){
@@ -1527,6 +1530,7 @@ function loadLevel(n){
     buildLevel4(); BOSS_MARK=10500;
   }
   bakeBackdrop();
+  bakeForeground();
   seedCritters();
   // bought spells join the relic pool — duplicates make way for your grimoire
   const pool=ownedSpells();
@@ -3251,7 +3255,7 @@ function updatePlayer(dt){
         if(s.crumble&&!(s.crumbleT>0)){s.crumbleT=.55; SFX.woodTick();}
         if(s.tip&&!(s.tipT>0)&&!(s.tipDown>0)){s.tipT=.8; SFX.woodTick();}
         if(s.sway) p.x+=s.dx||0;
-        if(s.thornBough&&!s.dead){ hitPlayer(); p.vy=-380; p.onGround=false; p.kbX=0; }   // thorns are not a floor
+        if(s.thornBough&&!s.dead){ hitPlayer(); p.vy=-380; p.onGround=false; p.kbX=0; floatText(p.x,p.y-24,'THORNS','#8fd28a',true); }   // thorns are not a floor
       }else if(!s.oneWay&&p.vy<0&&p.y<=s.y+s.h&&p.y>s.y+s.h-30){
         p.y=s.y+s.h; p.vy=0;
       }
@@ -4183,6 +4187,13 @@ function update(dt){
       else if(s.tipRise){ s.y=Math.max(s.y-90*dt,s.baseY); if(s.y<=s.baseY) s.tipRise=false; } }
     if(s.sinkT>0){ s.sinkT-=dt; s.y+=55*dt; if(s.y>720){s.dead=true;} if(Math.random()<.3) spawnPart(s.x+rand(0,s.w),s.y,rand(-10,10),-rand(20,60),.5,2,'rgb(90,80,100)',0,false); }
   }
+  // standing in an unanswered sap gate: say it plainly, and point at the next hold
+  { const sp3=sapAt(player.x,player.y+player.h);
+    if(sp3&&!player.dead){ player.sapStandT=(player.sapStandT||0)+dt;
+      const answered=drafts.some(d=>d.pool===sp3)||sp3.charge>0||solids.some(c=>c.crust&&!c.dead&&c.pool===sp3);
+      if(!answered&&player.sapStandT>1.4){ player.sapStandT=-4;
+        tip('sapstand_'+Math.round(sp3.x0),isFire()?'You are standing in sap. Cast INTO it — the heat lifts you.':(isStorm()?'You are standing in sap. Cast INTO it — the charge throws you.':'You are standing in sap. Cast INTO it, at your feet — it hardens into a step. Again on top.')); }
+    } else player.sapStandT=0; }
   // the marsh rains
   const rainTarget=((LVL===2&&player.x>5400&&player.x<6800)||(LVL===4&&player.x>6400&&player.x<7700))?1:0;
   rainAmt=lerp(rainAmt,rainTarget,1-Math.pow(.3,dt));
@@ -4698,6 +4709,7 @@ function render(t){
   drawBoss(t);
   drawRunners(t);
   drawDebris(t);
+  drawStings(t);
   drawRodsAndGround(t);
   drawFireTrail(t);
   drawSigil(t);
@@ -4802,31 +4814,28 @@ function drawGrade(){
   ctx.fillRect(0,0,W,H);
   ctx.globalCompositeOperation='source-over';
 }
-function drawForeground(t){
-  if(LVL===3) return;   // inside the tree the near layer is the tree itself — nothing to slide past
-  // the nearest layer: soft, out-of-focus fronds and branches sliding past fastest
-  {
-    const par=1.85, step=420, start=Math.floor((cam.x*par-200)/step);
-    ctx.save(); ctx.filter='blur(2.5px)';
-    ctx.fillStyle=LVL===2?'rgba(14,24,14,.82)':'rgba(20,34,16,.72)';
-    for(let b=start;b*step-cam.x*par<=W+200;b++){
-      const k=(b*2246822519)>>>5;
-      if(k%2===0) continue;
-      const x=b*step-cam.x*par+(k%90);
-      const sway=Math.sin(t*.0012+b)*5;
-      if(cam.y>-90){   // a big fern at the feet
-        ctx.beginPath(); ctx.moveTo(x-60,H+10);
-        ctx.quadraticCurveTo(x-30+sway,H-110-(k%40),x+10+sway,H-150-(k%60));
-        ctx.quadraticCurveTo(x+40+sway,H-90,x+70,H+10); ctx.closePath(); ctx.fill();
-      }
-      if(LVL===2&&k%3===0){   // a branch reaching down from above
-        ctx.beginPath(); ctx.moveTo(x-40,-10);
-        ctx.quadraticCurveTo(x+20+sway,60+(k%50),x+90+sway,120+(k%40));
-        ctx.quadraticCurveTo(x+30+sway,70,x+60,-10); ctx.closePath(); ctx.fill();
-      }
-    }
-    ctx.restore();
+const FG={c:null,par:1.85};
+function bakeForeground(){
+  // the soft, out-of-focus fronds used to be blurred every frame — the single most expensive thing in the game. Now: once.
+  FG.c=null; if(LVL===3) return;
+  const WD=2400, c=document.createElement('canvas'); c.width=WD; c.height=720; const g=c.getContext('2d');
+  g.filter='blur(2.5px)'; g.fillStyle=LVL===2?'rgba(14,24,14,.82)':'rgba(20,34,16,.72)';
+  const step=420;
+  for(let b=0;b*step<WD+420;b++){
+    const k=(b*2246822519)>>>5; if(k%2===0) continue;
+    const x=((b*step+(k%90))%WD);
+    g.beginPath(); g.moveTo(x-60,730); g.quadraticCurveTo(x-30,720-110-(k%40),x+10,720-150-(k%60)); g.quadraticCurveTo(x+40,720-90,x+70,730); g.closePath(); g.fill();
+    if(LVL===2&&k%3===0){ g.beginPath(); g.moveTo(x-40,-10); g.quadraticCurveTo(x+20,60+(k%50),x+90,120+(k%40)); g.quadraticCurveTo(x+30,70,x+60,-10); g.closePath(); g.fill(); }
   }
+  g.filter='none';
+  FG.c=c;
+}
+function drawForeground(t){
+  if(LVL===3||!FG.c||SET.lite) return;
+  if(cam.y<-90&&LVL!==2) return;
+  const WD=2400, off=((cam.x*FG.par)%WD+WD)%WD;
+  const sway=Math.sin(t*.0012)*4;
+  ctx.drawImage(FG.c,-off+sway,0); ctx.drawImage(FG.c,WD-off+sway,0);
   if(cam.y<-90||LVL===3) return;   // no meadow grass halfway up a tree, or inside one
   // dark grass drifting past in front of the action
   const par=1.3, step=56, start=Math.floor((cam.x*par-90)/step);
@@ -5139,6 +5148,7 @@ function tone2(x,y,w,h){
   ctx.fillRect(x,y,Math.max(3,w*.22),h);
 }
 function drawShadowAt(x,feetY,w){
+  if(SET.lite) return;
   const sy=groundYAt(x,feetY-8);
   if(sy>cam.y+H+150) return;
   const gap=Math.max(0,sy-feetY);
@@ -6594,6 +6604,11 @@ function drawRodsAndGround(t){
     if(Math.random()<.3) arcs.push({x1:r.x,y1:r.y-38,x2:r.x+rand(-12,12),y2:r.y-38+rand(-12,8),t:.05});
     ctx.globalAlpha=1; }
 }
+function drawStings(t){
+  for(const st of stings){ const q=clamp(st.t/1.2,0,1);
+    ctx.fillStyle='rgba(230,200,90,'+(.18*q)+')'; ctx.beginPath(); ctx.ellipse(st.x,st.y,st.r*.9,st.r*.6,0,0,TAU); ctx.fill();
+    ctx.fillStyle='rgba(60,40,10,'+(.8*q)+')'; for(let k=0;k<14;k++){ const a2=t*.012+k*1.7; ctx.fillRect(st.x+Math.cos(a2*1.3+k)*st.r*.7,st.y+Math.sin(a2+k*2)*st.r*.45,3,2); } }
+}
 function drawFireTrail(t){
   if(!fireTrail.length) return;
   ctx.globalCompositeOperation='lighter';
@@ -6901,7 +6916,8 @@ function drawHUD(t){
   }
   if(SET.fps){
     ctx.textAlign='right'; ctx.fillStyle='rgba(74,56,38,.7)'; ctx.font='12px Georgia';
-    ctx.fillText(Math.round(fpsEma)+' fps', W-24, 54);
+    ctx.fillText(Math.round(fpsEma)+' fps  ·  update '+perf.u.toFixed(1)+'ms  ·  draw '+perf.r.toFixed(1)+'ms', W-24, 54);
+    ctx.fillText('parts '+parts.length+'  ·  solids '+solids.length+'  ·  foes '+enemies.filter(e=>!e.dead).length+'  ·  shots '+(shots.length+eshots.length)+'  ·  critters '+critters.length, W-24, 70);
   }
   // tutorial checklist — a page from the drill manual, impossible to miss
   if(tut.active&&SET.tut){
@@ -8163,6 +8179,7 @@ document.getElementById('sFps').onclick=()=>{SET.fps=!SET.fps;saveSet();};
 document.getElementById('sDmg').onclick=()=>{SET.dmgNums=!SET.dmgNums;saveSet();};
 document.getElementById('sDJ').onclick=()=>{SET.doubleJump=!SET.doubleJump;saveSet();};
 document.getElementById('sTele').onclick=()=>{SET.teleBars=!SET.teleBars;saveSet();};
+document.getElementById('sLite').onclick=()=>{SET.lite=!SET.lite;saveSet();};
 document.getElementById('bFull').onclick=()=>{
   if(document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen().catch(()=>{});
@@ -8207,15 +8224,19 @@ refreshBestLine();
 
 /* ---------------- main loop + watchdog ---------------- */
 let last=0, lastFrameAt=Date.now(), rafId=0;
-let fpsEma=60;
+let fpsEma=60; const perf={u:0,r:0};
 function frame(t){
   rafId=requestAnimationFrame(frame);
   lastFrameAt=Date.now();
   const dt=Math.min(.05,(t-last)/1000||.016); last=t;
   fpsEma=fpsEma*.95+(1/Math.max(dt,.001))*.05;
   pollGamepad(dt);
+  const t0=performance.now();
   if(state==='play'&&!paused) update(dt);
+  const t1=performance.now();
   render(t);
+  const t2=performance.now();
+  perf.u=perf.u*.9+(t1-t0)*.1; perf.r=perf.r*.9+(t2-t1)*.1;
   // living portraits while their pages are open
   if(!ov('bestiary').classList.contains('hidden')) drawPortraits(t);
   if(!ov('charsel').classList.contains('hidden')) drawCharPortraits(t);
