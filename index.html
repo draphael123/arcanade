@@ -212,7 +212,7 @@
     <div class="setrow"><label>Fullscreen</label><button class="btn small" id="bFull" style="margin:0;padding:5px 16px;font-size:12px">Toggle</button></div>
     <div id="bindRows" style="border-top:1px solid rgba(255,150,70,.2);margin-top:14px;padding-top:4px"></div>
     <div style="text-align:right"><button class="btn small" id="bBindReset" style="margin-top:4px;padding:5px 14px;font-size:11px">Reset keys</button></div>
-    <div class="setnote">music: "Teller of the Tales", "Master of the Feast" — Kevin MacLeod (incompetech.com), CC BY 4.0</div>
+    <div class="setnote">music: "Teller of the Tales", "Celtic Impulse", "Master of the Feast" — Kevin MacLeod (incompetech.com), CC BY 4.0</div>
     <button class="btn small" id="bSetBack" style="margin-top:16px">Back</button>
   </div>
 </div>
@@ -321,7 +321,7 @@ function applySet(){
   document.getElementById('sFps').classList.toggle('on',SET.fps);
   document.querySelectorAll('#sPart span').forEach(s=>s.classList.toggle('on',s.dataset.v===SET.particles));
   if(master) master.gain.value=SET.vol*.5;
-  for(const k of ['field','boss']) if(MUSIC[k]) MUSIC[k].volume=SET.music*.7;
+  for(const k of ['title','field','boss']) if(MUSIC[k]) MUSIC[k].volume=SET.music*.7;
 }
 const pMul=()=>SET.particles==='full'?1:.45;
 
@@ -423,13 +423,14 @@ const SFX={
 };
 
 /* ---------------- music (CC BY 4.0 — Kevin MacLeod, incompetech.com) ---------------- */
-const MUSIC={field:null,boss:null,cur:null,dead:false};
+const MUSIC={title:null,field:null,boss:null,cur:null,dead:false};
 function initMusic(){
   if(MUSIC.field||MUSIC.dead) return;
   try{
+    MUSIC.title=new Audio('audio/title.mp3');
     MUSIC.field=new Audio('audio/field.mp3');
     MUSIC.boss=new Audio('audio/boss.mp3');
-    for(const a of [MUSIC.field,MUSIC.boss]){
+    for(const a of [MUSIC.title,MUSIC.field,MUSIC.boss]){
       a.loop=true; a.volume=SET.music*.7;
       a.addEventListener('error',()=>{MUSIC.dead=true;});
     }
@@ -483,7 +484,7 @@ const CLASSES={
     weapons:{
       BOLT:  {name:'FIRE BOLT',     color:'rgb(255,154,60)',  rate:.14, spd:950, r:5,  dmg:1},
       SPREAD:{name:'EMBER FAN',     color:'rgb(255,179,71)',  rate:.2,  spd:780, r:4,  dmg:.6, n:5, arc:.14, life:.44},
-      LANCE: {name:'FLAME LANCE',   color:'rgb(255,94,60)',   len:540, dps:9,  beamW:7},
+      LANCE: {name:'FLAME LANCE',   color:'rgb(255,94,60)',   len:500, dps:5,  beamW:7},
       HEAVY: {name:'GREATFIRE',     color:'rgb(255,122,42)',  rate:.55, spd:640, r:10, dmg:2.5, g:700, bounces:2},
       BREATH:{name:"DRAKE'S BREATH",color:'rgb(255,196,107)', coneR:245, dps:12, half:.42},
     }},
@@ -493,9 +494,9 @@ const CLASSES={
     ranks:['HOARFROST NOVICE','WINTERBORN','GLACIER LORD','THE UNMELTING'],
     weapons:{
       /* frost hits heavier and slower, and its shards pass through men */
-      BOLT:  {name:'FROST BOLT',      color:'rgb(140,205,255)', rate:.19, spd:760, r:7,  dmg:1.4},
+      BOLT:  {name:'FROST BOLT',      color:'rgb(140,205,255)', rate:.18, spd:810, r:7,  dmg:1.45},
       SPREAD:{name:'SHARD FAN',       color:'rgb(175,225,255)', rate:.24, spd:820, r:5,  dmg:.9, n:3, arc:.1, life:.5, pierce:1},
-      LANCE: {name:'GLACIER LANCE',   color:'rgb(120,190,255)', len:400, dps:11, beamW:12},
+      LANCE: {name:'GLACIER LANCE',   color:'rgb(120,190,255)', len:380, dps:5.5, beamW:12},
       HEAVY: {name:'COMET',           color:'rgb(150,210,250)', rate:.65, spd:600, r:11, dmg:3.2, g:760, bounces:0, shatter:3},
       BREATH:{name:"WINTER'S BREATH", color:'rgb(200,235,255)', coneR:200, dps:10, half:.5},
     }},
@@ -505,9 +506,9 @@ const WPN=k=>CLASSES[cls].weapons[k];
 
 /* ---------------- difficulty ---------------- */
 const DIFFS={
-  squire:{label:'SQUIRE', note:'5 lives · a gentler road', lives:5, eSpd:.8,  eCad:1.35, eHp:.75, bossHp:.85},
-  knight:{label:'KNIGHT', note:'3 lives · a fair fight',   lives:3, eSpd:1,   eCad:1,    eHp:1,   bossHp:1},
-  warden:{label:'WARDEN', note:'2 lives · the Wall bites', lives:2, eSpd:1.15,eCad:.8,   eHp:1.3, bossHp:1.2},
+  squire:{label:'SQUIRE', note:'5 lives · twin wards · a gentler road', lives:5, wards:2, eSpd:.8,  eCad:1.35, eHp:.75, bossHp:.85},
+  knight:{label:'KNIGHT', note:'3 lives · one ward · a fair fight',     lives:3, wards:1, eSpd:1,   eCad:1,    eHp:1,   bossHp:1},
+  warden:{label:'WARDEN', note:'2 lives · NO ward · the Wall bites',    lives:2, wards:0, eSpd:1.15,eCad:.8,   eHp:1.3, bossHp:1.2},
 };
 let diff='knight', lives=3;
 const DIFF=()=>DIFFS[diff];
@@ -605,7 +606,7 @@ let player=null;
 
 function makePlayer(x){
   return {x, y:400, vx:0, vy:0, w:26, h:54, onGround:false, face:1,
-    ward:true, invulnT:2, dashT:0, dashCd:0, dashDir:1, dropT:0,
+    wards:DIFF().wards, invulnT:2, dashT:0, dashCd:0, dashDir:1, dropT:0,
     coyoteT:0, jumpBufT:0,
     weapon:'BOLT', slots:['BOLT',null,null], slot:0,
     fireT:0, lanceTick:0, dead:false, respawnT:0, animT:0, flashT:0};
@@ -934,7 +935,7 @@ function startBoss(){
 function damageBoss(dmg,x,y){
   const b=boss;
   if(!b||b.dead) return;
-  const mult=b.st==='winded'?2:1;
+  const mult=(b.st==='winded'?2:1)*(b.chillT>0?1.2:1);
   b.hp-=dmg*mult;
   b.hurtT=.09;
   markSeen('warden');
@@ -1025,7 +1026,7 @@ function startMBoss(){
 function damageMBoss(dmg,x,y){
   const m=mboss;
   if(!m||m.dead) return;
-  m.hp-=dmg; m.hurtT=.09;
+  m.hp-=dmg*(m.chillT>0?1.2:1); m.hurtT=.09;
   markSeen('cm');
   if(dmg>=.5){SFX.bossHurt(); burst(x,y,4,'rgb(255,179,71)',.5);}
   if(isFire()&&dmg>=.5&&m.burn<=0&&Math.random()<.3){m.burn=4;SFX.ignite();}
@@ -1186,11 +1187,11 @@ function hitPlayer(){
   const p=player;
   if(p.dead||p.invulnT>0) return;
   if(ARC.god) return;
-  if(p.ward){
-    p.ward=false; p.invulnT=1.2; p.flashT=.12; shake(9); SFX.shatter();
+  if(p.wards>0){
+    p.wards--; p.invulnT=1.2; p.flashT=.12; shake(9); SFX.shatter();
     dmgFlashT=.45;
     burst(p.x,p.y+24,22,'rgb(140,200,255)');
-    tip('ward','Your ward shattered — one more hit kills. Relics restore it.');
+    tip('ward', p.wards>0?'A ward shattered — another still holds.':'Your ward shattered — one more hit kills. Relics restore it.');
   }else{
     killPlayer();
   }
@@ -1347,7 +1348,7 @@ function updatePlayer(dt){
       if(empty!==-1){p.slots[empty]=pk.type; p.slot=empty;}
       else {const nxt=(p.slot+1)%3; p.slots[nxt]=pk.type; p.slot=nxt;}
       p.weapon=p.slots[p.slot];
-      if(!p.ward){p.ward=true;}
+      p.wards=Math.max(p.wards,DIFF().wards);
       p.invulnT=Math.max(p.invulnT,.6);
       SFX.pickup(); burst(pk.x,pk.y,20,WPN(pk.type).color);
       spawnRing(pk.x,pk.y,WPN(pk.type).color);
@@ -1465,6 +1466,7 @@ function fireBreath(x,y,a,dt){
 /* ---------------- shots ---------------- */
 function damageEnemy(e,dmg,x,y,silent,launch){
   if(e.dead) return;
+  if(e.chillT>0) dmg*=1.3;      // the cold opens them up — chill is a setup, not a garnish
   e.hp-=dmg;
   if(!silent){
     SFX.hit(); burst(x,y,3,'rgb(255,179,71)',.5); e.hurtT=.09;
@@ -2763,10 +2765,14 @@ function drawPlayer(t){
     ctx.fillStyle='rgba(255,250,230,.9)';
     ctx.beginPath();ctx.arc(gx,gy,5.5,0,TAU);ctx.fill();
   }
-  if(p.ward){
+  if(p.wards>0){
     ctx.strokeStyle='rgba(90,160,255,'+(0.3+0.12*Math.sin(t*.005))+')';
     ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(x,y+26,34,0,TAU);ctx.stroke();
+    if(p.wards>1){
+      ctx.strokeStyle='rgba(90,160,255,'+(0.2+0.1*Math.sin(t*.005+1))+')';
+      ctx.beginPath();ctx.arc(x,y+26,40,0,TAU);ctx.stroke();
+    }
   }
   ctx.globalAlpha=1;
 }
@@ -2811,10 +2817,21 @@ function drawShotsGlow(t){
       if(s.fireArr){
         drawGlow(s.x,s.y,16,'rgb(255,150,60)',.8);
         if(Math.random()<.5) spawnPart(s.x,s.y,rand(-10,10),rand(-30,-5),.25,2.5,'rgb(255,140,58)',0,true);
+      }else{
+        drawGlow(s.x,s.y,13,'rgb(255,235,200)',.55);   // arrows carry a warning gleam
       }
-      ctx.strokeStyle=s.fireArr?'#e8a86a':'#c9b8a0';ctx.lineWidth=2;
       const l=Math.hypot(s.vx,s.vy)||1;
-      ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx/l*14,s.y-s.vy/l*14);ctx.stroke();
+      const ux=s.vx/l, uy=s.vy/l;
+      ctx.strokeStyle=s.fireArr?'#e8a86a':'#7a5a38';ctx.lineWidth=3;
+      ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-ux*22,s.y-uy*22);ctx.stroke();
+      ctx.fillStyle='#fff6e0';                          // bright head
+      ctx.beginPath();
+      ctx.moveTo(s.x+ux*7,s.y+uy*7);
+      ctx.lineTo(s.x-uy*3.5,s.y+ux*3.5);
+      ctx.lineTo(s.x+uy*3.5,s.y-ux*3.5);
+      ctx.closePath();ctx.fill();
+      ctx.fillStyle='#d8ccb0';                          // fletching
+      ctx.fillRect(s.x-ux*20-2,s.y-uy*20-2,4,4);
     }
   }
   if(lanceEnd&&lanceEnd.t>0&&player.weapon==='LANCE'&&(mouse.down||gp.fire)&&!player.dead){
@@ -2864,7 +2881,7 @@ function drawVignette(t){
   if(!SET.vign) return;
   let red=0;
   if(dmgFlashT>0) red=Math.min(.5,dmgFlashT*1.3);
-  if(state==='play'&&player&&!player.dead&&!player.ward)
+  if(state==='play'&&player&&!player.dead&&player.wards<=0)
     red=Math.max(red,.06+.035*Math.sin((t||0)*.004));
   if(red>0){
     const rg=ctx.createRadialGradient(W/2,H/2,H*.42,W/2,H/2,H*.78);
@@ -2884,18 +2901,22 @@ function corners(x,y,w2,h2){
 }
 function drawHUD(t){
   if(state!=='play') return;
-  ctx.save();
-  ctx.translate(30,34);
-  if(player.ward){
-    drawGlow(0,0,22,'rgb(140,200,255)',.8);
-    ctx.fillStyle='#8cc8ff';
-  }else ctx.fillStyle='#3a3040';
-  ctx.beginPath();
-  ctx.moveTo(0,-14);ctx.quadraticCurveTo(12,-2,0,14);ctx.quadraticCurveTo(-12,-2,0,-14);
-  ctx.fill();
-  ctx.restore();
+  const maxW=Math.max(DIFF().wards,player.wards);
+  for(let i=0;i<Math.max(maxW,1);i++){
+    ctx.save();
+    ctx.translate(30+i*24,34);
+    const lit=i<player.wards;
+    if(lit){
+      drawGlow(0,0,22,'rgb(140,200,255)',.8);
+      ctx.fillStyle='#8cc8ff';
+    }else ctx.fillStyle='#3a3040';
+    ctx.beginPath();
+    ctx.moveTo(0,-14);ctx.quadraticCurveTo(12,-2,0,14);ctx.quadraticCurveTo(-12,-2,0,-14);
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.font='13px Georgia'; ctx.fillStyle='#4a3826'; ctx.textAlign='left';
-  ctx.fillText(player.ward?'WARD':'WARD DOWN',52,38);
+  ctx.fillText(player.wards>0?'WARD'+(player.wards>1?' ×'+player.wards:''):(DIFF().wards===0?'NO WARD':'WARD DOWN'), 30+Math.max(maxW,1)*24, 38);
   // lives — wax-seal tokens
   const nTok=Math.max(DIFF().lives,lives);
   for(let i=0;i<nTok;i++){
@@ -3309,7 +3330,10 @@ function refreshBestLine(){
 }
 function show(id){
   OVERLAYS.forEach(o=>ov(o).classList.toggle('hidden',o!==id));
-  if(id==='title') refreshBestLine();
+  if(id==='title'){
+    refreshBestLine();
+    if(AC) playMusic('title');   // the storybook theme belongs to the menu
+  }
 }
 function hideAll(){OVERLAYS.forEach(o=>ov(o).classList.add('hidden'));}
 function startGame(){
