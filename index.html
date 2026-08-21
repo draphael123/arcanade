@@ -1184,7 +1184,7 @@ function trySap(x,y){
       const top=stack.length?Math.min(...stack.map(c=>c.y)):null;
       const ny=top===null?sp.y-10:top-95;
       const cx=clamp(x,sp.x0+46,sp.x1-46);
-      solids.push({x:cx-46,y:ny,w:92,h:12,crust:true,pool:sp,melt:45,oneWay:false,flam:false,burn:0,spreadT:0,dead:false});
+      solids.push({x:cx-46,y:ny,w:92,h:12,crust:true,pool:sp,melt:45,oneWay:true,flam:false,burn:0,spreadT:0,dead:false});   // one-way: a stair is climbed from beneath
       SFX.freeze(); burst(cx,ny+4,10,'rgb(255,225,170)',.5); spawnRing(cx,ny+4,'rgb(255,230,180)');
       tip('crust',isFrost()?'Frozen sap bears weight — and freezes again on top of itself. Build a stair.':'The light hardens the sap — and hardens again on top of itself. Build a stair.');
       if(sp.stand) sp.broken=true;
@@ -1192,6 +1192,14 @@ function trySap(x,y){
     return true;
   }
   return false;
+}
+let stings=[];
+function burstNest(ns){
+  ns.dead=true; SFX.woodCrack(); hiss(.4,.08,2600);
+  stings.push({x:ns.x+ns.w/2,y:ns.y+ns.h/2,r:90,t:4.5});
+  for(let k=0;k<18*pMul();k++) spawnPart(ns.x+ns.w/2,ns.y+ns.h/2,rand(-120,120),rand(-120,120),rand(.6,1.4),2,'rgb(230,200,90)',0,true);
+  if(!player.dead&&dist2(player.x,player.y+27,ns.x+ns.w/2,ns.y+ns.h/2)<90*90) hitPlayer();
+  tip('nest','A hornet nest. The cloud stings — shoot the next one from a bough away.');
 }
 function spawnGrub(x,ceilY){
   const e=spawnEnemy('grub',x,ceilY+22); e.ceil=true; e.y=ceilY; return e;
@@ -1385,12 +1393,13 @@ function loadLevel(n){
     LEVEL=14000; WALLX=1e9; ARENA=12520; BOSS_TRIG=1e9; CAM_MIN_Y=-1580;
     WATERS=[{x0:5610,x1:5890},{x0:6210,x1:6490}];
     CHASMS=[[5400,6800]];
-    CHECKPOINTS=[60,1900,3300,4390,5450,6900,8900,10500,12350];
+    CHECKPOINTS=[60,1900,3300,4390,5450,6900,8900,10500,12350,12860];
+    CP_Y={12860:-426};
     MARENA={x0:4420,x1:5390,trig:4650,cam:4420};
     ZONES=[[0,[60,115,70],.10],[3200,[80,95,50],.11],[4400,[210,180,90],.08],
       [5400,[70,125,115],.10],[6800,[40,85,60],.13],[8800,[135,115,90],.09],
       [10400,[115,95,60],.10],[12400,[235,175,95],.09],[14000,[235,175,95],.09]];
-    buildLevel2(); BOSS_MARK=12550;
+    buildLevel2(); BOSS_MARK=12550; CP_Y={12860:-426};
   }else if(n===3){
     LEVEL=14000; WALLX=1e9; ARENA=12600; BOSS_TRIG=12700; CAM_MIN_Y=-2200-Math.round(H*.62)-110;
     WATERS=[{x0:9900,x1:10200},{x0:10700,x1:11000},{x0:12600,x1:13960}];
@@ -1456,15 +1465,32 @@ function buildLevel2(){
   S(11230,312,40,68,{breakable:true,hp:8,seal:true,reward:'HEAVY'});
   /* --- THE GREAT TREE 12400..14000: the climb --- */
   {
-    // every bough grows out of the trunk (12920..13110): left, then right, 112px a step, the last one 78px under the crown
+    // every bough grows out of the trunk (12920..13110): left, then right, 112px a step — and six of them ask something of you
     const TX0=12920, TW=190;
+    const THORNED=[3,13], SWAY=[5,12,15], NESTS=[6,14], GATE=8;
     let by=470;
     for(let i=0;i<17;i++){
-      if(i%2===0) S(TX0-150,by,190,16,{oneWay:true,plank:true,bough:true,rootRight:true});        // living wood: it chars, it never falls
-      else        S(TX0+TW-40,by,190,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+      if(i===9||i===10){ by-=112; continue; }                      // the gap the sap gate spans
+      const left=i%2===0, bx=left?TX0-150:TX0+TW-40;
+      const b=S(bx,by,190,16,{oneWay:true,plank:true,bough:true,rootRight:left});   // living wood: it chars, it never falls
+      if(THORNED.includes(i)){                                     // choked: you cannot stand on thorns — burn, shatter, shock or cleave them
+        const th=S(bx+8,by-34,174,34,{bram:true,flam:true,breakable:true,hp:6,thornBough:true,grow:1});
+        b.thorned=th;
+      }
+      if(SWAY.includes(i)){ b.sway={cx:bx,amp:22,ph:i*1.7,spd:.8+i*.05}; }   // the wind moves these — enough to time, not enough to miss
+      if(NESTS.includes(i)){ const nx=bx+(left?120:40); const ns=P(nx,by+16,24,32,'nest'); ns.hp=2; ns.flam=true; }
+      if(i===GATE){ SAPS.push({x0:bx+30,x1:bx+160,y:by-28,d:28}); }           // the sap pocket — three boughs' height in one go
+      if(i===7){ S(bx+190-30,by,170,16,{oneWay:true,plank:true,bough:true,rootRight:true});   // a side bough, and someone on it
+        const cg=P(bx+190-30+70,by-54,42,54,'cage'); cg.flam=false; cg.hp=2; }
+      if(i===8){ const sh=P(bx+20-14,by-64,28,64,'shrine'); sh.flam=false; sh.lit=false; }   // a rest, halfway
+      if(i===15){ const wv=spawnEnemy('weave',bx+95,by); wv.perch=true; }                     // the gardener, above you
       by-=112;
     }
-    S(12520,-1400,1260,40,{stone:true,oneWay:true});              // the crown — you come up through it from the last bough
+    /* the living crown: the trunk's top and the boughs that fan from it. Bark, not stone; gaps you can drop and shoot through. */
+    S(12520,-1400,420,18,{oneWay:true,plank:true,bough:true,rootRight:true});     // 12520..12940 — into the trunk
+    S(12900,-1406,230,40,{bark:true,oneWay:true});                               // the trunk's crown — up through it, like everything else here
+    S(13090,-1400,470,18,{oneWay:true,plank:true,bough:true,rootRight:false});    // 13090..13560
+    S(13520,-1400,260,16,{oneWay:true,plank:true,bough:true,rootRight:false});    // 13520..13780 — the far bough, where the old tree waits
   }
   /* --- props --- */
   const grassAt=[150,320,520,760,980,1250,1600,1950,2350,2700,3050,4450,4700,4950,5150,
@@ -1485,6 +1511,7 @@ function buildLevel2(){
     const cg=P(cx2,groundYAt(cx2)-54,42,54,'cage'); cg.flam=false; cg.hp=2;
   }
   for(const cx of CHECKPOINTS){
+    if(cx===12860) continue;
     const s=P(cx-14,groundYAt(cx)-64,28,64,'shrine');
     s.flam=false; s.lit=(cx===60);
   }
@@ -1614,7 +1641,7 @@ function buildLevel3(){
   { const pool=SAPS[0];
     if(isFire()) drafts.push({pool,t:1e9});
     else if(isStorm()) pool.charge=1e9;
-    else for(let k=0;k<3;k++) solids.push({x:1640-46,y:pool.y-10-k*95,w:92,h:12,crust:true,pool,melt:1e9,oneWay:false,flam:false,burn:0,spreadT:0,dead:false}); }
+    else for(let k=0;k<3;k++) solids.push({x:1640-46,y:pool.y-10-k*95,w:92,h:12,crust:true,pool,melt:1e9,oneWay:true,flam:false,burn:0,spreadT:0,dead:false}); }
   ambushes=[
     {x:1500,done:false,list:[['hound','L'],['hound','R'],['root','R']]},
     {x:3700,done:false,list:[['hound','L'],['hound','R'],['weave','R']]},
@@ -2013,9 +2040,10 @@ function updateEnemies(dt){
           e.windup-=dt*cold;
           if(e.windup<=0) growBramble(e);
         }else{
-          if(adx<240){e.x-=e.face*80*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*8;}
+          if(e.perch){ /* the gardener keeps to its bough */ }
+          else if(adx<240){e.x-=e.face*80*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*8;}
           else if(adx>520&&adx<820){e.x+=e.face*70*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*8;}
-          if(adx<700&&e.t>3.4*DIFF().eCad){e.t=0;e.windup=.7;}
+          if(adx<(e.perch?360:700)&&Math.abs(player.y-e.y)<(e.perch?420:9999)&&e.t>3.4*DIFF().eCad){e.t=0;e.windup=.7;}
         }
       }
     }else{
@@ -2041,10 +2069,16 @@ function fireArrow(e){
   eshots.push({x:e.x,y:e.y+10,vx:dx/T,vy:dy/T-.5*g*T,g,r:4,life:3,arrow:true});
   SFX.shoot();
 }
+function platformYAt(x,below){
+  // the nearest thing to stand on at x, boughs included — for things that grow where you walk
+  let best=1e9;
+  for(const s of solids){ if(s.dead||s.ice||s.breakable) continue; if(x>=s.x&&x<=s.x+s.w&&s.y<best&&s.y>=below) best=s.y; }
+  return best===1e9?groundYAt(x,below):best;
+}
 function growBramble(e){
   if(solids.filter(s=>s.bram&&!s.dead&&s.owner===e).length>=3) return;
   const bx=player.x-(player.face||1)*85;         // behind you — cutting the retreat
-  const gy=groundYAt(bx,player.y-40);
+  const gy=platformYAt(bx,player.y-40);
   if(gy>cam.y+H+100) return;
   solids.push({x:bx-15,y:gy-90,w:30,h:90,bram:true,flam:true,breakable:true,hp:5,maxHp:5,
     owner:e,grow:0,oneWay:false,burn:0,spreadT:0,dead:false});
@@ -2960,7 +2994,8 @@ function updatePlayer(dt){
     ? {x:p.x+gp.aimX*400, y:p.y+22+gp.aimY*400}   // right stick owns the aim while it moves
     : {x:mouse.x+cam.x, y:mouse.y};
   p.face=wm.x>=p.x?1:-1;
-  const inSap=!!sapAt(p.x,p.y+p.h)||puddles.some(q=>Math.abs(q.x-p.x)<q.w/2&&Math.abs(q.y-(p.y+p.h))<22);
+  const inSting=stings.some(st=>dist2(st.x,st.y,p.x,p.y+27)<st.r*st.r);
+  const inSap=!!sapAt(p.x,p.y+p.h)||puddles.some(q=>Math.abs(q.x-p.x)<q.w/2&&Math.abs(q.y-(p.y+p.h))<22)||inSting;
   const abil=down('ability')&&state==='play'&&!paused&&!p.keg&&p.frozenT<=0;
   if(isPaladin()){
     p.guarding=abil&&p.guardM>0&&p.onGround;
@@ -3021,7 +3056,7 @@ function updatePlayer(dt){
     p.vy+=2200*dt;
     for(const d of drafts){
       const sp2=d.pool;
-      if(p.x>sp2.x0&&p.x<sp2.x1&&p.y+p.h<sp2.y+12&&p.y>sp2.y-560){
+      if(p.x>sp2.x0&&p.x<sp2.x1&&p.y+p.h<sp2.y+sp2.d+8&&p.y>sp2.y-560){   // anywhere in the pool, or in the column above it
         p.vy=Math.min(p.vy,-470); p.onGround=false; p.airJumps=0;
         if(Math.random()<.4) spawnPart(p.x+rand(-10,10),p.y+p.h,rand(-20,20),-rand(60,140),.3,2.5,'rgb(255,190,90)',0,true);
       }
@@ -3068,6 +3103,8 @@ function updatePlayer(dt){
         if(s.oneWay&&p.y+p.h-p.vy*dt>s.y+6) continue;
         p.y=s.y-p.h; p.vy=0; p.onGround=true; p.groundStone=!!(s.stone||s.ice); p.groundKind=(s.stone||s.ice)?'stone':(s.plank?'wood':'grass');
         if(s.crumble&&!(s.crumbleT>0)){s.crumbleT=.55; SFX.woodTick();}
+        if(s.sway) p.x+=s.dx||0;
+        if(s.thornBough&&!s.dead){ hitPlayer(); p.vy=-380; p.onGround=false; p.kbX=0; }   // thorns are not a floor
       }else if(!s.oneWay&&p.vy<0&&p.y<=s.y+s.h&&p.y>s.y+s.h-30){
         p.y=s.y+s.h; p.vy=0;
       }
@@ -3482,6 +3519,11 @@ function updateShots(dt){
       if(boom){explodeKegAt(s.x,s.y); s.dead=true;}
       continue;
     }
+    // hornet nests burst when shot — better from here than from under them
+    {
+      const ns=props.find(q=>q.kind==='nest'&&!q.dead&&s.x>q.x-6&&s.x<q.x+q.w+6&&s.y>q.y-6&&s.y<q.y+q.h+6);
+      if(ns){ ns.hp--; SFX.thud(); burst(s.x,s.y,4,'rgb(200,180,120)',.4); if(ns.hp<=0) burstNest(ns); s.dead=true; continue; }
+    }
     // iron cages crack under any spell
     {
       const cg=props.find(q=>q.kind==='cage'&&!q.dead&&s.x>q.x-4&&s.x<q.x+q.w+4&&s.y>q.y-4&&s.y<q.y+q.h+4);
@@ -3542,7 +3584,7 @@ function updateShots(dt){
     if(trySap(s.x,s.y)){s.dead=true;continue;}
     if(tryFreezeWater(s.x,s.y)){s.dead=true;continue;}
     for(const sol of solids){
-      if(sol.dead) continue;
+      if(sol.dead||(sol.oneWay&&!sol.breakable)) continue;
       if(s.x>sol.x&&s.x<sol.x+sol.w&&s.y>sol.y&&s.y<sol.y+sol.h){
         if(sol.breakable) damageSolid(sol,s.dmg,s.x,s.y);
         if(s.ball&&s.bounces>0&&s.vy>0&&s.y<sol.y+22&&!sol.breakable){
@@ -3797,6 +3839,8 @@ function updateParts(dt){
     p.x+=p.vx*dt; p.y+=p.vy*dt;
   }
   parts=parts.filter(p=>p.life>0);
+  if(LVL===2&&player.x>12400&&player.y<-140&&Math.random()<.25*pMul())
+    spawnPart(cam.x+rand(0,W), cam.y-10, 0, rand(140,220), rand(2,3), 2.2,'rgb(230,170,70)',420,false);   // the tree bleeds a little
   if(LVL===3){
     // motes of sap-light climb the dark
     if(Math.random()<.16*pMul())
@@ -3927,7 +3971,12 @@ function update(dt){
   fireTrail=fireTrail.filter(f=>f.t>0);
   for(const sp of SAPS) if(sp.charge>0) sp.charge-=dt;
   for(const q of puddles) q.t-=dt; puddles=puddles.filter(q=>q.t>0);
+  for(const st of stings){ st.t-=dt; if(Math.random()<.5*pMul()) spawnPart(st.x+rand(-st.r,st.r)*.8,st.y+rand(-st.r,st.r)*.6,rand(-60,60),rand(-60,60),.5,1.8,'rgb(230,200,90)',0,true); }
+  stings=stings.filter(st=>st.t>0);
+  // a nest you pass under wakes
+  for(const ns of props) if(ns.kind==='nest'&&!ns.dead&&!player.dead&&Math.abs(player.x-(ns.x+ns.w/2))<44&&player.y>ns.y&&player.y-ns.y<140){ burstNest(ns); }
   for(const s of solids){
+    if(s.sway){ const nx=s.sway.cx+Math.sin(gameTime*s.sway.spd+s.sway.ph)*s.sway.amp; s.dx=nx-s.x; s.x=nx; if(s.thorned&&!s.thorned.dead) s.thorned.x=nx+8; }
     if(s.crumbleT>0){
       s.crumbleT-=dt;
       if(Math.random()<.5) spawnPart(s.x+rand(0,s.w),s.y+s.h,rand(-20,20),rand(20,80),.4,2.5,'rgb(120,90,50)',500,false);
@@ -3986,6 +4035,8 @@ function update(dt){
     if(Math.abs(player.x-640)<80) tip('hound','Warhounds run you down. Dash through the lunge, or meet it in the air.');
     if(Math.abs(player.x-1420)<80) tip('canopy','Two roads: the floor, or the branches above. '+(isFire()?'Mind your sparks up there — the canopy is tinder.':'The high road is drier. And flammable.'));
     if(Math.abs(player.x-12440)<80) tip('climb','The only way is up. The old tree drops dead wood on climbers.');
+    if(player.x>12700&&player.x<13300&&player.y<120&&player.y>-20) tip('thornbough','Thorns on the bough. You cannot stand on them — '+(isFire()?'burn them.':(isFrost()?'shatter them.':(isStorm()?'shock them.':'cleave them.'))));
+    if(player.x>12700&&player.x<13300&&player.y<-380&&player.y>-500) tip('sapgate','Sap in the bough. The next hold is three boughs up — '+(isFire()?'light it and ride.':(isFrost()?'freeze it, and again on top.':(isStorm()?'charge it, and let it throw you.':'bless it, and again on top.'))));
   }else if(LVL===3){
     if(Math.abs(player.x-1380)<70) tip('sap','Sap. It will hold you like amber holds a fly. '+(isFire()?'Heat it, and it lifts.':(isStorm()?'Charge it, and it throws you.':(isPaladin()?'Bless it, and it bears you.':'Chill it, and it bears you.'))));
     if(Math.abs(player.x-2080)<60&&player.y>300) tip('well','The Sapwell. Up, by bough and sap. Three gates are too tall to jump — use what you are.');
@@ -5380,6 +5431,12 @@ function drawProps(t){
         ctx.quadraticCurveTo(fx+7,fy-13-Math.sin(t*.015+x)*4,fx+6,fy+7);   // it leans toward the road ahead
         ctx.closePath();ctx.fill();
       }
+    }else if(p.kind==='nest'){
+      ctx.strokeStyle='#6b5a3a'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+w/2,y-2); ctx.lineTo(x+w/2,y+4); ctx.stroke();
+      ctx.fillStyle='#c9b27a'; ctx.beginPath(); ctx.moveTo(x+2,y+6); ctx.quadraticCurveTo(x-4,y+h*.6,x+w/2,y+h); ctx.quadraticCurveTo(x+w+4,y+h*.6,x+w-2,y+6); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(90,70,40,.5)'; ctx.lineWidth=1; for(let k=0;k<3;k++){ ctx.beginPath(); ctx.ellipse(x+w/2,y+10+k*7,w/2-2-k,3,0,0,TAU); ctx.stroke(); }
+      ctx.fillStyle='#3a2a14'; ctx.beginPath(); ctx.arc(x+w/2,y+h-6,2.5,0,TAU); ctx.fill();
+      if(Math.random()<.15) spawnPart(x+w/2+rand(-8,8),y+h,rand(-30,30),rand(-20,20),.5,1.5,'rgb(230,200,90)',0,true);
     }else if(p.kind==='bally'){
       ctx.fillStyle='#6b4a2e'; ctx.fillRect(x+10,y+40,100,14);
       ctx.fillStyle='#4a3420'; ctx.beginPath(); ctx.arc(x+30,y+56,8,0,TAU); ctx.arc(x+90,y+56,8,0,TAU); ctx.fill();
@@ -7669,7 +7726,7 @@ function startGame(){
   player.slots=[startSpell,null,null]; player.slot=0; player.weapon=startSpell;
   if(shop.owned.second_slot&&shop.start2&&shop.start2!=='none'&&shop.owned['sp_'+shop.start2]&&shop.start2!==startSpell) player.slots[1]=shop.start2;
   runEmbers=0; petPos={x:60,y:player.y+player.h};
-  streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums(); wisps=[]; hornProp=null; fireTrail=[]; arcs=[]; gust=0; gustT=6; gustOn=0;
+  streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums(); wisps=[]; hornProp=null; fireTrail=[]; arcs=[]; gust=0; gustT=6; gustOn=0; stings=[];
   startAmbience();
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
   playMusic('field');
