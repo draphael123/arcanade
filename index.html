@@ -774,6 +774,7 @@ function loadLevel(n){
       [10400,[115,95,60],.10],[12400,[235,175,95],.09],[14000,[235,175,95],.09]];
     buildLevel2();
   }
+  bakeBackdrop();
   // bought spells join the relic pool — duplicates make way for your grimoire
   const pool=ownedSpells();
   if(pool.length){
@@ -1037,6 +1038,7 @@ function startTutorialYard(){
   MARENA={x0:0,x1:0,trig:1e9,cam:0};
   CHECKPOINTS=[60,2060];
   ZONES=[[0,[96,140,80],.05],[2700,[96,140,80],.05]];
+  bakeBackdrop();
   rescued=0; trialsFound=0; runners=[]; sealFlashT=0; grabKey=false; runEmbers=0;
   lives=DIFF().lives;
   tutorialMode=true; forceTut=false;
@@ -2401,6 +2403,256 @@ function ridge(x,seed){
   return Math.sin(x*.0016+seed)*46+Math.sin(x*.0007+seed*2.7)*80+Math.sin(x*.004+seed*1.3)*18;
 }
 const vOff=p=>(-cam.y)*p*.5;   // parallax layers sink as you climb
+
+/* ---------------- baked painterly backdrops ----------------
+   Drawn once per level into offscreen canvases with far more detail
+   than per-frame drawing could afford, then scrolled like paintings. */
+const BG={layers:[],W:2400};
+function sRand(seed){
+  let s=seed>>>0;
+  return ()=>{
+    s=Math.imul(s^(s>>>15),s|1); s^=s+Math.imul(s^(s>>>7),s|61);
+    return ((s^(s>>>14))>>>0)/4294967296;
+  };
+}
+function bakeBackdrop(){
+  BG.layers=[];
+  const WD=BG.W;
+  const mk=()=>{const c=document.createElement('canvas');c.width=WD;c.height=720;return c;};
+  const rimTree=(g,x,y,s,dark,lite)=>{
+    g.fillStyle=dark;
+    g.fillRect(x-1.5*s,y-8*s,3*s,8*s);
+    g.beginPath();
+    g.arc(x,y-11*s,5*s,0,TAU); g.arc(x-3.5*s,y-8.5*s,3.5*s,0,TAU); g.arc(x+3.5*s,y-9*s,3.8*s,0,TAU);
+    g.fill();
+    if(lite){g.fillStyle=lite; g.beginPath(); g.arc(x+2*s,y-12*s,2.6*s,0,TAU); g.fill();}
+  };
+  const pine=(g,x,y,s,col)=>{
+    g.fillStyle=col;
+    for(let k=0;k<3;k++){
+      const w2=(9-k*2.4)*s, yy=y-k*6*s;
+      g.beginPath(); g.moveTo(x-w2,yy); g.lineTo(x,yy-9*s); g.lineTo(x+w2,yy); g.closePath(); g.fill();
+    }
+  };
+  const strokes=(g,r,n,yBase,seed2,col,a)=>{
+    g.strokeStyle=col; g.globalAlpha=a; g.lineWidth=1.5;
+    for(let i=0;i<n;i++){
+      const x=r()*WD, y=yBase+r()*(690-yBase), len=6+r()*18;
+      g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x+len/2,y-2+r()*4,x+len,y); g.stroke();
+    }
+    g.globalAlpha=1;
+  };
+  const hillPath=(g,base,amp,seed2,fill)=>{
+    g.fillStyle=fill;
+    g.beginPath(); g.moveTo(0,720);
+    for(let x=0;x<=WD;x+=16)
+      g.lineTo(x,base+Math.sin((x/WD)*TAU*2+seed2)*amp+Math.sin((x/WD)*TAU*5+seed2*2.7)*amp*.4);
+    g.lineTo(WD,720); g.closePath(); g.fill();
+  };
+  const hillY=(base,amp,seed2,x)=>base+Math.sin((x/WD)*TAU*2+seed2)*amp+Math.sin((x/WD)*TAU*5+seed2*2.7)*amp*.4;
+
+  if(LVL===2){
+    /* ============ THE THORNWOOD, PAINTED ============ */
+    // FAR: mist-swallowed trunk rows
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(21);
+      hillPath(g,436,26,3.1,'#5a7a68');
+      for(let i=0;i<34;i++){
+        const x=r()*WD, h=60+r()*90, w2=7+r()*9;
+        g.fillStyle='rgba(70,96,82,'+(0.5+r()*.3)+')';
+        g.fillRect(x,hillY(436,26,3.1,x)-h,w2,h+40);
+      }
+      g.fillStyle='#4e6e58';
+      for(let i=0;i<50;i++){
+        const x=r()*WD;
+        g.beginPath(); g.arc(x,hillY(436,26,3.1,x)-70-r()*70,26+r()*30,0,TAU); g.fill();
+      }
+      strokes(g,r,220,430,1,'#3f5c4a',.25);
+      BG.layers.push({c,par:.12,haze:.16,anchors:[]});
+    }
+    // MID: the standing wood
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(22);
+      hillPath(g,474,30,7.7,'#42604a');
+      for(let i=0;i<56;i++){
+        const x=r()*WD, gy=hillY(474,30,7.7,x)+20, h=90+r()*120, w2=9+r()*11;
+        g.fillStyle=r()<.5?'#35503e':'#3b5745';
+        g.fillRect(x,gy-h,w2,h);
+        if(r()<.4){g.strokeStyle='rgba(24,36,28,.5)';g.lineWidth=1.5;
+          g.beginPath();g.moveTo(x+w2/2,gy-h+10);g.lineTo(x+w2/2+(r()<.5?-1:1)*(8+r()*10),gy-h-6);g.stroke();}
+      }
+      g.fillStyle='#38543e';
+      for(let i=0;i<70;i++){
+        const x=r()*WD;
+        g.beginPath(); g.arc(x,hillY(474,30,7.7,x)-90-r()*80,30+r()*34,0,TAU); g.fill();
+      }
+      for(let i=0;i<16;i++){        // glow mushrooms in the dark
+        const x=r()*WD, y=hillY(474,30,7.7,x)+8;
+        g.fillStyle='rgba(180,230,140,'+(0.25+r()*.3)+')';
+        g.beginPath(); g.arc(x,y,2+r()*2.4,0,TAU); g.fill();
+      }
+      strokes(g,r,260,470,2,'#2c4434',.3);
+      BG.layers.push({c,par:.32,haze:.10,anchors:[]});
+    }
+    // NEAR: the great dark pillars
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(23);
+      hillPath(g,524,26,12.3,'#2c4432');
+      for(let i=0;i<20;i++){
+        const x=r()*WD, gy=hillY(524,26,12.3,x)+30, h=150+r()*160, w2=16+r()*16;
+        g.fillStyle='#233828';
+        g.fillRect(x,gy-h,w2,h);
+        g.strokeStyle='rgba(16,26,18,.6)'; g.lineWidth=2;
+        g.beginPath();g.moveTo(x+4,gy-h+14);g.lineTo(x+4,gy-14);g.stroke();
+        if(r()<.6){                  // hanging vines
+          g.strokeStyle='rgba(30,48,34,.7)';
+          g.beginPath();g.moveTo(x+w2/2,gy-h+6);
+          g.quadraticCurveTo(x+w2/2+10,gy-h+40+r()*30,x+w2/2+4,gy-h+70+r()*40);
+          g.stroke();
+        }
+      }
+      g.fillStyle='#233828';
+      for(let i=0;i<44;i++){
+        const x=r()*WD;
+        g.beginPath(); g.arc(x,hillY(524,26,12.3,x)-140-r()*70,36+r()*40,0,TAU); g.fill();
+      }
+      strokes(g,r,200,520,3,'#1a2c20',.35);
+      BG.layers.push({c,par:.55,haze:.05,anchors:[]});
+    }
+  }else{
+    /* ============ THE LOWLANDS, PAINTED ============ */
+    // FAR: mountains, field patchwork, the castles
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(11);
+      hillPath(g,400,34,1.7,'#b8cbc0');       // mountain haze band
+      hillPath(g,436,26,3.1,'#a9c2b2');
+      // patchwork fields on the valley floor
+      const tones=['#b5c49a','#a8bc8e','#c2c894','#9db88f'];
+      for(let i=0;i<26;i++){
+        const x=r()*WD, w2=60+r()*130, y=hillY(436,26,3.1,x)+8+r()*30;
+        g.fillStyle=tones[(r()*4)|0];
+        g.globalAlpha=.7;
+        g.fillRect(x,y,w2,10+r()*16);
+        g.globalAlpha=1;
+        g.strokeStyle='rgba(110,130,95,.5)'; g.lineWidth=1.2;
+        g.strokeRect(x+.5,y+.5,w2-1,10+r()*16);
+      }
+      // two proper castles with keeps, towers, windows, banners
+      for(const [cx2,sc] of [[520,1],[1710,.8]]){
+        const by=hillY(436,26,3.1,cx2)-4;
+        g.save(); g.translate(cx2,by); g.scale(sc,sc);
+        g.fillStyle='#7b93a8';
+        g.fillRect(-78,-56,156,66);
+        for(let bx=-78;bx<78;bx+=15) g.fillRect(bx,-64,8,8);
+        for(const tx of [-78,78,0]){
+          const th=tx===0?128:100;
+          g.fillRect(tx-15,-th,30,th+10);
+          g.fillStyle='#54718a';
+          g.beginPath();g.moveTo(tx-20,-th);g.lineTo(tx,-th-32);g.lineTo(tx+20,-th);g.closePath();g.fill();
+          g.fillStyle='#42586c';
+          g.fillRect(tx-4,-th+16,8,12);
+          g.fillStyle='#7b93a8';
+        }
+        g.fillStyle='rgba(255,240,210,.16)';    // sun catches the east faces
+        g.fillRect(58,-56,20,66); g.fillRect(66,-100,12,100);
+        g.strokeStyle='#54718a'; g.lineWidth=2;
+        g.beginPath();g.moveTo(0,-160);g.lineTo(0,-140);g.stroke();
+        g.fillStyle='#b8504a';
+        g.beginPath();g.moveTo(0,-160);g.lineTo(24,-153);g.lineTo(0,-147);g.closePath();g.fill();
+        g.restore();
+      }
+      // distant woods
+      for(let i=0;i<60;i++){const x=r()*WD; rimTree(g,x,hillY(436,26,3.1,x)+14,.9+r()*.7,'#93ad9e');}
+      strokes(g,r,200,430,4,'#8fa89a',.3);
+      BG.layers.push({c,par:.12,haze:.10,anchors:[]});
+    }
+    // MID: rolling farmland, cottages, the mill
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(12);
+      hillPath(g,474,30,7.7,'#7fae74');
+      // a pale road wandering the hills
+      g.strokeStyle='rgba(215,205,165,.55)'; g.lineWidth=7; g.lineCap='round';
+      g.beginPath();
+      for(let x=0;x<=WD;x+=40) g.lineTo(x,hillY(474,30,7.7,x)+26+Math.sin(x*.01)*10);
+      g.stroke();
+      const anchors=[];
+      for(const cx2 of [300,1000,1560,2100]){
+        const by=hillY(474,30,7.7,cx2)+6;
+        g.fillStyle='#c3ab84'; g.fillRect(cx2-17,by-23,34,23);
+        g.fillStyle='rgba(255,240,210,.25)'; g.fillRect(cx2+8,by-23,9,23);
+        g.fillStyle='#8a5a40';
+        g.beginPath();g.moveTo(cx2-21,by-23);g.lineTo(cx2,by-40);g.lineTo(cx2+21,by-23);g.closePath();g.fill();
+        g.fillStyle='#6a4a34'; g.fillRect(cx2-4,by-13,8,13);
+        g.fillStyle='#8a8f92'; g.fillRect(cx2+8,by-38,5,11);
+        anchors.push({type:'smoke',x:cx2+10,y:by-40});
+      }
+      {
+        const mx2=760, by=hillY(474,30,7.7,mx2)+4;
+        g.fillStyle='#a08a68';
+        g.beginPath();g.moveTo(mx2-15,by);g.lineTo(mx2-8,by-50);g.lineTo(mx2+8,by-50);g.lineTo(mx2+15,by);g.closePath();g.fill();
+        g.fillStyle='rgba(255,240,210,.22)';
+        g.beginPath();g.moveTo(mx2+2,by);g.lineTo(mx2+6,by-50);g.lineTo(mx2+8,by-50);g.lineTo(mx2+15,by);g.closePath();g.fill();
+        g.fillStyle='#6a4a34'; g.beginPath();g.arc(mx2,by-52,7,0,TAU);g.fill();
+        anchors.push({type:'mill',x:mx2,y:by-52});
+      }
+      for(let i=0;i<46;i++){const x=r()*WD; rimTree(g,x,hillY(474,30,7.7,x)+16,1+r()*.9,'#639a5c','rgba(255,240,200,.18)');}
+      for(let i=0;i<12;i++){const x=r()*WD; pine(g,x,hillY(474,30,7.7,x)+14,1+r()*.8,'#5b9153');}
+      // hedgerows
+      g.fillStyle='rgba(85,140,80,.6)';
+      for(let i=0;i<14;i++){const x=r()*WD, w2=50+r()*90; g.fillRect(x,hillY(474,30,7.7,x)+20,w2,5);}
+      strokes(g,r,260,470,5,'#6a9c62',.3);
+      BG.layers.push({c,par:.32,haze:.06,anchors});
+    }
+    // NEAR: the treeline at the road's edge
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(13);
+      hillPath(g,524,26,12.3,'#4f8a4c');
+      for(let i=0;i<40;i++){const x=r()*WD; rimTree(g,x,hillY(524,26,12.3,x)+12,1.3+r()*1.1,'#3d7040','rgba(255,240,200,.12)');}
+      for(let i=0;i<10;i++){const x=r()*WD; pine(g,x,hillY(524,26,12.3,x)+10,1.4+r()*.9,'#376539');}
+      g.fillStyle='#3d7040';
+      for(let i=0;i<22;i++){const x=r()*WD; g.beginPath();g.arc(x,hillY(524,26,12.3,x)+8,7+r()*8,0,TAU);g.fill();}
+      strokes(g,r,220,520,6,'#356038',.3);
+      BG.layers.push({c,par:.55,haze:0,anchors:[]});
+    }
+  }
+}
+function drawBakedBackdrop(t){
+  const WD=BG.W;
+  for(const L of BG.layers){
+    const off=((cam.x*L.par)%WD+WD)%WD;
+    const y=vOff(L.par);
+    ctx.drawImage(L.c,-off,y);
+    ctx.drawImage(L.c,WD-off,y);
+    for(const A of L.anchors){
+      for(const ox of [A.x-off, A.x-off+WD]){
+        if(ox<-60||ox>W+60) continue;
+        if(A.type==='mill'){
+          ctx.strokeStyle='#5a4a36'; ctx.lineWidth=3;
+          const ang=t*.0008;
+          for(let k=0;k<4;k++){
+            const a=ang+k*Math.PI/2;
+            ctx.beginPath();
+            ctx.moveTo(ox,A.y+y);
+            ctx.lineTo(ox+Math.cos(a)*26,A.y+y+Math.sin(a)*26);
+            ctx.stroke();
+          }
+        }else if(A.type==='smoke'){
+          for(let k=0;k<3;k++){
+            const ph=((t*.02+k*40+A.x)%120);
+            ctx.fillStyle='rgba(230,230,225,'+(0.3*(1-ph/120))+')';
+            ctx.beginPath();
+            ctx.arc(ox+ph*.18+Math.sin(t*.002+k)*2,A.y+y-ph*.5,3+ph*.05,0,TAU);
+            ctx.fill();
+          }
+        }
+      }
+    }
+    if(L.haze){
+      ctx.fillStyle=LVL===2?'rgba(96,126,110,'+L.haze+')':'rgba(224,232,214,'+L.haze+')';
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+}
 function render(t){
   ctx.clearRect(0,0,W,H);
   const sky=ctx.createLinearGradient(0,0,0,H);
@@ -2454,32 +2706,37 @@ function render(t){
     ctx.quadraticCurveTo(bx+4,by-4-flap,bx+8,by);
     ctx.stroke();
   }
-  const haze=a=>{
-    ctx.fillStyle=LVL===2?'rgba(96,126,110,'+a+')':'rgba(224,232,214,'+a+')';
-    ctx.fillRect(0,0,W,H);
-  };
-  if(LVL===2){
-    drawRidge(.12,'#5a7a68',430,3.1);
-    drawForest(.12,430,3.1,'#4e6e58');
-    haze(.16);
-    drawRidge(.32,'#42604a',470,7.7);
-    drawForest(.32,470,7.7,'#38543e');
-    haze(.10);
-    drawRidge(.55,'#2c4432',520,12.3);
-    drawForest(.55,520,12.3,'#233828');
-    drawTrees(t);
-    haze(.05);
+  if(BG.layers.length){
+    drawBakedBackdrop(t);
   }else{
-    drawRidge(.12,'#a9c2b2',430,3.1);
-    drawCastles(t);
-    haze(.10);
-    drawRidge(.32,'#7fae74',470,7.7);
-    drawForest(.32,470,7.7,'#639a5c');
-    drawVillage(t);
-    haze(.06);
-    drawRidge(.55,'#4f8a4c',520,12.3);
-    drawForest(.55,520,12.3,'#3d7040');
-    drawTrees(t);
+    // fallback: the old hand-drawn layers
+    const haze=a=>{
+      ctx.fillStyle=LVL===2?'rgba(96,126,110,'+a+')':'rgba(224,232,214,'+a+')';
+      ctx.fillRect(0,0,W,H);
+    };
+    if(LVL===2){
+      drawRidge(.12,'#5a7a68',430,3.1);
+      drawForest(.12,430,3.1,'#4e6e58');
+      haze(.16);
+      drawRidge(.32,'#42604a',470,7.7);
+      drawForest(.32,470,7.7,'#38543e');
+      haze(.10);
+      drawRidge(.55,'#2c4432',520,12.3);
+      drawForest(.55,520,12.3,'#233828');
+      drawTrees(t);
+      haze(.05);
+    }else{
+      drawRidge(.12,'#a9c2b2',430,3.1);
+      drawCastles(t);
+      haze(.10);
+      drawRidge(.32,'#7fae74',470,7.7);
+      drawForest(.32,470,7.7,'#639a5c');
+      drawVillage(t);
+      haze(.06);
+      drawRidge(.55,'#4f8a4c',520,12.3);
+      drawForest(.55,520,12.3,'#3d7040');
+      drawTrees(t);
+    }
   }
   // boss introductions get the camera's full attention
   const cine=bossIntroT>0||mbIntroT>0;
@@ -2960,6 +3217,31 @@ function drawShotCores(){
   }
 }
 function drawTerrain(t){
+  // the Great Tree itself — the column every climb-branch grows from
+  if(LVL===2&&cam.x+W>12700&&cam.x<13400){
+    const tx0=12920, tw=190;
+    const grad=ctx.createLinearGradient(tx0,0,tx0+tw,0);
+    grad.addColorStop(0,'#3e2e1c'); grad.addColorStop(.45,'#54402a'); grad.addColorStop(.8,'#66502f'); grad.addColorStop(1,'#46351f');
+    ctx.fillStyle=grad;
+    ctx.fillRect(tx0,-1560,tw,2200);
+    ctx.strokeStyle='rgba(28,20,12,.5)'; ctx.lineWidth=3;   // bark furrows
+    for(const fx of [tx0+34,tx0+78,tx0+126,tx0+160]){
+      ctx.beginPath();
+      for(let yy=-1540;yy<620;yy+=90)
+        ctx.lineTo(fx+Math.sin(yy*.01+fx)*7,yy);
+      ctx.stroke();
+    }
+    for(const [ky,kx] of [[-1100,60],[-620,130],[-180,44],[240,150]]){  // knots
+      ctx.fillStyle='#2e2213';
+      ctx.beginPath();ctx.ellipse(tx0+kx,ky,9,13,0,0,TAU);ctx.fill();
+    }
+    // root flare into the ground
+    ctx.fillStyle='#46351f';
+    ctx.beginPath();
+    ctx.moveTo(tx0-46,600);ctx.lineTo(tx0+10,470);ctx.lineTo(tx0+10,600);ctx.closePath();ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tx0+tw+46,600);ctx.lineTo(tx0+tw-10,470);ctx.lineTo(tx0+tw-10,600);ctx.closePath();ctx.fill();
+  }
   for(const s of solids){
     if(s.dead) continue;
     if(s.x+s.w<cam.x-40||s.x>cam.x+W+40) continue;
@@ -3079,12 +3361,43 @@ function drawTerrain(t){
         }else{
           ctx.fillStyle=wood;
           ctx.fillRect(s.x,s.y,s.w,s.h);
-          ctx.strokeStyle=s.burn>0?'#3a1c0a':'#453222'; // braces holding it up
-          ctx.lineWidth=5;
-          ctx.beginPath();
-          ctx.moveTo(s.x+12,s.y+s.h); ctx.lineTo(s.x+30,s.y+s.h+34);
-          ctx.moveTo(s.x+s.w-12,s.y+s.h); ctx.lineTo(s.x+s.w-30,s.y+s.h+34);
-          ctx.stroke();
+          // THE RULE: nothing floats. Every platform reaches something.
+          const midX=s.x+s.w/2;
+          const gy2=groundYAt(midX,s.y+20);
+          const hgt=gy2-(s.y+s.h);
+          const overVoid=CHASMS.some(([a,b])=>midX>a&&midX<b)||WATERS.some(w2=>midX>w2.x0&&midX<w2.x1);
+          if(hgt>8&&hgt<470&&!overVoid){
+            if(LVL===2){
+              // the canopy road grows on living trees
+              ctx.fillStyle=s.burn>0?'#4a2410':'#4e3a26';
+              ctx.fillRect(midX-9,s.y+s.h,18,hgt);
+              ctx.strokeStyle='rgba(30,20,12,.5)'; ctx.lineWidth=1.5;
+              ctx.beginPath();ctx.moveTo(midX-3,s.y+s.h+8);ctx.lineTo(midX-3,gy2-8);ctx.stroke();
+              ctx.fillStyle='#33502e';                       // a modest side bough
+              ctx.beginPath();ctx.arc(midX+13,s.y+s.h+hgt*.4,9,0,TAU);ctx.fill();
+            }else{
+              // honest carpentry: legs, cross-brace, stone feet
+              ctx.strokeStyle=s.burn>0?'#3a1c0a':'#453222'; ctx.lineWidth=5;
+              ctx.beginPath();
+              ctx.moveTo(s.x+16,s.y+s.h); ctx.lineTo(s.x+16,gy2);
+              ctx.moveTo(s.x+s.w-16,s.y+s.h); ctx.lineTo(s.x+s.w-16,gy2);
+              ctx.stroke();
+              ctx.lineWidth=3;
+              ctx.beginPath();
+              ctx.moveTo(s.x+16,s.y+s.h+hgt*.25); ctx.lineTo(s.x+s.w-16,s.y+s.h+hgt*.75);
+              ctx.moveTo(s.x+s.w-16,s.y+s.h+hgt*.25); ctx.lineTo(s.x+16,s.y+s.h+hgt*.75);
+              ctx.stroke();
+              ctx.fillStyle='#6d7580';
+              ctx.fillRect(s.x+11,gy2-5,10,5); ctx.fillRect(s.x+s.w-21,gy2-5,10,5);
+            }
+          }else{
+            // over water or the void: short struts and a hung look, like a rope stage
+            ctx.strokeStyle=s.burn>0?'#3a1c0a':'#453222'; ctx.lineWidth=4;
+            ctx.beginPath();
+            ctx.moveTo(s.x+12,s.y+s.h); ctx.lineTo(s.x+28,s.y+s.h+22);
+            ctx.moveTo(s.x+s.w-12,s.y+s.h); ctx.lineTo(s.x+s.w-28,s.y+s.h+22);
+            ctx.stroke();
+          }
           if(LVL===2){                                  // moss and hanging leaves
             ctx.fillStyle='#3f6b3a';
             ctx.fillRect(s.x,s.y-2,s.w,3);
