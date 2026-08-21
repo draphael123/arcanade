@@ -744,12 +744,30 @@ const WPN=k=>{const w=CLASSES[cls].weapons[k]; const t=shop.tiers[k]||0; return 
 
 /* ---------------- the quartermaster's ledger ---------------- */
 const DYES={
-  midnight:{robe:'#3a3f5c',robeShade:'#2c3048',cape:'#232840'},
-  verdant:{robe:'#3f7a44',robeShade:'#33623a',cape:'#28502e'},
-  gold:{robe:'#c9982a',robeShade:'#a87c1e',cape:'#8a6416'},
-  ashen:{robe:'#9aa0a8',robeShade:'#7c828a',cape:'#666c74'},
-  amber:{robe:'#c9823a',robeShade:'#a8662a',cape:'#8a4e1e'},
+  midnight:{robe:'#3a3f5c',robeShade:'#2c3048',cape:'#232840',trim:'#c9a227',pattern:'stars',rar:1},
+  verdant:{robe:'#3f7a44',robeShade:'#33623a',cape:'#28502e',trim:'#e8d8a0',pattern:'hem',rar:0},
+  gold:{robe:'#c9982a',robeShade:'#a87c1e',cape:'#8a6416',trim:'#7a2418',pattern:'sash',rar:1},
+  ashen:{robe:'#9aa0a8',robeShade:'#7c828a',cape:'#666c74',trim:'#2a2018',pattern:'hem',rar:0},
+  amber:{robe:'#c9823a',robeShade:'#a8662a',cape:'#8a4e1e',trim:'#ffd27a',pattern:'veins',rar:3},
+  crimson:{robe:'#8a1f2a',robeShade:'#6a1520',cape:'#2a1a22',trim:'#e8c49a',pattern:'sash',rar:1},
+  sea:{robe:'#2a6a7a',robeShade:'#1f5260',cape:'#18323a',trim:'#cfe8ff',pattern:'waves',rar:1},
+  plum:{robe:'#5a2a6a',robeShade:'#461f54',cape:'#2a1430',trim:'#e0c9ff',pattern:'hem',rar:1},
+  ivory:{robe:'#e8e0cc',robeShade:'#c9c0a8',cape:'#7a2418',pattern:'sash',trim:'#7a2418',rar:2},
+  ember:{robe:'#2a1a18',robeShade:'#1e1210',cape:'#4a1a10',trim:'#ff8c3a',pattern:'veins',rar:2},
+  harlequin:{robe:'#3f6fa8',robeShade:'#33598a',cape:'#a83c30',trim:'#c9a227',pattern:'quarters',rar:2},
 };
+const RAR_COL=['#5a3c1a','#3f6fa8','#7a3a9a','#c9822a'];   // common, uncommon, rare, trophy
+function drawRobePattern(g,CL,x0,y0,w,h,t,fl){
+  // the pattern sits on the robe; trims are the difference between a colour and a costume
+  if(!CL.pattern||fl) return;
+  const tr=CL.trim||'#ffd27a';
+  if(CL.pattern==='hem'){ g.fillStyle=tr; g.fillRect(x0,y0+h-3,w,2); }
+  else if(CL.pattern==='sash'){ g.fillStyle=tr; g.beginPath(); g.moveTo(x0,y0+4); g.lineTo(x0+w,y0+12); g.lineTo(x0+w,y0+16); g.lineTo(x0,y0+8); g.closePath(); g.fill(); }
+  else if(CL.pattern==='stars'){ g.fillStyle=tr; for(let k=0;k<4;k++){ g.fillRect(x0+2+((k*7)%(w-4)),y0+4+((k*9)%(h-8)),1.5,1.5); } }
+  else if(CL.pattern==='veins'){ g.strokeStyle=tr; g.lineWidth=1; g.beginPath(); g.moveTo(x0+w*.3,y0+h); g.quadraticCurveTo(x0+w*.5,y0+h*.5,x0+w*.35,y0+2); g.moveTo(x0+w*.7,y0+h); g.quadraticCurveTo(x0+w*.55,y0+h*.6,x0+w*.75,y0+4); g.stroke(); }
+  else if(CL.pattern==='waves'){ g.strokeStyle=tr; g.lineWidth=1; g.beginPath(); for(let yy=y0+6;yy<y0+h-2;yy+=6){ g.moveTo(x0+1,yy); for(let xx=x0+1;xx<=x0+w-1;xx+=4) g.lineTo(xx,yy+((xx/4)%2?1.5:-1.5)); } g.stroke(); }
+  else if(CL.pattern==='quarters'){ g.fillStyle=CL.cape; g.fillRect(x0,y0,w/2,h/2); g.fillRect(x0+w/2,y0+h/2,w/2,h/2); g.fillStyle=tr; g.fillRect(x0+w/2-.5,y0,1,h); g.fillRect(x0,y0+h/2-.5,w,1); }
+}
 const EQUIP_DEFAULT={dye:'none',orb:'none',trail:'none',hat:'none',pet:'none',charm:'none',crest:'none',tabard:'none',rod:'none'};
 let shop={embers:0, owned:{}, equip:{...EQUIP_DEFAULT}, start:'BOLT', start2:'none', tiers:{}, curses:{}, presets:{}, seenStock:0};
 try{Object.assign(shop,JSON.parse(localStorage.getItem('arcanade-shop')||'{}'));}catch(e){}
@@ -2934,6 +2952,9 @@ function updatePlayer(dt){
       else if(tr==='spark'){spawnPart(p.x,p.y+26,rand(-60,60),rand(-60,60),.2,3.5,'rgb(255,215,110)',0,true);
         spawnPart(p.x,p.y+26,rand(-60,60),rand(-60,60),.2,3,'rgb(255,240,180)',0,true);}
       else if(tr==='rune') spawnPart(p.x,p.y+24,0,rand(-14,4),.45,7,'rgb(190,140,255)',0,true);
+      else if(tr==='snow'){spawnPart(p.x+rand(-8,8),p.y+rand(6,40),rand(-10,10),rand(10,30),.7,2,'rgb(235,245,255)',0,true);}
+      else if(tr==='ink'){spawnPart(p.x,p.y+26,rand(-20,20),rand(-10,10),.5,8,'rgb(30,18,40)',0,false);}
+      else if(tr==='gold'){spawnPart(p.x+rand(-6,6),p.y+rand(10,40),rand(-20,20),rand(-30,-6),.5,2,'rgb(255,220,120)',0,true);}
       else spawnPart(p.x,p.y+26,0,0,.22,9,WPN('BOLT').color,0,true);
     }
   }else{
@@ -6008,6 +6029,7 @@ function drawPlayer(t){
   ctx.stroke();
   ctx.fillStyle=C(CL.robe);
   ctx.fillRect(x-8,y+14,16,26);
+  drawRobePattern(ctx,CL,x-8,y+14,16,26,t,fl);
   ctx.fillStyle=C(CL.robeShade);
   ctx.fillRect(x-8,y+32,16,8);
   if(!fl) tone2(x-8,y+14,16,26);
@@ -6018,6 +6040,14 @@ function drawPlayer(t){
   ctx.moveTo(x-9,y+11);ctx.lineTo(x-9,y+3);ctx.lineTo(x+p.face*2,y-9);
   ctx.lineTo(x+9,y+2);ctx.lineTo(x+9,y+6);ctx.lineTo(x+p.face*7,y+2);
   ctx.lineTo(x-p.face*2,y+11);ctx.closePath();ctx.fill();
+  if(shop.equip.hat==='wreath'){   // a laurel of the Thornwood
+    ctx.strokeStyle=C('#4a7a3c'); ctx.lineWidth=3; ctx.beginPath(); ctx.arc(x,y+6,10,Math.PI*1.1,Math.PI*1.9); ctx.stroke();
+    ctx.fillStyle=C('#6aa04c'); for(let k=0;k<5;k++){ const a2=Math.PI*1.15+k*.19; ctx.beginPath(); ctx.ellipse(x+Math.cos(a2)*10,y+6+Math.sin(a2)*10,3,1.5,a2,0,TAU); ctx.fill(); }
+  }
+  if(shop.equip.hat==='circlet'){   // a thin band of gold
+    ctx.strokeStyle=C('#ffd27a'); ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y+7,9,Math.PI*1.05,Math.PI*1.95); ctx.stroke();
+    ctx.fillStyle=C('#ff8c3a'); ctx.beginPath(); ctx.arc(x,y-2,2,0,TAU); ctx.fill();
+  }
   if(shop.equip.hat==='plume'){   // the Warden's plume
     ctx.fillStyle=C('#b8504a'); ctx.beginPath(); ctx.moveTo(x-p.face*2,y-8); ctx.quadraticCurveTo(x-p.face*16,y-22+Math.sin(t*.01)*3,x-p.face*26,y-10); ctx.quadraticCurveTo(x-p.face*14,y-12,x-p.face*2,y-4); ctx.closePath(); ctx.fill();
     drawGlow(x-p.face*12,y-14,14,'rgb(255,190,90)',.25);
@@ -6084,6 +6114,10 @@ function drawPlayer(t){
     ctx.beginPath();
     ctx.moveTo(-5,0);ctx.lineTo(5,0);ctx.moveTo(0,-5);ctx.lineTo(0,5);
     ctx.stroke();ctx.restore();
+  }else if(orb==='moon'){   // a crescent, pale
+    ctx.fillStyle='#e8eeff'; ctx.beginPath(); ctx.arc(gx,gy,4,0,TAU); ctx.fill(); ctx.fillStyle=c; ctx.beginPath(); ctx.arc(gx+2,gy-1,3.2,0,TAU); ctx.fill();
+  }else if(orb==='coal'){   // a coal that will not go out
+    ctx.fillStyle='#3a2018'; ctx.beginPath(); ctx.arc(gx,gy,3.8,0,TAU); ctx.fill(); ctx.fillStyle='rgba(255,120,40,'+(.5+.4*Math.sin(t*.02))+')'; ctx.beginPath(); ctx.arc(gx,gy,2,0,TAU); ctx.fill();
   }else if(orb==='heart'){   // a knot of heartwood that breathes
     drawGlow(gx,gy,10+Math.sin(t*.006)*3,'rgb(255,170,80)',.5);
     ctx.fillStyle='#c9925a'; ctx.beginPath(); ctx.arc(gx,gy,3.6,0,TAU); ctx.fill();
@@ -7165,12 +7199,25 @@ const STORE_ITEMS=[
   ['Dyes',    'dye_verdant','Verdant Dye','The forest may mistake you for a friend.',60,'dye','verdant'],
   ['Dyes',    'dye_gold','Royal Gold Dye','Shines like the purse it emptied.',60,'dye','gold'],
   ['Dyes',    'dye_ashen','Ashen Dye','The colour of prudent retreats.',60,'dye','ashen'],
+  ['Dyes',    'dye_crimson','Crimson & Bone','A warlord\'s colours, sashed in bone. Wear them to his funeral.',90,'dye','crimson'],
+  ['Dyes',    'dye_sea','Sea-Glass','The colleges of the coast, wave-hemmed.',90,'dye','sea'],
+  ['Dyes',    'dye_plum','Plum of the Archive','Librarians\' purple. It never fades; neither do they.',90,'dye','plum'],
+  ['Dyes',    'dye_ivory','Ivory & Red','Too clean for a siege. Exactly the point.',130,'dye','ivory'],
+  ['Dyes',    'dye_ember','Ember-Veined','Black robe, orange veins. It looks lit from inside.',130,'dye','ember'],
+  ['Dyes',    'dye_harlequin','Harlequin','Quartered blue and red, gold between. For those who cannot choose.',130,'dye','harlequin'],
   ['Staff Orbs','orb_twin','Twin Orbs','Two minds, one argument.',50,'orb','twin'],
   ['Staff Orbs','orb_shard','Cut Shard','It hums when it turns.',50,'orb','shard'],
   ['Staff Orbs','orb_star','Caged Star','Caught small. Still furious.',50,'orb','star'],
+  ['Staff Orbs','orb_moon','Crescent','A moon you carry. It does not wax.',80,'orb','moon'],
+  ['Staff Orbs','orb_coal','Everburning Coal','From the first hearth. It remembers.',80,'orb','coal'],
   ['Cast Trails','trail_petal','Petal Trail','Violence, but make it spring.',80,'trail','petal'],
   ['Cast Trails','trail_spark','Spark Trail','You leave the forge wherever you go.',80,'trail','spark'],
   ['Cast Trails','trail_rune','Rune Trail','The old letters follow you home.',80,'trail','rune'],
+  ['Cast Trails','trail_snow','Snowfall Trail','Winter walks behind you.',90,'trail','snow'],
+  ['Cast Trails','trail_ink','Ink Trail','You leave the page wherever you go.',90,'trail','ink'],
+  ['Cast Trails','trail_gold','Gilt Trail','Motes of gold, spent freely.',110,'trail','gold'],
+  ['Crowns','hat_wreath','Thornwood Laurel','Leaves that did not take the warlords\' coin.',100,'hat','wreath'],
+  ['Crowns','hat_circlet','Gold Circlet','A thin band, a single ember set in it.',100,'hat','circlet'],
   ['Trophies','hat_antler','Antler Crown','The Huntsmaster has no further use for it.',120,'hat','antler','hunt'],
   ['Trophies','hat_plume',"Warden's Plume",'It burned bright when he tired. It still does.',140,'hat','plume','warden'],
   ['Trophies','orb_heart','Heartwood Orb','A knot of Old Thornheart. It breathes, faintly.',140,'orb','heart','thorn'],
@@ -7193,12 +7240,22 @@ function renderStore(){
   const box=document.getElementById('storeRows');
   box.innerHTML='';
   let lastSec=null;
-  const mkRow=(name,desc,btnTxt,btnStyle,onclick,prev)=>{
+  const swatch=(slot,val)=>{
+    // a chip that shows the thing: dyes as two-tone, orbs as a lit dot, trails as their motes
+    if(!slot) return '';
+    const SW={twin:'#ffe9c9',shard:'#ffe9c9',star:'#ffe9c9',moon:'#e8eeff',coal:'#ff8c3a',heart:'#c9925a',petal:'#ff96be',spark:'#ffd76e',rune:'#be8cff',snow:'#ebf5ff',ink:'#1e1228',gold:'#ffdc78',antler:'#8a7658',plume:'#b8504a',horn:'#f0e8d8',wreath:'#4a7a3c',circlet:'#ffd27a',pet:'#c96a32',moth:'#f0e1c8',sun:'#ffd27a',stripe:'#b8504a',iron:'#9aa4b0'};
+    if(slot==='dye'){ const d=DYES[val]; if(!d) return ''; return '<span style="display:inline-block;width:26px;height:14px;vertical-align:middle;margin-right:8px;border:1px solid #6a4a2a;border-radius:2px;background:linear-gradient(90deg,'+d.robe+' 0 55%,'+d.cape+' 55% 80%,'+(d.trim||d.robeShade)+' 80%)"></span>'; }
+    const c=SW[val]||'#c9a887';
+    return '<span style="display:inline-block;width:14px;height:14px;vertical-align:middle;margin-right:8px;border-radius:50%;border:1px solid #6a4a2a;background:radial-gradient(circle at 40% 40%,#fff8 0,'+c+' 55%)"></span>';
+  };
+  const mkRow=(name,desc,btnTxt,btnStyle,onclick,prev,rar)=>{
     const row=document.createElement('div');
     row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid rgba(90,60,30,.18)';
     if(prev){ row.onmouseenter=()=>{armPreview=prev;}; row.onmouseleave=()=>{armPreview=null;}; }
-    row.innerHTML='<div><div style="font-family:Cinzel,Georgia;font-size:14px;color:#5a3c1a">'+name+
-      '</div><div style="font-size:12px;font-style:italic;color:#8a6f4a">'+desc+'</div></div>';
+    const sw=prev?swatch(Object.keys(prev)[0],Object.values(prev)[0]):'';
+    const col=RAR_COL[rar||0];
+    row.innerHTML='<div><div style="font-family:Cinzel,Georgia;font-size:14px;color:'+col+'">'+sw+name+
+      '</div><div style="font-size:12px;font-style:italic;color:#8a6f4a;margin-left:'+(sw?'34px':'0')+'">'+desc+'</div></div>';
     const b=document.createElement('button');
     b.className='btn small parch';
     b.style.cssText='margin:0;padding:5px 14px;font-size:11px;min-width:110px;'+btnStyle;
@@ -7220,16 +7277,17 @@ function renderStore(){
     }
     const owned=!!shop.owned[id];
     const prev=slot?{[slot]:val}:null;
+    const rar=req?3:(slot==='dye'&&DYES[val]?DYES[val].rar:(price>=110?2:(price>=80?1:0)));
     const nm=forCls?name+' <span style="font-size:10px;color:#8a6f4a">('+CLASSES[forCls].title+')</span>':name;
     if(!owned){
       const afford=shop.embers>=price;
       mkRow(nm,desc,price+' embers',afford?'':'opacity:.45',
-        afford?()=>{shop.embers-=price;shop.owned[id]=true;saveShop();SFX.pickup();renderStore();}:null,prev);
+        afford?()=>{shop.embers-=price;shop.owned[id]=true;saveShop();SFX.pickup();renderStore();}:null,prev,rar);
     }else if(slot){
       const eq=shop.equip[slot]===val;
       mkRow(nm,desc,eq?'WORN — remove':'EQUIP','',()=>{
         shop.equip[slot]=eq?'none':val; saveShop(); SFX.chime(); renderStore();
-      },prev);
+      },prev,rar);
     }else{
       mkRow(nm,desc,'IN THE GRIMOIRE','opacity:.6',null);
     }
@@ -7322,6 +7380,7 @@ function drawArmoryMage(tt,cid){
   g.strokeStyle='#3a2c26'; g.lineWidth=4;
   g.beginPath(); g.moveTo(0,8); g.lineTo(-4,24); g.moveTo(0,8); g.lineTo(5,24); g.stroke();
   g.fillStyle=robe; g.fillRect(-8,-16,16,26);
+  drawRobePattern(g,D||{},-8,-16,16,26,t,false);
   g.fillStyle=shade; g.fillRect(-8,2,16,8);
   g.fillStyle='rgba(255,240,210,.15)'; g.fillRect(4,-16,4,26);
   g.fillStyle='#e8c49a'; g.beginPath();g.arc(0,-21,8,0,TAU);g.fill();
@@ -7329,6 +7388,10 @@ function drawArmoryMage(tt,cid){
   g.beginPath();
   g.moveTo(-9,-19);g.lineTo(-9,-27);g.lineTo(2,-39);g.lineTo(9,-28);g.lineTo(9,-24);g.lineTo(7,-28);g.lineTo(-2,-19);
   g.closePath();g.fill();
+  if(EQ.hat==='plume'){ g.fillStyle='#b8504a'; g.beginPath(); g.moveTo(-2,-28); g.quadraticCurveTo(-16,-42+Math.sin(t*.01)*3,-26,-30); g.quadraticCurveTo(-14,-32,-2,-24); g.closePath(); g.fill(); }
+  if(EQ.hat==='horn'){ g.strokeStyle='#f0e8d8'; g.lineWidth=4; g.lineCap='round'; g.beginPath(); g.moveTo(-8,-26); g.quadraticCurveTo(-18,-36,-22,-46); g.stroke(); g.lineCap='butt'; }
+  if(EQ.hat==='wreath'){ g.strokeStyle='#4a7a3c'; g.lineWidth=3; g.beginPath(); g.arc(0,-14,10,Math.PI*1.1,Math.PI*1.9); g.stroke(); g.fillStyle='#6aa04c'; for(let k=0;k<5;k++){ const a2=Math.PI*1.15+k*.19; g.beginPath(); g.ellipse(Math.cos(a2)*10,-14+Math.sin(a2)*10,3,1.5,a2,0,TAU); g.fill(); } }
+  if(EQ.hat==='circlet'){ g.strokeStyle='#ffd27a'; g.lineWidth=2; g.beginPath(); g.arc(0,-13,9,Math.PI*1.05,Math.PI*1.95); g.stroke(); g.fillStyle='#ff8c3a'; g.beginPath(); g.arc(0,-22,2,0,TAU); g.fill(); }
   if(EQ.hat==='antler'){
     g.strokeStyle='#8a7658'; g.lineWidth=2;
     g.beginPath();
@@ -7351,6 +7414,9 @@ function drawArmoryMage(tt,cid){
   g.fillStyle='#fff2dd';
   if(orb==='twin'){g.beginPath();g.arc(22,-34,2,0,TAU);g.fill();g.beginPath();g.arc(28,-28,2,0,TAU);g.fill();}
   else if(orb==='shard'){g.save();g.translate(25,-31);g.rotate(t*.004);g.fillRect(-3,-3,6,6);g.restore();}
+  else if(orb==='moon'){g.fillStyle='#e8eeff';g.beginPath();g.arc(25,-31,4,0,TAU);g.fill();g.fillStyle=robe;g.beginPath();g.arc(27,-32,3.2,0,TAU);g.fill();}
+  else if(orb==='coal'){g.fillStyle='#3a2018';g.beginPath();g.arc(25,-31,3.8,0,TAU);g.fill();g.fillStyle='rgba(255,120,40,.8)';g.beginPath();g.arc(25,-31,2,0,TAU);g.fill();}
+  else if(orb==='heart'){g.fillStyle='rgba(255,170,80,.35)';g.beginPath();g.arc(25,-31,8,0,TAU);g.fill();g.fillStyle='#c9925a';g.beginPath();g.arc(25,-31,3.6,0,TAU);g.fill();}
   else if(orb==='star'){g.save();g.translate(25,-31);g.rotate(t*.003);g.strokeStyle='#fff2dd';g.lineWidth=1.5;
     g.beginPath();g.moveTo(-4,0);g.lineTo(4,0);g.moveTo(0,-4);g.lineTo(0,4);g.stroke();g.restore();}
   else {g.beginPath();g.arc(25,-31,2.6,0,TAU);g.fill();}
@@ -7377,10 +7443,10 @@ function drawArmoryMage(tt,cid){
   g.setLineDash([]);
 }
 const ARM_SLOTS=[
-  ['dye','Robe Dye',['none','midnight','verdant','gold','ashen','amber'],v=>v==='none'?true:shop.owned['dye_'+v]],
-  ['orb','Staff Orb',['none','twin','shard','star','heart'],v=>v==='none'?true:shop.owned['orb_'+v]],
-  ['trail','Cast Trail',['none','petal','spark','rune'],v=>v==='none'?true:shop.owned['trail_'+v]],
-  ['hat','Crown',['none','antler','plume','horn'],v=>v==='none'?true:shop.owned['hat_'+v]],
+  ['dye','Robe Dye',['none',...Object.keys(DYES)],v=>v==='none'?true:shop.owned['dye_'+v]],
+  ['orb','Staff Orb',['none','twin','shard','star','moon','coal','heart'],v=>v==='none'?true:shop.owned['orb_'+v]],
+  ['trail','Cast Trail',['none','petal','spark','rune','snow','ink','gold'],v=>v==='none'?true:shop.owned['trail_'+v]],
+  ['hat','Crown',['none','wreath','circlet','antler','plume','horn'],v=>v==='none'?true:shop.owned['hat_'+v]],
   ['pet','Companion',['none','pet','moth'],v=>v==='none'?true:(v==='pet'?shop.owned['pet']:shop.owned['pet_'+v])],
   ['charm','Charm',['none',...CHARMS.map(c=>c.id)],v=>v==='none'?true:shop.owned[v]],
   ['crest','Shield Crest',['none','sun'],v=>v==='none'?true:shop.owned['crest_'+v],'paladin'],
@@ -7399,7 +7465,7 @@ function renderArmory(){
     const bl=document.createElement('button'); bl.textContent='◀';
     const bs=document.createElement('span');
     bs.style.cssText='min-width:110px;text-align:center;font-size:12px;color:#4a3826;font-style:italic';
-    bs.textContent=current;
+    bs.innerHTML=current;
     const br=document.createElement('button'); br.textContent='▶';
     for(const b of [bl,br]){b.className='btn small parch';b.style.cssText='margin:0;padding:3px 10px;font-size:11px';}
     bl.onclick=onPrev; br.onclick=onNext;
@@ -7420,7 +7486,8 @@ function renderArmory(){
       shop.equip[slot]=avail[(idx+d+avail.length)%avail.length];
       saveShop(); SFX.chime(); renderArmory();
     };
-    mkSel(label,(cur==='none'?'— none —':cur)+(avail.length<=1?'  (visit the wagon)':''),()=>cyc(-1),()=>cyc(1));
+    const dyeCol=slot==='dye'&&DYES[cur]?'<span style="display:inline-block;width:12px;height:12px;vertical-align:middle;margin-right:6px;border:1px solid #6a4a2a;background:linear-gradient(90deg,'+DYES[cur].robe+' 0 60%,'+DYES[cur].cape+' 60%)"></span>':'';
+    mkSel(label,dyeCol+(cur==='none'?'— none —':cur)+(avail.length<=1?'  (visit the wagon)':''),()=>cyc(-1),()=>cyc(1));
   }
   // prepared spell
   {
