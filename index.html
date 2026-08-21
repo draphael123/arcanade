@@ -737,7 +737,9 @@ const CLASSES={
       CRAWLER:{name:'SALAMANDER',   color:'rgb(255,120,50)',  rate:.55, dmg:1.5, spd:330},
       MORTAR:{name:'SKYFALL',       color:'rgb(255,170,80)',  rate:.85, dmg:.9},
       NOVA:  {name:'CINDER RING',   color:'rgb(255,140,60)',  rate:.95, dmg:2,  novaR:150},
-    }},
+      SIGIL: {name:'BRAND',         color:'rgb(255,120,60)',  rate:.9,  dmg:1.2, spd:760},
+    },
+    sigilDesc:'a mark that burns, and spreads to whatever touches it'},
   frost:{
     title:'CRYOMANCER', robe:'#3f6fa8', robeShade:'#33598a', cape:'#2c4a74', dashKind:'glide', wardKind:'freeze', spd:355, dashCd:.6, jumpMul:1.06,
     dashName:'GLIDE', wardName:'FREEZING WARD',
@@ -753,7 +755,9 @@ const CLASSES={
       CRAWLER:{name:'RIMESHARD',      color:'rgb(160,215,255)', rate:.6,  dmg:1.6, spd:300},
       MORTAR:{name:'HAILRAKE',        color:'rgb(185,225,255)', rate:.9,  dmg:1},
       NOVA:  {name:"WINTER'S GRASP",  color:'rgb(200,240,255)', rate:1,   dmg:1.8, novaR:160},
-    }},
+      SIGIL: {name:'RAMPART',         color:'rgb(200,240,255)', rate:1.1, dmg:.5,  spd:520},
+    },
+    sigilDesc:'a wall of ice where it lands — a platform, a shield, a floe in midair'},
   storm:{
     title:'STORMCALLER', robe:'#6a4aa8', robeShade:'#55388a', cape:'#3f2a6a', unlock:'l2Cleared', dashKind:'blink', wardKind:'reflect', spd:420, dashCd:.45, jumpMul:.94,
     dashName:'BLINK', wardName:'REFLECTING WARD',
@@ -769,7 +773,9 @@ const CLASSES={
       CRAWLER:{name:'GROUNDING',   color:'rgb(200,185,255)', rate:.5,  dmg:1.3, spd:380},
       MORTAR:{name:'SKYSTRIKE',    color:'rgb(220,205,255)', rate:.8,  dmg:.9},
       NOVA:  {name:'STORMHEART',   color:'rgb(235,225,255)', rate:.9,  dmg:1.8, novaR:170},
-    }},
+      SIGIL: {name:'THE ROD',      color:'rgb(210,190,255)', rate:1.4, dmg:.8,  spd:480},
+    },
+    sigilDesc:'plant it; for ten breaths every shot you fire chains from it'},
   paladin:{
     title:'PALADIN', robe:'#cfd4dc', robeShade:'#a8aeb8', cape:'#c9a227', unlock:'l4Cleared',
     dashKind:'bash', wardKind:'smite', dashName:'SHIELD BASH', wardName:'SMITING WARD',
@@ -786,7 +792,9 @@ const CLASSES={
       CRAWLER:{name:'CONSECRATE',    color:'rgb(255,235,170)', rate:.5,  dmg:1.4, spd:300},
       MORTAR:{name:'JUDGEMENT',      color:'rgb(255,240,190)', rate:.8,  dmg:1},
       NOVA:  {name:'AEGIS BURST',    color:'rgb(255,250,225)', rate:.9,  dmg:2.4, novaR:140},
-    }},
+      SIGIL: {name:'CONSECRATE',     color:'rgb(255,245,205)', rate:1.6, dmg:.5,  spd:420},
+    },
+    sigilDesc:'holy ground: inside it your light reaches twice as far and the guard returns fast'},
 };
 const isPaladin=()=>cls==='paladin';
 const maxWards=()=>DIFF().wards+(CLASSES[cls].wardBonus||0);
@@ -841,7 +849,59 @@ function classUnlocked(k){const u=CLASSES[k].unlock; return !u||!!(typeof campai
 function availableClasses(){return Object.keys(CLASSES).filter(classUnlocked);}
 const elemColor=()=>cls==='fire'?'rgb(255,154,60)':(cls==='frost'?'rgb(170,220,255)':(cls==='paladin'?'rgb(255,240,190)':'rgb(220,200,255)'));
 let cls='fire';
-const WPN=k=>{const w=CLASSES[cls].weapons[k]; const t=shop.tiers[k]||0; return t?tierApply(k,w,t):w;};
+/* ---- relics that belong to a level: found only there, gone when it ends, no class owns them ---- */
+const LEVEL_SPELLS={
+  TORCH:  {name:'SIEGE TORCH', color:'rgb(255,200,90)',  rate:.8,  dmg:1,  spd:620, level:1, desc:'thrown fire: lights a wide swath and cracks stone three times as fast'},
+  THORN:  {name:'THORNSEED',   color:'rgb(160,210,110)', rate:1.2, dmg:.4, spd:560, level:2, desc:'a bramble grows where it lands — a wall, or a step'},
+  SAPLING:{name:'SAP-SLING',   color:'rgb(255,196,92)',  rate:1.2, dmg:.4, spd:520, level:3, desc:'a pool of the tree\'s sap, anywhere: foes stick in it, and it answers your element'},
+  ECHO:   {name:'HORN-ECHO',   color:'rgb(235,225,200)', rate:1.6, dmg:1,  spd:900, level:4, desc:'the horn\'s own note, turned: the struck summon falls, and its fellows nearby pay for it'},
+};
+let rods=[], consec=null;
+const WPN=k=>{const w=CLASSES[cls].weapons[k]||LEVEL_SPELLS[k]||CLASSES[cls].weapons.BOLT; const t=shop.tiers[k]||0; return t?tierApply(k,w,t):w;};
+function castSigil(wp,tipX,tipY,aimA){
+  const vx=Math.cos(aimA)*wp.spd, vy=Math.sin(aimA)*wp.spd;
+  if(isFire())      shots.push({x:tipX,y:tipY,vx,vy,g:300,r:6,life:1.4,dmg:wp.dmg,c:wp.color,brand:true});
+  else if(isFrost())shots.push({x:tipX,y:tipY,vx:vx*.8,vy:vy*.8-120,g:500,r:8,life:.5,dmg:wp.dmg,c:wp.color,plant:'RAMPART',airOk:true,pierce:99,hitSet:[]});
+  else if(isStorm())shots.push({x:tipX,y:tipY,vx:vx*.8,vy:vy*.8-160,g:900,r:7,life:2.4,dmg:wp.dmg,c:wp.color,plant:'ROD',pierce:99,hitSet:[]});
+  else              shots.push({x:tipX,y:tipY,vx:vx*.8,vy:vy*.8-160,g:900,r:8,life:2.4,dmg:wp.dmg,c:wp.color,plant:'CONSECRATE',pierce:99,hitSet:[]});
+  castSfx('HEAVY'); kick(aimA,3); spawnRing(tipX,tipY,wp.color);
+}
+function castLevelSpell(k,wp,tipX,tipY,aimA){
+  const vx=Math.cos(aimA)*wp.spd, vy=Math.sin(aimA)*wp.spd;
+  if(k==='ECHO') shots.push({x:tipX,y:tipY,vx,vy,g:0,r:9,life:1.1,dmg:wp.dmg,c:wp.color,echo:true});
+  else shots.push({x:tipX,y:tipY,vx:vx*.85,vy:vy*.85-160,g:900,r:8,life:2.6,dmg:wp.dmg,c:wp.color,plant:k,pierce:99,hitSet:[]});
+  castSfx(k==='TORCH'?'HEAVY':'BOLT'); kick(aimA,3);
+}
+function plantEffect(sh,gy){
+  const x=sh.x, y=gy;
+  if(sh.plant==='RAMPART'){
+    solids.push({x:x-40,y:y-6,w:80,h:10,ice:true,oneWay:true,rampart:true,melt:14,flam:false,burn:0,spreadT:0,dead:false});
+    SFX.freeze(); burst(x,y,12,'rgb(200,235,255)',.5); spawnRing(x,y,'rgb(200,240,255)');
+  }else if(sh.plant==='ROD'){
+    rods.push({x,y,t:10}); SFX.clang(); tone('square',1600,900,.15,.08); burst(x,y,8,'rgb(210,190,255)',.5);
+    tip('rod','The rod is planted. Keep firing — the sky answers through it.');
+  }else if(sh.plant==='CONSECRATE'){
+    consec={x,y,r:130,t:10}; SFX.chime(); spawnRing(x,y,'rgb(255,240,190)'); burst(x,y,14,'rgb(255,240,190)',.5);
+    tip('consec','Holy ground. Stand in it: the light reaches, the shield returns.');
+  }else if(sh.plant==='TORCH'){
+    for(const o of flammables()) if(dist2(x,y,o.x+o.w/2,o.y+o.h/2)<130*130) ignite(o);
+    for(const sol of solids) if(sol.breakable&&!sol.dead&&dist2(x,y,sol.x+sol.w/2,sol.y+sol.h/2)<100*100) damageSolid(sol,6,sol.x+sol.w/2,sol.y+sol.h/2);
+    for(const e of enemies) if(!e.dead&&dist2(x,y,e.x,e.y+e.h/2)<90*90) damageEnemy(e,1.5,e.x,e.y+e.h/2,false,1.4);
+    SFX.explode(); burst(x,y,22,'rgb(255,200,90)'); addDecal({t:'scorch',x,y:y+4,w:70});
+  }else if(sh.plant==='THORN'){
+    solids.push({x:x-15,y:y-90,w:30,h:90,bram:true,flam:true,breakable:true,hp:5,maxHp:5,grow:0,oneWay:false,burn:0,spreadT:0,dead:false});
+    SFX.ignite(); hiss(.2,.08,600); burst(x,y-8,8,'rgb(110,150,80)',.5);
+  }else if(sh.plant==='SAPLING'){
+    SAPS.push({x0:x-60,x1:x+60,y:y-28,d:28,temp:9}); SFX.thud(); burst(x,y-10,12,'rgb(255,196,92)',.5);
+    tip('sapling','Sap, wherever you want it. Foes stick; your element answers.');
+  }
+}
+function echoStrike(e,sh){
+  // the struck one falls; its fellows nearby pay for it
+  damageEnemy(e,999,e.x,e.y+e.h/2,false,2.2);
+  for(const o of enemies) if(!o.dead&&o!==e&&dist2(e.x,e.y,o.x,o.y)<300*300){ damageEnemy(o,(o.wave||o.horn)?3:1.5,o.x,o.y+o.h/2,false,1.4); o.shockT=.5; arcs.push({x1:e.x,y1:e.y+e.h/2,x2:o.x,y2:o.y+o.h/2,t:.2}); }
+  tone('sawtooth',196,196,.5,.09); tone('sawtooth',392,392,.6,.07,.15); spawnRing(e.x,e.y+e.h/2,'rgb(235,225,200)');
+}
 
 /* ---------------- the quartermaster's ledger ---------------- */
 const DYES={
@@ -875,11 +935,11 @@ try{Object.assign(shop,JSON.parse(localStorage.getItem('arcanade-shop')||'{}'));
 shop.equip=Object.assign({},EQUIP_DEFAULT,shop.equip||{}); shop.tiers=shop.tiers||{}; shop.curses=shop.curses||{}; shop.presets=shop.presets||{};
 const curseCount=()=>Object.values(shop.curses).filter(Boolean).length;
 /* ---- spell tiers: bought per spell KEY, so every class's version grows together ---- */
-const SPELL_KEYS=['BOLT','SPREAD','LANCE','HEAVY','BREATH','CRAWLER','MORTAR','NOVA'];
+const SPELL_KEYS=['BOLT','SPREAD','LANCE','HEAVY','BREATH','CRAWLER','MORTAR','NOVA','SIGIL'];
 const TIER_DESC={
   BOLT:['+20% damage','and it pierces one'], SPREAD:['+20% damage','one more shard in the fan'], LANCE:['+20% damage','and it reaches 80 further'],
   HEAVY:['+20% damage','one more bounce'], BREATH:['+20% damage','a wider cone'], CRAWLER:['+20% damage','it runs a second longer'],
-  MORTAR:['+20% damage','it falls harder still'], NOVA:['+20% damage','wider, and it throws them']};
+  MORTAR:['+20% damage','it falls harder still'], NOVA:['+20% damage','wider, and it throws them'], SIGIL:['+20% damage','it lasts longer']};
 function tierApply(k,w,t){
   const o=Object.assign({},w);
   if(o.dmg!==undefined) o.dmg=o.dmg*(1+.2*t); if(o.dps!==undefined) o.dps=o.dps*(1+.2*t);
@@ -892,6 +952,7 @@ function tierApply(k,w,t){
     else if(k==='CRAWLER') o.life=(o.life||2.4)+1;
     else if(k==='MORTAR') o.dmg=o.dmg*1.25;
     else if(k==='NOVA'){ o.novaR=(o.novaR||150)+40; o.launch=2.4; }
+    else if(k==='SIGIL'){ o.rate=o.rate*.8; }
   }
   return o;
 }
@@ -902,6 +963,7 @@ const CHARMS=[
   {id:'long_arc',name:'Long Arc',desc:'The chain reaches 220 — half again as far.',price:160,cls:'storm'},
   {id:'oath',name:'The Oath',desc:'The guard recovers twice as fast.',price:160,cls:'paladin'},
   {id:'quick_feet',name:'Quick Feet',desc:'Every dash comes back 15% sooner. Anyone may wear it.',price:140},
+  {id:'memory',name:'Memory',desc:'Begin each level holding the spell you ended the last one with. Anyone may wear it.',price:120},
 ];
 function saveShop(){try{localStorage.setItem('arcanade-shop',JSON.stringify(shop));}catch(e){}}
 let runEmbers=0;
@@ -917,9 +979,9 @@ function ownedSpells(){return ['CRAWLER','MORTAR','NOVA'].filter(k=>shop.owned['
 
 /* ---------------- difficulty ---------------- */
 const DIFFS={
-  squire:{label:'SQUIRE', note:'5 lives · three wards · fewer foes',    lives:5, wards:3, eSpd:.8,  eCad:1.35, eHp:.75, bossHp:.85, eCount:.75},
-  knight:{label:'KNIGHT', note:'3 lives · twin wards · a fair fight',    lives:3, wards:2, eSpd:1,   eCad:1,    eHp:1,   bossHp:1,   eCount:1},
-  warden:{label:'WARDEN', note:'2 lives · one ward · twice the host',   lives:2, wards:1, eSpd:1.15,eCad:.8,   eHp:1.3, bossHp:1.2, eCount:1.35},
+  squire:{label:'SQUIRE', note:'5 lives · three wards · three spells',  lives:5, wards:3, eSpd:.8,  eCad:1.35, eHp:.75, bossHp:.85, eCount:.75, slots:3},
+  knight:{label:'KNIGHT', note:'3 lives · twin wards · two spells',      lives:3, wards:2, eSpd:1,   eCad:1,    eHp:1,   bossHp:1,   eCount:1,   slots:2},
+  warden:{label:'WARDEN', note:'2 lives · one ward · twice the host',   lives:2, wards:1, eSpd:1.15,eCad:.8,   eHp:1.3, bossHp:1.2, eCount:1.35, slots:2},
 };
 let diff='knight', lives=3;
 const DIFF=()=>DIFFS[diff];
@@ -1572,6 +1634,8 @@ function buildLevel2(){
   }
   /* --- pickups --- */
   pickups=[
+    {x:13330,y:-314-64,type:'SIGIL',t:0,got:false},   // on the side bough, by the cage
+    {x:3250,y:600-64,type:'THORN',t:0,got:false},
     {x:1520,y:groundYAt(1520)-64,type:'SPREAD',t:0,got:false},
     {x:2900,y:438-64,type:'LANCE',t:0,got:false},                 // on the canopy road
     {x:5340,y:groundYAt(5340)-64,type:'HEAVY',t:0,got:false},
@@ -1671,6 +1735,8 @@ function buildLevel3(){
   }
   /* --- pickups --- */
   pickups=[
+    {x:11900,y:500-64,type:'SIGIL',t:0,got:false},
+    {x:3000,y:HW-64,type:'SAPLING',t:0,got:false},
     {x:1000,y:340-64,type:'SPREAD',t:0,got:false},
     {x:2120,y:-1440-64,type:'LANCE',t:0,got:false},
     {x:4200,y:HW-64,type:'BREATH',t:0,got:false},
@@ -1751,6 +1817,8 @@ function buildLevel4(){
   for(const cx of CHECKPOINTS){ const sh=P(cx-14,CP_Y[cx]-64,28,64,'shrine'); sh.flam=false; sh.lit=(cx===60); }
   for(const bx2 of [10560,11840]){ const br=P(bx2,-1200-58,28,58,'brazier'); br.flam=false; }
   pickups=[
+    {x:11500,y:-1200-64,type:'SIGIL',t:0,got:false},
+    {x:2500,y:600-64,type:'ECHO',t:0,got:false},
     {x:700,y:600-64,type:'SPREAD',t:0,got:false},
     {x:3200,y:600-64,type:'LANCE',t:0,got:false},
     {x:5900,y:600-64,type:'HEAVY',t:0,got:false},
@@ -1865,6 +1933,8 @@ function buildLevel1(){
   }
   /* --- pickups --- */
   pickups=[
+    {x:11600,y:440-64,type:'SIGIL',t:0,got:false},   // the signature, hidden on the scaffold
+    {x:2200,y:600-64,type:'TORCH',t:0,got:false},     // the level's own
     {x:1240,y:groundYAt(1240)-64,type:'SPREAD',t:0,got:false},
     {x:2140,y:groundYAt(2140)-64,type:'HEAVY',t:0,got:false},
     {x:5425,y:groundYAt(5425)-64,type:'LANCE',t:0,got:false},   // ravine reward
@@ -1996,7 +2066,14 @@ function updateEnemies(dt){
     if(e.shockT>0) e.shockT-=dt;
     if(e.windup>0){ if(!(e.wuT>0)) e.wuMax=e.windup; e.wuT=e.windup; } else e.wuT=0;   // for the windup bars
     if(e.chillT>0) e.chillT-=dt;
-    const cold=(e.chillT>0?0.45:1)*(e.shockT>0?0:1)*DIFF().eSpd;   // chill slows; shock stops  // frost and difficulty both scale pace
+    let cold=(e.chillT>0?0.45:1)*(e.shockT>0?0:1)*DIFF().eSpd;   // chill slows; shock stops
+    if(SAPS.length&&sapAt(e.x,e.y+e.h)) cold*=.3;                        // sap holds
+    if(e.brandT>0){
+      e.brandT-=dt; damageEnemy(e,.9*dt,e.x,e.y+e.h/2,true);
+      if(Math.random()<.4*pMul()) spawnPart(e.x+rand(-8,8),e.y+rand(0,e.h),rand(-10,10),-rand(40,90),.4,2.5,'rgb(255,140,60)',0,true);
+      for(const o of enemies) if(!o.dead&&o!==e&&!(o.brandT>0)&&dist2(e.x,e.y,o.x,o.y)<60*60){ o.brandT=5; burst(o.x,o.y+o.h/2,5,'rgb(255,120,60)',.4); }
+      if(isFire()) for(const o of flammables()) if(e.x>o.x-6&&e.x<o.x+o.w+6&&e.y+e.h>o.y-6&&e.y<o.y+o.h+6) ignite(o);
+    }  // frost and difficulty both scale pace
     // knockback decay
     e.x+=e.kbVx*dt; e.kbVx*=Math.pow(.0005,dt);
     // boss arena: nothing wanders out while the Warden fights
@@ -2913,7 +2990,7 @@ function tryFreezeWater(x,y){
 function swapFire(){
   const p=player;
   if(!p||p.dead||state!=='play'||paused) return;
-  const idxs=[0,1,2].filter(i=>p.slots[i]);
+  const idxs=p.slots.map((_,i)=>i).filter(i=>p.slots[i]);
   if(idxs.length<2) return;
   p.slot=idxs[(idxs.indexOf(p.slot)+1)%idxs.length];
   p.weapon=p.slots[p.slot];
@@ -3061,7 +3138,8 @@ function updatePlayer(dt){
   const abil=down('ability')&&state==='play'&&!paused&&!p.keg&&p.frozenT<=0;
   if(isPaladin()){
     p.guarding=abil&&p.guardM>0&&p.onGround;
-    if(p.guarding) p.guardM=Math.max(0,p.guardM-dt*.3); else p.guardM=Math.min(1,p.guardM+dt*(shop.equip.charm==='oath'?.55:.28));
+    const holy=consec&&dist2(p.x,p.y+27,consec.x,consec.y)<consec.r*consec.r;
+    if(p.guarding) p.guardM=Math.max(0,p.guardM-dt*.3); else p.guardM=Math.min(1,p.guardM+dt*(shop.equip.charm==='oath'?.55:.28)*(holy?3:1));
     p.siphoning=false;
   }else{
     p.siphoning=false; p.guarding=false;
@@ -3248,7 +3326,7 @@ function updatePlayer(dt){
           shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd*1.15,vy:Math.sin(aimA)*wp.spd*1.15,g:0,r:wp.r*1.7,life:1.1,dmg:wp.dmg*2.6,c:wp.color,pierce:4,hitSet:[]});
           castSfx('HEAVY'); kick(aimA,7); spawnRing(tipX,tipY,wp.color); floatText(tipX,tipY-16,'DISCHARGE',wp.color,false);
         }else
-        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd,vy:Math.sin(aimA)*wp.spd,g:0,r:wp.r,life:wp.life||.9,dmg:wp.dmg,c:wp.color,pierce:((isFrost()&&p.rime>=.6)?1:0)+(wp.pierce||0),hitSet:[]});
+        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd,vy:Math.sin(aimA)*wp.spd,g:0,r:wp.r,life:(wp.life||.9)*(isPaladin()&&consec&&dist2(p.x,p.y+27,consec.x,consec.y)<consec.r*consec.r?2:1),dmg:wp.dmg,c:wp.color,pierce:((isFrost()&&p.rime>=.6)?1:0)+(wp.pierce||0),hitSet:[]});
         castSfx('BOLT'); kick(aimA,2);
         burst(tipX,tipY,2,wp.color,.4);
       }else if(p.weapon==='SPREAD'){
@@ -3271,6 +3349,10 @@ function updatePlayer(dt){
         castSfx('HEAVY'); kick(aimA,4);
       }else if(p.weapon==='NOVA'){
         castNova(wp);
+      }else if(p.weapon==='SIGIL'){
+        castSigil(wp,tipX,tipY,aimA);
+      }else if(LEVEL_SPELLS[p.weapon]){
+        castLevelSpell(p.weapon,wp,tipX,tipY,aimA);
       }
     }
   }
@@ -3290,9 +3372,9 @@ function updatePlayer(dt){
       }
       pk.got=true; relicsFound++;
       // a relic fills an empty slot; with all three full it replaces the next in the cycle
-      const empty=p.slots.indexOf(null);
+      const empty=p.slots.indexOf(null); let lostName=null;
       if(empty!==-1){p.slots[empty]=pk.type; p.slot=empty;}
-      else {const nxt=(p.slot+1)%3; p.slots[nxt]=pk.type; p.slot=nxt;}
+      else { lostName=WPN(p.slots[p.slot]).name; p.slots[p.slot]=pk.type; }   // it replaces what you hold — a trade, not a collection
       p.weapon=p.slots[p.slot];
       p.wards=Math.max(p.wards,DIFF().wards);
       p.invulnT=Math.max(p.invulnT,.6);
@@ -3301,7 +3383,8 @@ function updatePlayer(dt){
       tone('sine',880,1760,.25,.05);
       const firstTime=!relicSeen[cls+':'+pk.type];
       if(firstTime){relicSeen[cls+':'+pk.type]=true; try{localStorage.setItem('arcanade-relics',JSON.stringify(relicSeen));}catch(e){}}
-      relicCard={name:WPN(pk.type).name,desc:SPELL_DESC[pk.type]||'',slot:p.slot+1,t:firstTime?6:3.4,total:firstTime?6:3.4,first:firstTime};
+      const rdesc=pk.type==='SIGIL'?(CLASSES[cls].sigilDesc||''):(LEVEL_SPELLS[pk.type]?LEVEL_SPELLS[pk.type].desc:(SPELL_DESC[pk.type]||''));
+      relicCard={name:WPN(pk.type).name,desc:rdesc,slot:p.slot+1,t:firstTime?6:3.4,total:firstTime?6:3.4,first:firstTime,lost:lostName,rare:pk.type==='SIGIL'||!!LEVEL_SPELLS[pk.type]};
       runLog.push({f:p.x/LEVEL,k:'relic'});
       if(relicsFound===1) tip('relic','A second mode! Press '+lbl('swap')+' or right-click to cycle. Relics also mend your ward.');
       else tip('relic2','Three slots ride with you — a new relic replaces the next in the cycle.');
@@ -3472,6 +3555,7 @@ function damageEnemy(e,dmg,x,y,silent,launch){
   if(isFire()&&player&&player.heat>=.8&&!silent) dmg*=1.4;            // hot hands hit harder
   if(player&&player.smiteT>0&&!silent){ dmg*=3; player.smiteT=0; floatText(x,y-22,'SMITE','#ffe9b0',true); SFX.clang(); hitstop(.06); }
   if(shop.curses.glass) dmg*=2;
+  if(consec&&dist2(e.x,e.y+e.h/2,consec.x,consec.y)<consec.r*consec.r) dmg*=1.25;   // on holy ground
   e.hp-=dmg;
   if(!silent){
     const dir=e.x>player.x?1:-1;
@@ -3529,9 +3613,13 @@ function damageEnemy(e,dmg,x,y,silent,launch){
 function updateShots(dt){
   lanceEnd&&(lanceEnd.t-=dt);
   for(const s of shots){
-    s.life-=dt; if(s.life<=0){s.dead=true;continue;}
+    s.life-=dt; if(s.life<=0){ if(s.plant) plantEffect(s,s.airOk?s.y:platformYAt(s.x,s.y-160)); s.dead=true;continue;}
     s.vy+=(s.g||0)*dt;
     s.x+=s.vx*dt; s.y+=s.vy*dt;
+    if(s.plant){   // something to be put down, not thrown through
+      const gy=platformYAt(s.x,s.y-160);
+      if((s.vy>=0&&s.y+s.r>=gy)||s.life<=0){ if(s.y+s.r>=gy||!s.airOk) plantEffect(s,Math.min(gy,s.y+s.r)); else plantEffect(s,s.y); s.dead=true; continue; }
+    }
     if(Math.random()<(s.ball?.7:.3)*pMul())
       spawnPart(s.x,s.y,rand(-15,15),rand(-15,15),.22,s.ball?4:2.5,s.c,0,true);
     // the mortar bursts at the top of its arc
@@ -3620,7 +3708,9 @@ function updateShots(dt){
             s.dead=true; break;
           }
         }
+        if(s.echo){ echoStrike(e,s); s.dead=true; break; }
         damageEnemy(e,s.dmg,s.x,s.y);
+        if(s.brand){ e.brandT=6; e.brandBy=true; burst(e.x,e.y+e.h/2,8,'rgb(255,120,60)',.5); tip('brand','Branded. It burns — and the fire knows whoever stands too close.'); s.dead=true; break; }
         if(s.ball){explodeBall(s); s.dead=true; break;}
         if(s.pierce>0){s.pierce--; (s.hitSet=s.hitSet||[]).push(e); continue;}
         s.dead=true; break;
@@ -3653,6 +3743,7 @@ function updateShots(dt){
     for(const sol of solids){
       if(sol.dead||(sol.oneWay&&!sol.breakable)) continue;
       if(s.x>sol.x&&s.x<sol.x+sol.w&&s.y>sol.y&&s.y<sol.y+sol.h){
+        if(s.plant){ const px2=s.vx>0?sol.x-6:sol.x+sol.w+6; s.x=px2; plantEffect(s,s.airOk?s.y:platformYAt(px2,s.y-120)); s.dead=true; break; }   // struck a wall: it goes down at its foot
         if(sol.breakable) damageSolid(sol,s.dmg,s.x,s.y);
         if(s.ball&&s.bounces>0&&s.vy>0&&s.y<sol.y+22&&!sol.breakable){
           s.bounces--; s.y=sol.y-1; s.vy=-Math.abs(s.vy)*.62; SFX.embers();
@@ -3973,7 +4064,7 @@ function setTutSteps(yard){
     {text:()=>(isPaladin()?'Hold '+lbl('ability')+' to GUARD — block anything':lbl('ability')+' — '+ABIL[cls].name+': '+ABIL[cls].desc), ok:()=>player.abilUsed||player.guarding},
   );
   if(yard) TUT_STEPS.push(
-    {text:()=>'Take the relic, then '+lbl('swap')+' to swap modes', ok:()=>tut.flags.swapped},
+    {text:()=>'Take the relic, then '+lbl('swap')+' to swap spells', ok:()=>tut.flags.swapped},
     {text:'Cross the great gap — dash it, or freeze it',            ok:()=>player.x>1990},
   );
 }
@@ -4047,6 +4138,13 @@ function update(dt){
   if(relicCard){relicCard.t-=dt; if(relicCard.t<=0) relicCard=null;}
   for(const d of drafts) d.t-=dt; drafts=drafts.filter(d=>d.t>0);
   for(const a of arcs) a.t-=dt; arcs=arcs.filter(a=>a.t>0);
+  for(const r of rods){ r.t-=dt; r.zapT=(r.zapT||0)-dt;
+    if(r.zapT<=0&&(mouse.down||gp.fire)&&player&&!player.dead){ let best=null,bd=220*220; for(const e of enemies){ if(e.dead||e.emerge>0) continue; const d=dist2(r.x,r.y-30,e.x,e.y+e.h/2); if(d<bd){bd=d;best=e;} }
+      if(best){ r.zapT=.4; arcs.push({x1:r.x,y1:r.y-34,x2:best.x,y2:best.y+best.h/2,t:.14}); chainDepth++; damageEnemy(best,1,best.x,best.y+best.h/2,false); chainDepth--; best.shockT=.35; tone('square',2200,700,.05,.03); } } }
+  rods=rods.filter(r=>r.t>0);
+  if(consec){ consec.t-=dt; if(consec.t<=0) consec=null; }
+  for(const sp of SAPS) if(sp.temp!==undefined){ sp.temp-=dt; if(sp.temp<=0){ sp.dead=true; for(const c of solids) if(c.crust&&c.pool===sp) c.dead=true; drafts=drafts.filter(d=>d.pool!==sp); } }
+  if(SAPS.some(sp=>sp.dead)) SAPS=SAPS.filter(sp=>!sp.dead);
   for(const f of fireTrail){
     f.t-=dt;
     for(const e of enemies) if(!e.dead&&Math.abs(e.x-f.x)<18&&Math.abs((e.y+e.h)-f.y)<30){ damageEnemy(e,2.2*dt,e.x,e.y+e.h/2,true); if(Math.random()<.2) spawnPart(e.x,e.y+e.h/2,rand(-30,30),-rand(30,80),.3,2.5,'rgb(255,154,60)',0,true); }
@@ -4587,6 +4685,7 @@ function render(t){
   drawBoss(t);
   drawRunners(t);
   drawDebris(t);
+  drawRodsAndGround(t);
   drawFireTrail(t);
   drawSigil(t);
   drawPet(t);
@@ -5610,6 +5709,7 @@ function drawPickups(t){
     if(pk.got) continue;
     if(pk.x<cam.x-60||pk.x>cam.x+W+60) continue;
     const bob=Math.sin(t*.003+pk.x)*7;
+    if(pk.type==='SIGIL'||LEVEL_SPELLS[pk.type]){ drawGlow(pk.x,pk.y+bob,46,'rgb(255,215,120)',.5); ctx.strokeStyle='rgba(255,215,120,'+(.5+.3*Math.sin(t*.006))+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(pk.x,pk.y+bob,22+Math.sin(t*.004)*3,0,TAU); ctx.stroke(); }
     if(pk.type==='LIFE'){
       drawGlow(pk.x,pk.y+bob,36,'rgb(255,160,70)',.85);
       ctx.fillStyle='#a03028';
@@ -6467,6 +6567,20 @@ function drawShotsGlow(t){
     drawGlow(le.x2,le.y2,22,lc,.9);
   }
 }
+function drawRodsAndGround(t){
+  if(consec){ const q=clamp(consec.t/1.5,0,1);
+    ctx.save(); ctx.translate(consec.x,consec.y); ctx.scale(1,.32); ctx.globalAlpha=q;
+    ctx.strokeStyle='rgba(255,240,190,.85)'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(0,0,consec.r,0,TAU); ctx.stroke();
+    ctx.fillStyle='rgba(255,240,190,.12)'; ctx.fill();
+    ctx.rotate(t*.002); ctx.strokeStyle='rgba(255,220,140,.5)'; ctx.lineWidth=1; ctx.beginPath(); for(let k=0;k<8;k++){ const a2=k*TAU/8; ctx.moveTo(Math.cos(a2)*consec.r*.6,Math.sin(a2)*consec.r*.6); ctx.lineTo(Math.cos(a2)*consec.r,Math.sin(a2)*consec.r); } ctx.stroke();
+    ctx.restore(); ctx.globalAlpha=1;
+    if(Math.random()<.3*pMul()) spawnPart(consec.x+rand(-consec.r,consec.r)*.8,consec.y,0,-rand(20,50),rand(.8,1.4),1.6,'rgb(255,240,190)',0,true); }
+  for(const r of rods){ const q=clamp(r.t/1.2,0,1); ctx.globalAlpha=q;
+    ctx.strokeStyle='#9aa4b0'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(r.x,r.y); ctx.lineTo(r.x,r.y-36); ctx.stroke();
+    ctx.fillStyle='#e0ccff'; ctx.beginPath(); ctx.arc(r.x,r.y-38,3,0,TAU); ctx.fill(); drawGlow(r.x,r.y-38,14+Math.sin(t*.02)*3,'rgb(210,190,255)',.6);
+    if(Math.random()<.3) arcs.push({x1:r.x,y1:r.y-38,x2:r.x+rand(-12,12),y2:r.y-38+rand(-12,8),t:.05});
+    ctx.globalAlpha=1; }
+}
 function drawFireTrail(t){
   if(!fireTrail.length) return;
   ctx.globalCompositeOperation='lighter';
@@ -6711,7 +6825,7 @@ function drawHUD(t){
   }
   // the spells as three cards on the table — the one in hand is lifted and lit
   let chipX=24;
-  for(let i=0;i<3;i++){
+  for(let i=0;i<player.slots.length;i++){
     const wn=player.slots[i];
     const active=i===player.slot&&wn;
     const label=wn?WPN(wn).name:'';
@@ -6884,7 +6998,9 @@ function drawHUD(t){
     corners(cx0+4,cy0+4,cw-8,56);
     ctx.textAlign='left';
     ctx.font='14px '+UIF; ctx.fillStyle='#5a3c1a'; ctx.fillText(relicCard.name,cx0+16,cy0+26);
-    ctx.font='italic 12px Georgia'; ctx.fillStyle='#8a6f4a'; ctx.fillText(relicCard.desc,cx0+16,cy0+44);
+    ctx.font='italic 12px Georgia'; ctx.fillStyle='#8a6f4a'; ctx.fillText(relicCard.desc.length>44?relicCard.desc.slice(0,42)+'…':relicCard.desc,cx0+16,cy0+44);
+    if(relicCard.lost){ ctx.font='10px Georgia'; ctx.fillStyle='#8a2f1a'; ctx.fillText('in place of '+relicCard.lost,cx0+16,cy0+58); }
+    if(relicCard.rare){ ctx.strokeStyle='#c9a227'; ctx.lineWidth=2; ctx.strokeRect(cx0+2.5,cy0+2.5,cw-5,59); }
     ctx.font='10px '+UIF; ctx.fillStyle='#8a5a1a'; ctx.textAlign='right'; ctx.fillText('SLOT '+relicCard.slot,cx0+cw-14,cy0+58);
     if(relicCard.first){   // a ribbon for the first time you've ever held it
       ctx.fillStyle='#7a2418'; ctx.fillRect(cx0+cw-92,cy0-8,84,16);
@@ -6916,6 +7032,7 @@ function gameOver(){
 /* ---------------- win ---------------- */
 function doWin(){
   const rushWasRun=rush.done||rush.on;
+  if(player&&!tutorialMode){ const held=player.weapon; shop.lastHeld=(held&&held!=='BOLT'&&!LEVEL_SPELLS[held])?held:null; saveShop(); }
   if(rush.on&&!tutorialMode&&rushNext()) return;
   state='win';
   stopMusic(); stopDrums(); stopAmbience();
@@ -7512,7 +7629,6 @@ const STORE_ITEMS=[
   ['Spells','sp_CRAWLER','Salamander · Rimeshard','A flame that runs the ground and slips under shields.',220,null,null],
   ['Spells','sp_MORTAR','Skyfall · Hailrake','A high lob that bursts into falling ruin.',220,null,null],
   ['Spells','sp_NOVA',"Cinder Ring · Winter's Grasp",'Everything beside you, reminded of its place.',220,null,null],
-  ['Spells','second_slot','A Second Prepared Spell','March out with two spells in hand, not one.',180,null,null],
 ];
 function stockVisible(){return STORE_ITEMS.filter(it=>!it[7]||bstSeen[it[7]]).length+CHARMS.length;}
 let armPreview=null, armDemo=null;
@@ -7577,6 +7693,7 @@ function renderStore(){
   mkHead('SPELL TIERS');
   for(const k of SPELL_KEYS){
     if(['CRAWLER','MORTAR','NOVA'].includes(k)&&!shop.owned['sp_'+k]) continue;
+    if(k==='SIGIL'&&!relicSeen[cls+':SIGIL']) continue;   // you must have held it once
     const t=shop.tiers[k]||0, nm=CLASSES[cls].weapons[k].name;
     if(t>=2){ mkRow(nm+' · Tier III','Fully grown.','MASTERED','opacity:.6',null); continue; }
     const price=t===0?140:220;
@@ -7591,24 +7708,8 @@ function renderStore(){
     if(!shop.owned[ch.id]){ const afford=shop.embers>=ch.price; mkRow(nm,ch.desc,ch.price+' embers',afford?'':'opacity:.45',afford?()=>{shop.embers-=ch.price;shop.owned[ch.id]=true;saveShop();SFX.pickup();renderStore();}:null); }
     else { const eq=shop.equip.charm===ch.id; mkRow(nm,ch.desc,eq?'WORN — remove':'WEAR','',()=>{shop.equip.charm=eq?'none':ch.id;saveShop();SFX.chime();renderStore();}); }
   }
-  // prepared spell — what you march out holding
-  const h2=document.createElement('div');
-  h2.style.cssText="font-family:Cinzel,Georgia;letter-spacing:.24em;font-size:12px;color:#8a5a1a;margin:12px 0 2px";
-  h2.textContent='PREPARED SPELL';
-  box.appendChild(h2);
-  for(const k of ['BOLT',...ownedSpells()]){
-    const nm=k==='BOLT'?CLASSES[cls].weapons.BOLT.name:CLASSES[cls].weapons[k].name;
-    mkRow(nm,'Begin every march with this in hand.',shop.start===k?'PREPARED':'PREPARE','',
-      shop.start===k?null:()=>{shop.start=k;saveShop();SFX.chime();renderStore();});
-  }
-  if(shop.owned.second_slot){
-    mkHead('SECOND PREPARED SPELL');
-    for(const k of ['none',...ownedSpells()]){
-      const nm=k==='none'?'— an empty slot —':CLASSES[cls].weapons[k].name;
-      mkRow(nm,k==='none'?'Find your second spell on the road.':'In the second slot from the first step.',shop.start2===k?'PREPARED':'PREPARE','',
-        shop.start2===k?null:()=>{shop.start2=k;saveShop();SFX.chime();renderStore();});
-    }
-  }
+  // what you march out holding is decided on the road now — the wagon sells what you find, not what you start with
+
 }
 
 /* ---------------- the armory: dress the legend ---------------- */
@@ -7770,14 +7871,6 @@ function renderArmory(){
     const dyeCol=slot==='dye'&&DYES[cur]?'<span style="display:inline-block;width:12px;height:12px;vertical-align:middle;margin-right:6px;border:1px solid #6a4a2a;background:linear-gradient(90deg,'+DYES[cur].robe+' 0 60%,'+DYES[cur].cape+' 60%)"></span>':'';
     mkSel(label,dyeCol+(cur==='none'?'— none —':cur)+(avail.length<=1?'  (visit the wagon)':''),()=>cyc(-1),()=>cyc(1));
   }
-  // prepared spell
-  {
-    const avail=['BOLT',...ownedSpells()];
-    const idx=Math.max(0,avail.indexOf(shop.start));
-    const nm=k=>k==='BOLT'?'Bolt':STORE_ITEMS.find(i=>i[1]==='sp_'+k)[2].split(' · ')[armCls==='fire'?0:1]||k;
-    const cyc=d=>{shop.start=avail[(idx+d+avail.length)%avail.length];saveShop();SFX.chime();renderArmory();};
-    mkSel('Prepared Spell',nm(shop.start),()=>cyc(-1),()=>cyc(1));
-  }
   // the numbers behind the pips
   { const CL=CLASSES[armCls];
     const row=document.createElement('div'); row.style.cssText='padding:8px 0;border-bottom:1px solid rgba(90,60,30,.18);font-size:11px;color:#4a3826;letter-spacing:.08em';
@@ -7790,9 +7883,9 @@ function renderArmory(){
     for(let i=0;i<3;i++){
       const has=!!P[i];
       const bL=document.createElement('button'); bL.className='btn small parch'; bL.style.cssText='margin:0;padding:3px 8px;font-size:10px'+(has?'':';opacity:.45'); bL.textContent=(has?'LOAD ':'— ')+(i+1);
-      bL.onclick=()=>{ if(!P[i]) return; shop.equip=Object.assign({},EQUIP_DEFAULT,P[i].equip); shop.start=P[i].start; shop.start2=P[i].start2||'none'; saveShop(); SFX.chime(); renderArmory(); };
+      bL.onclick=()=>{ if(!P[i]) return; shop.equip=Object.assign({},EQUIP_DEFAULT,P[i].equip); saveShop(); SFX.chime(); renderArmory(); };
       const bS=document.createElement('button'); bS.className='btn small parch'; bS.style.cssText='margin:0;padding:3px 8px;font-size:10px'; bS.textContent='SAVE';
-      bS.onclick=()=>{ P[i]={equip:{...shop.equip},start:shop.start,start2:shop.start2}; saveShop(); SFX.pickup(); renderArmory(); };
+      bS.onclick=()=>{ P[i]={equip:{...shop.equip}}; saveShop(); SFX.pickup(); renderArmory(); };
       row.appendChild(bL); row.appendChild(bS);
     }
     box.appendChild(row); }
@@ -7846,11 +7939,11 @@ function startGame(){
   tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   setTutSteps(false);
   player=makePlayer(60); player.y=groundYAt(60)-56;
-  const startSpell=(shop.start==='BOLT'||shop.owned['sp_'+shop.start])?shop.start:'BOLT';
-  player.slots=[startSpell,null,null]; player.slot=0; player.weapon=startSpell;
-  if(shop.owned.second_slot&&shop.start2&&shop.start2!=='none'&&shop.owned['sp_'+shop.start2]&&shop.start2!==startSpell) player.slots[1]=shop.start2;
+  const startSpell='BOLT';
+  player.slots=Array.from({length:DIFF().slots||2},(_,i)=>i?null:startSpell); player.slot=0; player.weapon=startSpell;
+  if(shop.equip.charm==='memory'&&shop.lastHeld&&player.slots.length>1&&CLASSES[cls].weapons[shop.lastHeld]&&!tutorialMode){ player.slots[1]=shop.lastHeld; }   // Memory: what you ended with, you begin with
   runEmbers=0; petPos={x:60,y:player.y+player.h};
-  streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums(); wisps=[]; hornProp=null; fireTrail=[]; arcs=[]; gust=0; gustT=6; gustOn=0; stings=[];
+  streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums(); wisps=[]; hornProp=null; fireTrail=[]; arcs=[]; gust=0; gustT=6; gustOn=0; stings=[]; rods=[]; consec=null;
   startAmbience();
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
   playMusic('field');
