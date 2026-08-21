@@ -657,7 +657,7 @@ function rectsOverlap(ax,ay,aw,ah,bx,by,bw,bh){
 
 /* ---------------- boss: the Warden of Vhal ---------------- */
 function startBoss(){
-  const bhp=Math.round(60*DIFF().bossHp);
+  const bhp=Math.round(130*DIFF().bossHp);
   boss={x:ARENA+900, y:WALLY-92, w:44, h:92, hp:bhp, max:bhp, face:-1,
     st:'step', stT:1.2, vx:0, throwN:0, throwT:0, hurtT:0, chillT:0, deadT:0, dead:false};
   bossIntroT=2.4; SFX.roar();
@@ -748,7 +748,7 @@ function updateBoss(dt){
 
 /* ---------------- mini-boss: the Catapult Master ---------------- */
 function startMBoss(){
-  const hp=Math.round(28*DIFF().bossHp);
+  const hp=Math.round(64*DIFF().bossHp);
   mboss={x:6600,y:600-74,w:130,h:74,hp,max:hp,face:-1,vx:0,wheel:0,
     st:'roll',stT:1.2,lobT:1.8,burn:0,chillT:0,hurtT:0,dead:false,deadT:0,dropped:false};
   mbIntroT=2; SFX.roar(); SFX.slam();
