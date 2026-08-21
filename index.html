@@ -22,17 +22,25 @@
     background:linear-gradient(180deg, rgba(22,13,32,.38), rgba(22,13,32,.66));
     opacity:1;transition:opacity .45s ease}
   .overlay.hidden{opacity:0;pointer-events:none}
-  #title .tpanel{padding:44px 78px 38px;background:rgba(16,10,22,.55);
+  /* the title lets the tableau breathe — the mages stand in the frame */
+  #title{background:linear-gradient(180deg, rgba(22,13,32,.12), rgba(22,13,32,.5) 78%, rgba(12,7,18,.72))}
+  #title .tpanel{padding:30px 70px 26px;background:rgba(14,9,20,.42);
     border:1px solid rgba(255,215,150,.4);outline:4px double rgba(255,215,150,.2);outline-offset:7px;
-    backdrop-filter:blur(3px);animation:tfloat 7s ease-in-out infinite}
+    backdrop-filter:blur(2px);animation:tfloat 7s ease-in-out infinite}
   @keyframes tfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
   .orna{color:#d8a86a;letter-spacing:.5em;font-size:13px;margin:2px 0 10px;text-indent:.5em}
   h1.logo,h2,.btn,.slice,.orna,#charsel h2,.card-ch h3,.bst h3{font-family:'Cinzel',Georgia,serif}
-  h1.logo{font-size:clamp(48px,9vw,104px);letter-spacing:.18em;font-weight:normal;text-indent:.18em;
-    color:#ffe9c9;text-shadow:0 0 18px rgba(255,140,58,.85),0 0 60px rgba(255,110,40,.5),0 0 120px rgba(255,90,30,.35);
-    animation:lglow 3.5s ease-in-out infinite}
-  @keyframes lglow{0%,100%{text-shadow:0 0 18px rgba(255,140,58,.85),0 0 60px rgba(255,110,40,.5),0 0 120px rgba(255,90,30,.35)}
-    50%{text-shadow:0 0 26px rgba(255,160,70,1),0 0 80px rgba(255,120,45,.65),0 0 150px rgba(255,95,35,.45)}}
+  /* arcade-metal logo, Contra by way of the forge */
+  h1.logo{font-size:clamp(52px,9.5vw,112px);letter-spacing:.14em;font-weight:600;text-indent:.14em;
+    background:linear-gradient(180deg,#fff8dc 0%,#ffd67c 26%,#c97f30 46%,#fff0b8 52%,#a05c1a 72%,#5a2f0c 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 3px 0 rgba(58,31,8,.9)) drop-shadow(0 7px 16px rgba(0,0,0,.6)) drop-shadow(0 0 26px rgba(255,140,50,.35));
+    transform:perspective(460px) rotateX(10deg);
+    animation:ltilt 6s ease-in-out infinite}
+  @keyframes ltilt{0%,100%{transform:perspective(460px) rotateX(10deg) scale(1)}
+    50%{transform:perspective(460px) rotateX(12deg) scale(1.015)}}
+  .bestline{margin-top:12px;font-size:12px;letter-spacing:.14em;color:#b89a6e;font-family:'Cinzel',Georgia,serif}
+  .bestline b{color:#ffd9a8}
   .tagline{margin-top:8px;font-style:italic;color:#d8b896;letter-spacing:.14em;font-size:clamp(13px,1.6vw,18px)}
   .slice{margin-top:16px;color:#ff9a4d;letter-spacing:.34em;font-size:12px;text-transform:uppercase}
   .btn{margin-top:14px;padding:13px 44px;font-family:inherit;font-size:17px;letter-spacing:.22em;
@@ -128,7 +136,8 @@
     <h1 class="logo">ARCANADE</h1>
     <div class="tagline">one mage against the siege</div>
     <div class="slice">slice i &mdash; the wall of vhal</div>
-    <div class="orna" style="margin-top:16px">─── ✦ ───</div>
+    <div class="bestline" id="bestLine"></div>
+    <div class="orna" style="margin-top:12px">─── ✦ ───</div>
     <div class="btnrow" style="justify-content:center">
       <button class="btn" id="bStart">Begin the Siege</button>
       <button class="btn" id="bTutorial">Tutorial</button>
@@ -196,6 +205,11 @@
     <div class="setrow"><label>Show timer</label><div class="toggle on" id="sTimer"></div></div>
     <div class="setrow"><label>Tutorial hints</label><div class="toggle on" id="sTut"></div></div>
     <div class="setrow"><label>Glow intensity</label><input type="range" id="sGlow" min="40" max="140" value="100"></div>
+    <div class="setrow"><label>Damage flashes</label><div class="toggle on" id="sVign"></div></div>
+    <div class="setrow"><label>Dramatic deaths</label><div class="toggle on" id="sRag"></div></div>
+    <div class="setrow"><label>Pause when tabbed out</label><div class="toggle on" id="sAuto"></div></div>
+    <div class="setrow"><label>Show FPS</label><div class="toggle" id="sFps"></div></div>
+    <div class="setrow"><label>Fullscreen</label><button class="btn small" id="bFull" style="margin:0;padding:5px 16px;font-size:12px">Toggle</button></div>
     <div id="bindRows" style="border-top:1px solid rgba(255,150,70,.2);margin-top:14px;padding-top:4px"></div>
     <div style="text-align:right"><button class="btn small" id="bBindReset" style="margin-top:4px;padding:5px 14px;font-size:11px">Reset keys</button></div>
     <div class="setnote">music: "Teller of the Tales", "Master of the Feast" — Kevin MacLeod (incompetech.com), CC BY 4.0</div>
@@ -290,7 +304,8 @@ const rand=(a,b)=>a+Math.random()*(b-a);
 const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy};
 
 /* ---------------- settings ---------------- */
-const SET={vol:.6, music:.5, shake:true, particles:'full', timer:true, glow:1, tut:true};
+const SET={vol:.6, music:.5, shake:true, particles:'full', timer:true, glow:1, tut:true,
+  fps:false, vign:true, ragdoll:true, autopause:true};
 try{Object.assign(SET, JSON.parse(localStorage.getItem('arcanade-settings')||'{}'));}catch(e){}
 function saveSet(){try{localStorage.setItem('arcanade-settings',JSON.stringify(SET));}catch(e){} applySet();}
 function applySet(){
@@ -300,6 +315,10 @@ function applySet(){
   document.getElementById('sShake').classList.toggle('on',SET.shake);
   document.getElementById('sTimer').classList.toggle('on',SET.timer);
   document.getElementById('sTut').classList.toggle('on',SET.tut);
+  document.getElementById('sVign').classList.toggle('on',SET.vign);
+  document.getElementById('sRag').classList.toggle('on',SET.ragdoll);
+  document.getElementById('sAuto').classList.toggle('on',SET.autopause);
+  document.getElementById('sFps').classList.toggle('on',SET.fps);
   document.querySelectorAll('#sPart span').forEach(s=>s.classList.toggle('on',s.dataset.v===SET.particles));
   if(master) master.gain.value=SET.vol*.5;
   for(const k of ['field','boss']) if(MUSIC[k]) MUSIC[k].volume=SET.music*.7;
@@ -392,7 +411,7 @@ const SFX={
   stoneCrack(){smp('mine',.6,.95)||hiss(.2,.12,500);},
   woodTick(){smp('plank',.3,1.3);},
   stoneTick(){smp('mine',.28,1.35);},
-  step(stone){smp(stone?'stepC':'stepG',.22,1.05);},
+  step(stone){smp(stone?'stepC':'stepG',.22,1.05)||hiss(.03,.015,stone?900:500);},
   thud(){smp('soft',.4,1.15)||tone('sine',120,60,.12,.08);},
   ambush(){tone('square',95,60,.35,.14); smp('metalH',.3,.7);},
   chime(){smp('bell',.4,1.6)||(tone('sine',420,420,.12,.1),tone('sine',630,630,.16,.1,.1));},
@@ -543,6 +562,31 @@ cv.addEventListener('mousedown',e=>{if(e.button===0) mouse.down=true; if(e.butto
 cv.addEventListener('wheel',e=>{swapFire();e.preventDefault();},{passive:false});
 addEventListener('mouseup',e=>{if(e.button===0) mouse.down=false;});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ---------------- gamepad: twin-stick ---------------- */
+const gp={move:0,fire:false,aimX:1,aimY:0,aimT:0,prev:[]};
+function pollGamepad(dt){
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  let p0=null;
+  for(const p of pads) if(p&&p.connected){p0=p;break;}
+  gp.aimT-=dt;
+  if(!p0){gp.move=0;gp.fire=false;return;}
+  const btn=i=>!!(p0.buttons[i]&&p0.buttons[i].pressed);
+  const was=i=>!!gp.prev[i];
+  // left stick + dpad → run
+  const ax=Math.abs(p0.axes[0]||0)>.25?p0.axes[0]:0;
+  gp.move=clamp(ax+(btn(14)?-1:0)+(btn(15)?1:0),-1,1);
+  // right stick → aim
+  const rx=p0.axes[2]||0, ry=p0.axes[3]||0;
+  if(Math.hypot(rx,ry)>.3){gp.aimX=rx;gp.aimY=ry;gp.aimT=2;}
+  // triggers/buttons → verbs (A jump, B/RB dash, X/RT fire, Y/LB cycle, Start pause)
+  gp.fire=btn(2)||(p0.buttons[7]&&p0.buttons[7].value>.3);
+  if(btn(0)&&!was(0)&&player) player.jumpBufT=.12;
+  if((btn(1)&&!was(1))||(btn(5)&&!was(5))) tryDash();
+  if((btn(3)&&!was(3))||(btn(4)&&!was(4))) swapFire();
+  if(btn(9)&&!was(9)) togglePause();
+  gp.prev=p0.buttons.map(b=>b.pressed);
+}
 
 /* ---------------- world state ---------------- */
 let state='title';        // title | charsel | intro | play | win
@@ -1192,7 +1236,9 @@ function updatePlayer(dt){
       spawnRing(c,sh.y+8,'rgb(255,190,110)');
     }
   }
-  const wm={x:mouse.x+cam.x, y:mouse.y};
+  const wm=gp.aimT>0
+    ? {x:p.x+gp.aimX*400, y:p.y+22+gp.aimY*400}   // right stick owns the aim while it moves
+    : {x:mouse.x+cam.x, y:mouse.y};
   p.face=wm.x>=p.x?1:-1;
   const sp=380;
   if(p.dashT>0){
@@ -1201,6 +1247,7 @@ function updatePlayer(dt){
   }else{
     let mx=0;
     if(down('left')) mx-=1; if(down('right')) mx+=1;
+    if(gp.move) mx=gp.move;
     p.vx=lerp(p.vx,mx*sp,1-Math.pow(.0001,dt));
     p.vy+=2200*dt;
     if(p.jumpBufT>0&&(p.onGround||p.coyoteT>0)){
@@ -1253,7 +1300,7 @@ function updatePlayer(dt){
   const wp=WPN(p.weapon);
   const aimA=Math.atan2(wm.y-(p.y+22), wm.x-p.x);
   const tipX=p.x+Math.cos(aimA)*30, tipY=p.y+22+Math.sin(aimA)*30;
-  if(mouse.down&&state==='play'&&!paused){
+  if((mouse.down||gp.fire)&&state==='play'&&!paused){
     tut.flags.fired=true;
     if(p.weapon==='LANCE'){
       fireLance(tipX,tipY,aimA,dt);
@@ -1429,11 +1476,11 @@ function damageEnemy(e,dmg,x,y,silent,launch){
     e.dead=true; kills++; SFX.die(); hitstop(.045);
     // the last hit sends them tumbling — sometimes gloriously
     const dir=e.x>=player.x?1:-1;
-    const L=launch||1;
-    const big=Math.random()<.18||L>1.4;
+    const L=(launch||1)*(SET.ragdoll?1:.25);
+    const big=SET.ragdoll&&(Math.random()<.18||L>1.4);
     e.corpseVx=dir*rand(140,300)*L*(big?1.6:1);
     e.corpseVy=-rand(160,340)*L*(big?1.8:1);
-    e.spin=(Math.random()<.5?-1:1)*rand(5,10)*(big?1.5:1);
+    e.spin=(Math.random()<.5?-1:1)*rand(5,10)*(big?1.5:1)*(SET.ragdoll?1:.3);
     e.spinA=0; e.settled=false; e.bounced=false;
     e.deathT=big?1.5:1.05;
     burst(e.x,e.y+e.h/2,10,isFire()?'rgb(255,154,60)':'rgb(170,220,255)');
@@ -1826,7 +1873,56 @@ function render(t){
   drawForeground(t);
   drawGrade();
   drawVignette(t);
+  if(state==='title'||state==='charsel') drawTitleHeroes(t);
   drawHUD(t);
+}
+function drawHeroMage(key,hx,hy,sc,face,t){
+  const CL=CLASSES[key];
+  const col=CL.weapons.BOLT.color;
+  ctx.save();
+  ctx.translate(hx,hy+Math.sin(t*.0016+(key==='frost'?2:0))*6);
+  ctx.scale(sc*face,sc);
+  // element motes climbing (embers) or falling (snow) around the figure
+  for(let i=0;i<7;i++){
+    const ph=((t*.00035)+(i*.157))%1;
+    const mx=-34+((i*47)%68);
+    const my=key==='fire'?30-ph*84:-54+ph*84;
+    ctx.globalAlpha=Math.sin(ph*Math.PI)*.75;
+    ctx.fillStyle=key==='fire'?'#ffb267':'#cfe8ff';
+    if(key==='fire'){ctx.beginPath();ctx.arc(mx,my,1.8,0,TAU);ctx.fill();}
+    else {ctx.fillRect(mx-2,my-.5,4,1); ctx.fillRect(mx-.5,my-2,1,4);}
+    ctx.globalAlpha=1;
+  }
+  const flut=Math.sin(t*.004+(key==='frost'?1:0))*4;
+  ctx.fillStyle=CL.cape;
+  ctx.beginPath();
+  ctx.moveTo(-4,-16); ctx.quadraticCurveTo(-24-flut,8,-17-flut,30); ctx.lineTo(-4,22);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#3a2c26'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(0,8); ctx.lineTo(-4,26); ctx.moveTo(0,8); ctx.lineTo(5,26); ctx.stroke();
+  ctx.fillStyle=CL.robe; ctx.fillRect(-8,-16,16,26);
+  ctx.fillStyle=CL.robeShade; ctx.fillRect(-8,2,16,8);
+  ctx.fillStyle='#e8c49a'; ctx.beginPath();ctx.arc(0,-21,8,0,TAU);ctx.fill();
+  ctx.fillStyle=CL.robeShade;
+  ctx.beginPath();
+  ctx.moveTo(-9,-19);ctx.lineTo(-9,-27);ctx.lineTo(2,-39);ctx.lineTo(9,-28);ctx.lineTo(9,-24);ctx.lineTo(7,-28);ctx.lineTo(-2,-19);
+  ctx.closePath();ctx.fill();
+  // arm on the staff, staff raised high — the recruiting-poster pose
+  ctx.strokeStyle=CL.robeShade; ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(2,-6);ctx.lineTo(15,-20);ctx.stroke();
+  ctx.strokeStyle='#7a5a36'; ctx.lineWidth=3.5;
+  ctx.beginPath(); ctx.moveTo(8,4); ctx.lineTo(26,-34); ctx.stroke();
+  const pulse=13+Math.sin(t*.005+(key==='frost'?1.5:0))*4;
+  const rg=ctx.createRadialGradient(26,-36,0,26,-36,pulse+6);
+  rg.addColorStop(0,col); rg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=rg; ctx.beginPath();ctx.arc(26,-36,pulse+6,0,TAU);ctx.fill();
+  ctx.fillStyle='#fff2dd'; ctx.beginPath();ctx.arc(26,-36,3.5,0,TAU);ctx.fill();
+  ctx.restore();
+}
+function drawTitleHeroes(t){
+  // the two of them, poster-size, flanking the metal
+  drawHeroMage('fire', W*.145, H*.66, 3.4, 1, t);
+  drawHeroMage('frost', W*.855, H*.66, 3.4, -1, t);
 }
 function drawDecals(){
   for(const d of decals){
@@ -2721,7 +2817,7 @@ function drawShotsGlow(t){
       ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx/l*14,s.y-s.vy/l*14);ctx.stroke();
     }
   }
-  if(lanceEnd&&lanceEnd.t>0&&player.weapon==='LANCE'&&mouse.down&&!player.dead){
+  if(lanceEnd&&lanceEnd.t>0&&player.weapon==='LANCE'&&(mouse.down||gp.fire)&&!player.dead){
     const le=lanceEnd, lc=WPN('LANCE').color;
     ctx.strokeStyle=lc;ctx.lineWidth=WPN('LANCE').beamW;ctx.globalAlpha=.9;
     ctx.beginPath();ctx.moveTo(le.x1,le.y1);ctx.lineTo(le.x2,le.y2);ctx.stroke();
@@ -2765,6 +2861,7 @@ function drawVignette(t){
   g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(30,20,8,.3)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
   // pain reads at the edges of vision
+  if(!SET.vign) return;
   let red=0;
   if(dmgFlashT>0) red=Math.min(.5,dmgFlashT*1.3);
   if(state==='play'&&player&&!player.dead&&!player.ward)
@@ -2843,6 +2940,10 @@ function drawHUD(t){
     ctx.textAlign='right'; ctx.fillStyle='#4a3826'; ctx.font='13px Georgia';
     const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
     ctx.fillText(m+':'+String(s).padStart(2,'0')+(deaths?'   deaths '+deaths:''), W-24, 36);
+  }
+  if(SET.fps){
+    ctx.textAlign='right'; ctx.fillStyle='rgba(74,56,38,.7)'; ctx.font='12px Georgia';
+    ctx.fillText(Math.round(fpsEma)+' fps', W-24, 54);
   }
   // tutorial checklist — a page from the drill manual, impossible to miss
   if(tut.active&&SET.tut){
@@ -3190,7 +3291,26 @@ function drawCharPortraits(tt){
 /* ---------------- overlays / flow ---------------- */
 const ov=id=>document.getElementById(id);
 const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover'];
-function show(id){OVERLAYS.forEach(o=>ov(o).classList.toggle('hidden',o!==id));}
+function refreshBestLine(){
+  const el=document.getElementById('bestLine');
+  if(!el) return;
+  const parts=[];
+  for(const k of ['fire','frost']){
+    let best=null;
+    for(const d of Object.keys(DIFFS)){
+      try{
+        const v=JSON.parse(localStorage.getItem('arcanade-best-'+k+'-'+d)||'null');
+        if(v&&(!best||v.idx>best.idx)) best=v;
+      }catch(e){}
+    }
+    parts.push(CLASSES[k].title+': '+(best?'<b>'+CLASSES[k].ranks[best.idx]+'</b>':'<span style="opacity:.5">unproven</span>'));
+  }
+  el.innerHTML='CHRONICLE &nbsp;·&nbsp; '+parts.join(' &nbsp;·&nbsp; ');
+}
+function show(id){
+  OVERLAYS.forEach(o=>ov(o).classList.toggle('hidden',o!==id));
+  if(id==='title') refreshBestLine();
+}
 function hideAll(){OVERLAYS.forEach(o=>ov(o).classList.add('hidden'));}
 function startGame(){
   buildLevel();
@@ -3253,6 +3373,17 @@ document.getElementById('sGlow').oninput=e=>{SET.glow=e.target.value/100;saveSet
 document.getElementById('sShake').onclick=()=>{SET.shake=!SET.shake;saveSet();};
 document.getElementById('sTimer').onclick=()=>{SET.timer=!SET.timer;saveSet();};
 document.getElementById('sTut').onclick=()=>{SET.tut=!SET.tut;saveSet();};
+document.getElementById('sVign').onclick=()=>{SET.vign=!SET.vign;saveSet();};
+document.getElementById('sRag').onclick=()=>{SET.ragdoll=!SET.ragdoll;saveSet();};
+document.getElementById('sAuto').onclick=()=>{SET.autopause=!SET.autopause;saveSet();};
+document.getElementById('sFps').onclick=()=>{SET.fps=!SET.fps;saveSet();};
+document.getElementById('bFull').onclick=()=>{
+  if(document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(()=>{});
+};
+addEventListener('blur',()=>{
+  if(SET.autopause&&state==='play'&&!paused) togglePause();
+});
 document.querySelectorAll('#sPart span').forEach(s=>s.onclick=()=>{SET.particles=s.dataset.v;saveSet();});
 applySet();
 
@@ -3286,13 +3417,17 @@ function refreshControlsLine(){
 document.getElementById('bBindReset').onclick=()=>{BINDS={...DEFAULT_BINDS};saveBinds();};
 refreshBindUI();
 refreshControlsLine();
+refreshBestLine();
 
 /* ---------------- main loop + watchdog ---------------- */
 let last=0, lastFrameAt=Date.now(), rafId=0;
+let fpsEma=60;
 function frame(t){
   rafId=requestAnimationFrame(frame);
   lastFrameAt=Date.now();
   const dt=Math.min(.05,(t-last)/1000||.016); last=t;
+  fpsEma=fpsEma*.95+(1/Math.max(dt,.001))*.05;
+  pollGamepad(dt);
   if(state==='play'&&!paused) update(dt);
   render(t);
   // living portraits while their pages are open
