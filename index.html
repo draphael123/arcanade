@@ -3587,6 +3587,7 @@ function drawGrade(){
   ctx.globalCompositeOperation='source-over';
 }
 function drawForeground(t){
+  if(LVL===3) return;   // inside the tree the near layer is the tree itself — nothing to slide past
   // the nearest layer: soft, out-of-focus fronds and branches sliding past fastest
   {
     const par=1.85, step=420, start=Math.floor((cam.x*par-200)/step);
