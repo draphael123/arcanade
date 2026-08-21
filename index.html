@@ -222,7 +222,7 @@
       <canvas id="csF" width="120" height="140"></canvas>
       <h3>PYROMANCER</h3>
       <p>Fire spreads. Bridges, barricades, siege engines &mdash; all of it is fuel. Burn the road open. And when they crowd you: <em>Immolate</em>.</p>
-      <div class="cstats">SPEED &#9679;&#9679;&#9679;&#9675; &nbsp;JUMP &#9679;&#9679;&#9679;&#9675; &nbsp;DASH &#9679;&#9679;&#9679;&#9679; &nbsp;WARDS 2<br>FLASHSTEP &middot; DETONATING WARD &middot; HEAT<br><b>E &mdash; IMMOLATE</b></div>
+      <div class="cstats">SPEED &#9679;&#9679;&#9679;&#9675; &nbsp;JUMP &#9679;&#9679;&#9679;&#9675; &nbsp;DASH &#9679;&#9679;&#9679;&#9679; &nbsp;WARDS 2<br>FLASHSTEP &middot; DETONATING WARD &middot; HEAT &rarr; FLARE<br><b>E &mdash; IMMOLATE</b></div>
     </div>
     <div class="card-ch frost" id="chFrost">
       <canvas id="csI" width="120" height="140"></canvas>
@@ -737,9 +737,9 @@ const CLASSES={
       CRAWLER:{name:'SALAMANDER',   color:'rgb(255,120,50)',  rate:.55, dmg:1.5, spd:330},
       MORTAR:{name:'SKYFALL',       color:'rgb(255,170,80)',  rate:.85, dmg:.9},
       NOVA:  {name:'CINDER RING',   color:'rgb(255,140,60)',  rate:.95, dmg:2,  novaR:150},
-      SIGIL: {name:'BRAND',         color:'rgb(255,120,60)',  rate:.9,  dmg:1.2, spd:760},
+      SIGIL: {name:'BRAND',         color:'rgb(255,120,60)',  rate:.7,  dmg:1.2, spd:820},
     },
-    sigilDesc:'a mark that burns, and spreads to whatever touches it'},
+    sigilDesc:'a mark: it burns, takes +60% from your fire, and bursts on death — branding the crowd'},
   frost:{
     title:'CRYOMANCER', robe:'#3f6fa8', robeShade:'#33598a', cape:'#2c4a74', dashKind:'glide', wardKind:'freeze', spd:355, dashCd:.6, jumpMul:1.06,
     dashName:'GLIDE', wardName:'FREEZING WARD',
@@ -860,7 +860,7 @@ let rods=[], consec=null;
 const WPN=k=>{const w=CLASSES[cls].weapons[k]||LEVEL_SPELLS[k]||CLASSES[cls].weapons.BOLT; const t=shop.tiers[k]||0; return t?tierApply(k,w,t):w;};
 function castSigil(wp,tipX,tipY,aimA){
   const vx=Math.cos(aimA)*wp.spd, vy=Math.sin(aimA)*wp.spd;
-  if(isFire())      shots.push({x:tipX,y:tipY,vx,vy,g:300,r:6,life:1.4,dmg:wp.dmg,c:wp.color,brand:true});
+  if(isFire())      shots.push({x:tipX,y:tipY,vx,vy,g:200,r:9,life:1.4,dmg:wp.dmg,c:wp.color,brand:true});
   else if(isFrost())shots.push({x:tipX,y:tipY,vx:vx*.8,vy:vy*.8-120,g:500,r:8,life:.5,dmg:wp.dmg,c:wp.color,plant:'RAMPART',airOk:true,pierce:99,hitSet:[]});
   else if(isStorm())shots.push({x:tipX,y:tipY,vx:vx*.8,vy:vy*.8-160,g:900,r:7,life:2.4,dmg:wp.dmg,c:wp.color,plant:'ROD',pierce:99,hitSet:[]});
   else              shots.push({x:tipX,y:tipY,vx:vx*.8,vy:vy*.8-160,g:900,r:8,life:2.4,dmg:wp.dmg,c:wp.color,plant:'CONSECRATE',pierce:99,hitSet:[]});
@@ -958,7 +958,7 @@ function tierApply(k,w,t){
 }
 /* ---- charms: one passive that bends the class ---- */
 const CHARMS=[
-  {id:'ember_heart',name:'Ember Heart',desc:'Heat cools at half the pace. The pyromancer runs hot longer.',price:160,cls:'fire'},
+  {id:'ember_heart',name:'Ember Heart',desc:'Heat cools at half the pace — the flare comes sooner, and stays.',price:160,cls:'fire'},
   {id:'still_water',name:'Still Water',desc:'Rime gathers even while you move.',price:160,cls:'frost'},
   {id:'long_arc',name:'Long Arc',desc:'The chain reaches 220 — half again as far.',price:160,cls:'storm'},
   {id:'oath',name:'The Oath',desc:'The guard recovers twice as fast.',price:160,cls:'paladin'},
@@ -2069,7 +2069,7 @@ function updateEnemies(dt){
     let cold=(e.chillT>0?0.45:1)*(e.shockT>0?0:1)*DIFF().eSpd;   // chill slows; shock stops
     if(SAPS.length&&sapAt(e.x,e.y+e.h)) cold*=.3;                        // sap holds
     if(e.brandT>0){
-      e.brandT-=dt; damageEnemy(e,.9*dt,e.x,e.y+e.h/2,true);
+      e.brandT-=dt; damageEnemy(e,1.5*dt,e.x,e.y+e.h/2,true);
       if(Math.random()<.4*pMul()) spawnPart(e.x+rand(-8,8),e.y+rand(0,e.h),rand(-10,10),-rand(40,90),.4,2.5,'rgb(255,140,60)',0,true);
       for(const o of enemies) if(!o.dead&&o!==e&&!(o.brandT>0)&&dist2(e.x,e.y,o.x,o.y)<60*60){ o.brandT=5; burst(o.x,o.y+o.h/2,5,'rgb(255,120,60)',.4); }
       if(isFire()) for(const o of flammables()) if(e.x>o.x-6&&e.x<o.x+o.w+6&&e.y+e.h>o.y-6&&e.y<o.y+o.h+6) ignite(o);
@@ -2252,6 +2252,8 @@ function startBoss(){
       st:'idle', stT:2, atkN:0, marks:null, markT:0, hurtT:0, chillT:0, deadT:0, dead:false};
     bossIntroT=2.6; SFX.roar(); SFX.slam();
     playMusic('boss'); musicFilter(380,.05);
+    solids.push({x:12520,y:-1380,w:1260,h:34,bark:true,rootSeal:true,oneWay:false,flam:false,burn:0,spreadT:0,dead:false});   // the roots knit shut beneath the crown
+    floatText(player.x,player.y-40,'THE ROOTS CLOSE BEHIND YOU','#ffd27a',true); SFX.woodCrack(); shake(8);
     tip('thorn','The old tree wakes. Its heartwood glows when it tires — strike then.');
   }else{
     const bhp=Math.round(260*DIFF().bossHp);
@@ -3006,7 +3008,6 @@ function tryDash(){
   if(down('left')) dir=-1; if(down('right')) dir=1;
   if(!dir) dir=p.face;
   if(p.frozenT>0||p.guarding) return;
-  if(isFire()&&p.ventT>0){ tone('square',200,120,.08,.05); floatText(p.x,p.y-16,'VENTING','#ffb267',false); return; }
   const CL=CLASSES[cls], kind=CL.dashKind||'flash';
   if(kind==='blink'){
     // the Stormcaller does not cross the space — he is simply on the other side of it, and everything between is shocked
@@ -3092,7 +3093,7 @@ function killPlayer(){
   burst(p.x,p.y+24,40,WPN('BOLT').color);
   burst(p.x,p.y+24,14,'rgb(255,230,180)');
   if(boss&&!boss.dead&&boss.type==='horn'){ boss.hp=Math.max(boss.hp,boss.standHp0||boss.hp); for(const e of enemies) if(e.horn) e.dead=true; wisps=[]; hornProp=null; boss.hornThrown=false; boss.pendingReset=true; }
-  else if(boss&&!boss.dead){boss=null;bossIntroT=0;playMusic(LVL===3?'heart':'field');stopDrums();}
+  else if(boss&&!boss.dead){boss=null;bossIntroT=0;playMusic(LVL===3?'heart':'field');stopDrums(); for(const s2 of solids) if(s2.rootSeal) s2.dead=true;}
   runLog.push({f:p.x/LEVEL,k:'death'});
   if(mboss&&!mboss.dead){mboss=null;mbIntroT=0;}
 }
@@ -3158,9 +3159,10 @@ function updatePlayer(dt){
   }
   // the resource: heat burns, rime settles, charge gathers
   if(isFire()){
-    if(p.ventT>0){ p.ventT-=dt; if(Math.random()<.5) spawnPart(p.x+rand(-8,8),p.y+rand(0,30),rand(-20,20),-rand(40,100),.4,2.5,'rgb(200,200,210)',0,false); }
-    else p.heat=Math.max(0,p.heat-dt*(shop.equip.charm==='ember_heart'?.11:.22));
-    if(p.heat>=1&&p.ventT<=0){ p.ventT=1.6; p.heat=0; SFX.explode(); shake(6); burst(p.x,p.y+20,18,'rgb(255,154,60)',.6); floatText(p.x,p.y-24,'OVERHEAT  \u2014  NO DASH','#ffb267',true); }
+    p.ventT=0;
+    if(p.heat>=1&&!p.flare){ p.flare=true; p.heat=1; SFX.ignite(); spawnRing(p.x,p.y+24,'rgb(255,200,120)'); floatText(p.x,p.y-24,'FLARE READY','#ffb267',true); }
+    if(!p.flare) p.heat=Math.max(0,p.heat-dt*(shop.equip.charm==='ember_heart'?.11:.22));
+    if(p.flare&&Math.random()<.3*pMul()) spawnPart(p.x+rand(-12,12),p.y+rand(0,40),rand(-10,10),-rand(40,90),.4,2.5,'rgb(255,170,70)',0,true);
   }else if(isFrost()){
     const still=p.onGround&&Math.abs(p.vx)<30, onIce=p.onGround&&(p.groundKind==='stone');
     p.rime=clamp(p.rime+((still||onIce||shop.equip.charm==='still_water')?.32:-.22)*dt,0,1);
@@ -3321,7 +3323,11 @@ function updatePlayer(dt){
     }else if(p.fireT<=0){
       p.fireT=wp.rate;
       if(p.weapon==='BOLT'){
-        if(isStorm()&&p.charge>=5){   // five hops gathered: the bolt comes out as an overcharge
+        if(isFire()&&p.flare){   // the flare: everything the heat was for
+          p.flare=false; p.heat=0;
+          shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd*.9,vy:Math.sin(aimA)*wp.spd*.9,g:120,r:wp.r*2.4,life:1.3,dmg:wp.dmg*3,c:wp.color,ball:true,bounces:1,shatter:0});
+          castSfx('HEAVY'); SFX.fireball(); kick(aimA,8); spawnRing(tipX,tipY,wp.color); shake(4); floatText(tipX,tipY-16,'FLARE',wp.color,true);
+        }else if(isStorm()&&p.charge>=5){   // five hops gathered: the bolt comes out as an overcharge
           p.charge=0;
           shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd*1.15,vy:Math.sin(aimA)*wp.spd*1.15,g:0,r:wp.r*1.7,life:1.1,dmg:wp.dmg*2.6,c:wp.color,pierce:4,hitSet:[]});
           castSfx('HEAVY'); kick(aimA,7); spawnRing(tipX,tipY,wp.color); floatText(tipX,tipY-16,'DISCHARGE',wp.color,false);
@@ -3553,6 +3559,7 @@ function damageEnemy(e,dmg,x,y,silent,launch){
   const amped=e.chillT>0;
   if(amped) dmg*=(isFrost()&&player&&player.rime>=.6)?1.6:1.3;      // the cold opens them up — chill is a setup, not a garnish
   if(isFire()&&player&&player.heat>=.8&&!silent) dmg*=1.4;            // hot hands hit harder
+  if(e.brandT>0&&isFire()&&!silent) dmg*=1.6;                          // the mark opens them to fire
   if(player&&player.smiteT>0&&!silent){ dmg*=3; player.smiteT=0; floatText(x,y-22,'SMITE','#ffe9b0',true); SFX.clang(); hitstop(.06); }
   if(shop.curses.glass) dmg*=2;
   if(consec&&dist2(e.x,e.y+e.h/2,consec.x,consec.y)<consec.r*consec.r) dmg*=1.25;   // on holy ground
@@ -3584,6 +3591,12 @@ function damageEnemy(e,dmg,x,y,silent,launch){
       floatText(e.x,e.y-22,'\u00d7'+streakN,'#ffd27a',true);
       smp('soft',.22+.08*Math.min(streakN,5),.75);
       spawnRing(e.x,e.y+e.h/2,'rgb(255,230,180)');
+    }
+    if(e.brandT>0){   // a branded death is a bonfire
+      burst(e.x,e.y+e.h/2,26,'rgb(255,120,60)'); spawnRing(e.x,e.y+e.h/2,'rgb(255,170,90)'); SFX.explode(); kickCam(e.x,e.y);
+      for(const o of enemies) if(!o.dead&&o!==e&&dist2(e.x,e.y+e.h/2,o.x,o.y+o.h/2)<130*130){ o.brandT=6; damageEnemy(o,3,o.x,o.y+o.h/2,false,1.8); }
+      for(const o of flammables()) if(dist2(e.x,e.y+e.h/2,o.x+o.w/2,o.y+o.h/2)<110*110) ignite(o);
+      floatText(e.x,e.y-30,'THE BRAND SPREADS','#ffb267',true);
     }
     // deaths as tiny stories
     const ddir=e.x>=player.x?1:-1;
@@ -3990,7 +4003,7 @@ function updateAmbushes(dt){
   }
   if(rush.on&&RUSH_STAGES[rush.i]&&RUSH_STAGES[rush.i].kind==='mboss'&&mboss&&mboss.dead&&mboss.deadT>1.8){ rushNext(); return; }
   if(!mboss&&player.x>MARENA.trig) startMBoss();
-  if(!boss&&(LVL===2?(player.x>12500&&player.y<-1250):player.x>BOSS_TRIG)) startBoss();
+  if(!boss&&(LVL===2?(player.onGround&&player.y+player.h<=-1396&&player.x>12520&&player.x<13780):player.x>BOSS_TRIG)) startBoss();
 }
 
 /* ---------------- particles ---------------- */
@@ -6803,8 +6816,8 @@ function drawHUD(t){
   if(!isPaladin()){
     const v=isFire()?player.heat:(isFrost()?player.rime:player.charge/5);
     const hot=isFire()?player.heat>=.8:(isFrost()?player.rime>=.6:player.charge>=5);
-    inkGauge(30,118,80,8,clamp(v,0,1),player.ventT>0?'#8a8a90':(hot?'#8a2f1a':'#5a3c1a'),isFire()?.8:(isFrost()?.6:null));
-    ctx.font='9px '+UIF; ctx.fillStyle=hot?'#8a2f1a':'#8a6f4a'; ctx.textAlign='left'; ctx.fillText(player.ventT>0?'VENTING':RES_NAME[cls],116,126);
+    inkGauge(30,118,80,8,clamp(v,0,1),(isFire()&&player.flare)?'#ffb267':(hot?'#8a2f1a':'#5a3c1a'),isFire()?.8:(isFrost()?.6:null));
+    ctx.font='9px '+UIF; ctx.fillStyle=hot?'#8a2f1a':'#8a6f4a'; ctx.textAlign='left'; ctx.fillText((isFire()&&player.flare)?'FLARE READY':RES_NAME[cls],116,126);
   }
   ctx.fillText(player.wards>0?'WARD'+(player.wards>1?' ×'+player.wards:''):(DIFF().wards===0?'NO WARD':'WARD DOWN'), 30+Math.max(maxW,1)*24, 38);
   // lives — wax-seal tokens
