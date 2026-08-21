@@ -199,8 +199,22 @@
       <button class="wmNode" id="bWmL1" style="left:320px;top:150px;width:150px;height:110px"></button>
       <button class="wmNode" id="bWmL2" style="left:590px;top:60px;width:150px;height:110px"></button>
       <button class="wmNode" id="bWmShop" style="left:190px;top:150px;width:120px;height:90px;display:none"></button>
+      <button class="wmNode" id="bWmArm" style="left:480px;top:250px;width:120px;height:90px"></button>
     </div>
     <button class="btn small parch" id="bWmBack" style="margin-top:10px">Back</button>
+  </div>
+</div>
+
+<div id="armory" class="overlay hidden">
+  <div class="panel" style="background:#e9dcbc;color:#3a2c1a;border:3px double #8a6f4a;padding:24px 36px 18px;
+    max-width:720px;box-shadow:0 0 70px rgba(0,0,0,.55)">
+    <h2 style="font-weight:normal;letter-spacing:.28em;color:#5a3c1a;font-size:20px;text-align:center;margin-bottom:2px">THE ARMORY</h2>
+    <div style="text-align:center;font-style:italic;color:#8a6f4a;font-size:12px;margin-bottom:12px">how you'll look when the ballads are written</div>
+    <div style="display:flex;gap:26px;align-items:flex-start">
+      <canvas id="armCanvas" width="230" height="300" style="background:radial-gradient(circle at 50% 30%,#f4ead0,#d8c398);border:1px solid #8a6f4a;border-radius:8px;flex:none"></canvas>
+      <div id="armRows" style="flex:1;text-align:left"></div>
+    </div>
+    <div style="text-align:center"><button class="btn small parch" id="bArmBack" style="margin-top:12px">Back to the Map</button></div>
   </div>
 </div>
 
@@ -1721,6 +1735,9 @@ function updatePlayer(dt){
     p.stepT=(p.stepT||0)-dt*Math.abs(p.vx)/380;
     if(p.stepT<=0){p.stepT=.3; SFX.step(p.groundStone);}
   }
+  // landing squash
+  if(p.onGround&&wasAir&&fallV>260) p.squashT=Math.min(.14,fallV/5200);
+  p.squashT=(p.squashT||0)-dt;
   if(p.onGround&&wasAir&&fallV>560){
     for(let i=0;i<6*pMul();i++)
       spawnPart(p.x+rand(-10,10),p.y+p.h-2,rand(-90,90),rand(-60,-10),rand(.25,.45),rand(2.5,4),'rgb(205,195,170)',300,true);
@@ -2437,24 +2454,38 @@ function render(t){
     ctx.quadraticCurveTo(bx+4,by-4-flap,bx+8,by);
     ctx.stroke();
   }
+  const haze=a=>{
+    ctx.fillStyle=LVL===2?'rgba(96,126,110,'+a+')':'rgba(224,232,214,'+a+')';
+    ctx.fillRect(0,0,W,H);
+  };
   if(LVL===2){
     drawRidge(.12,'#5a7a68',430,3.1);
     drawForest(.12,430,3.1,'#4e6e58');
+    haze(.16);
     drawRidge(.32,'#42604a',470,7.7);
     drawForest(.32,470,7.7,'#38543e');
+    haze(.10);
     drawRidge(.55,'#2c4432',520,12.3);
     drawForest(.55,520,12.3,'#233828');
     drawTrees(t);
+    haze(.05);
   }else{
     drawRidge(.12,'#a9c2b2',430,3.1);
     drawCastles(t);
+    haze(.10);
     drawRidge(.32,'#7fae74',470,7.7);
     drawForest(.32,470,7.7,'#639a5c');
     drawVillage(t);
+    haze(.06);
     drawRidge(.55,'#4f8a4c',520,12.3);
     drawForest(.55,520,12.3,'#3d7040');
     drawTrees(t);
   }
+  // boss introductions get the camera's full attention
+  const cine=bossIntroT>0||mbIntroT>0;
+  const introRem=bossIntroT>0?bossIntroT:mbIntroT;
+  const zoom=cine?1+.05*clamp((2.6-introRem)/1.2,0,1):1;
+  if(zoom!==1){ctx.save();ctx.translate(W/2,H*.55);ctx.scale(zoom,zoom);ctx.translate(-W/2,-H*.55);}
   ctx.save();
   ctx.translate(-cam.x+shakeX,-cam.y+shakeY);
   drawWater(t);
@@ -2477,9 +2508,15 @@ function render(t){
   ctx.globalCompositeOperation='source-over';
   drawShotCores();
   ctx.restore();
+  if(zoom!==1) ctx.restore();
   drawForeground(t);
   drawGrade();
   drawVignette(t);
+  if(cine){   // letterbox: the stage curtains
+    const bh=54*clamp((2.6-introRem)*2.2,0,1)*clamp(introRem*2,0,1);
+    ctx.fillStyle='#0a0510';
+    ctx.fillRect(0,0,W,bh); ctx.fillRect(0,H-bh,W,bh);
+  }
   if(state==='title'||state==='charsel') drawTitleHeroes(t);
   drawHUD(t);
 }
@@ -2594,6 +2631,7 @@ function drawMBoss(t){
     ctx.stroke();
     ctx.fillStyle='#5f4a34';                                 // long leathers
     ctx.fillRect(x-w/2,y+18,w,34);
+    tone2(x-w/2,y+18,w,34);
     ctx.strokeStyle='#2c1e12'; ctx.lineWidth=3;              // baldric
     ctx.beginPath();ctx.moveTo(x-w/2,y+22);ctx.lineTo(x+w/2,y+40);ctx.stroke();
     ctx.fillStyle='#e0b990';
@@ -2833,6 +2871,13 @@ function drawChasm(){
   g.addColorStop(1,'rgba(210,228,236,.34)');
   ctx.fillStyle=g;
   for(const [x0,x1] of CHASMS) ctx.fillRect(x0,660,x1-x0,180);
+}
+function tone2(x,y,w,h){
+  // the sun keeps its side of every argument
+  ctx.fillStyle='rgba(255,240,210,.15)';
+  ctx.fillRect(x+w-Math.max(3,w*.26),y,Math.max(3,w*.26),h);
+  ctx.fillStyle='rgba(25,15,35,.15)';
+  ctx.fillRect(x,y,Math.max(3,w*.22),h);
 }
 function drawShadowAt(x,feetY,w){
   const sy=groundYAt(x,feetY-8);
@@ -3361,6 +3406,9 @@ function drawEnemies(t){
       ctx.translate(-x,-(y+h/2));
       ctx.globalAlpha=clamp(e.deathT/.35,0,1);
     }
+    // even soldiers breathe while they wait
+    ctx.save();
+    ctx.translate(0,(!e.dead&&!e.mov&&e.type!=='ball')?Math.sin(t*.0035+e.x*.13)*1.3:0);
     const stride=e.mov?Math.sin(e.walkT||0)*6:0;
     if(e.type==='foot'){
       ctx.strokeStyle='#3f342c'; ctx.lineWidth=6;
@@ -3372,6 +3420,7 @@ function drawEnemies(t){
       ctx.fillRect(x-w/2,y+34,w,6);
       ctx.fillStyle='#3e6a8a';
       ctx.fillRect(x-w/2,y+14,w,22);
+      tone2(x-w/2,y+14,w,22);
       ctx.fillStyle='#2a2018';
       ctx.fillRect(x-w/2,y+30,w,4);
       ctx.fillStyle='#e0b990';
@@ -3405,6 +3454,7 @@ function drawEnemies(t){
       ctx.fillRect(x-w/2,y+34,w,5);
       ctx.fillStyle='#4f7a3c';
       ctx.fillRect(x-w/2,y+13,w,24);
+      tone2(x-w/2,y+13,w,24);
       ctx.fillStyle='#e0b990';
       ctx.beginPath();ctx.arc(x,y+10,9,0,TAU);ctx.fill();
       ctx.fillStyle='#3f6630';
@@ -3430,6 +3480,7 @@ function drawEnemies(t){
       ctx.stroke();
       ctx.fillStyle='#5a5248';                              // mail
       ctx.fillRect(x-w/2,y+14,w,24);
+      tone2(x-w/2,y+14,w,24);
       ctx.fillStyle='#e0b990';
       ctx.beginPath();ctx.arc(x,y+10,10,0,TAU);ctx.fill();
       ctx.fillStyle='#9aa4b0';                              // great helm
@@ -3457,6 +3508,7 @@ function drawEnemies(t){
       ctx.stroke();
       ctx.fillStyle='#5a4a3a';                              // jerkin
       ctx.fillRect(x-w/2,y+14,w,22);
+      tone2(x-w/2,y+14,w,22);
       ctx.strokeStyle='#2c1e12'; ctx.lineWidth=3;           // satchel strap
       ctx.beginPath();ctx.moveTo(x-w/2,y+16);ctx.lineTo(x+w/2,y+30);ctx.stroke();
       ctx.fillStyle='#e0b990';
@@ -3507,6 +3559,7 @@ function drawEnemies(t){
       ctx.stroke();
       ctx.fillStyle='#4e5e3a';                              // moss robe
       ctx.fillRect(x-w/2,y+13,w,26);
+      tone2(x-w/2,y+13,w,26);
       ctx.fillStyle='#e0b990';
       ctx.beginPath();ctx.arc(x,y+10,9,0,TAU);ctx.fill();
       ctx.fillStyle='#3a4a2c';                              // deep hood
@@ -3560,6 +3613,7 @@ function drawEnemies(t){
       ctx.fillStyle='rgba(255,255,255,.55)';
       ctx.fillRect(x-w/2-3,y-3,w+6,h+6);
     }
+    ctx.restore();
     if(e.dead){ctx.restore();ctx.globalAlpha=1;}
   }
 }
@@ -3589,6 +3643,7 @@ function drawBoss(t){
     // trunk torso
     ctx.fillStyle='#4e3a26';
     ctx.fillRect(x-w/2,y+16,w,h-16);
+    tone2(x-w/2,y+16,w,h-16);
     ctx.strokeStyle='rgba(28,20,12,.6)'; ctx.lineWidth=2;   // bark
     for(const bx5 of [-30,-12,8,26]){
       ctx.beginPath();ctx.moveTo(x+bx5,y+24);ctx.lineTo(x+bx5+sway,y+h-14);ctx.stroke();
@@ -3651,6 +3706,7 @@ function drawBoss(t){
   // cuirass
   ctx.fillStyle=tele?'#f2f4f6':'#b9c0ca';
   ctx.fillRect(x-w/2,y+22,w,40);
+  if(!tele) tone2(x-w/2,y+22,w,40);
   ctx.fillStyle='rgba(40,44,54,.35)';
   ctx.fillRect(x-w/2,y+40,w,4);
   // pauldrons
@@ -3709,6 +3765,18 @@ function drawPlayer(t){
   const fl=p.flashT>0;
   const CL=robeColors();
   const C=(c)=>fl?'#fff6e8':c;
+  // a body that breathes, lands hard, and stretches into the air
+  const running=p.onGround&&Math.abs(p.vx)>40;
+  const breath=(!running&&p.onGround)?Math.sin(t*.004)*1.4:0;
+  const runBob=running?-Math.abs(Math.sin(p.animT*14))*2.2:0;
+  let ssx=1, ssy=1;
+  if(!p.onGround&&p.vy<-260){ssx=.95;ssy=1.06;}
+  if(p.squashT>0){const q=p.squashT/.14; ssx=1+.13*q; ssy=1-.15*q;}
+  ctx.save();
+  ctx.translate(x,y+p.h);
+  ctx.scale(ssx,ssy);
+  ctx.translate(-x,-(y+p.h));
+  ctx.translate(0,breath+runBob);
   ctx.fillStyle=C(CL.cape);
   ctx.beginPath();
   const flut=Math.sin(t*.012)*4+Math.abs(p.vx)*.02;
@@ -3726,6 +3794,7 @@ function drawPlayer(t){
   ctx.fillRect(x-8,y+14,16,26);
   ctx.fillStyle=C(CL.robeShade);
   ctx.fillRect(x-8,y+32,16,8);
+  if(!fl) tone2(x-8,y+14,16,26);
   ctx.fillStyle=C('#e8c49a');
   ctx.beginPath();ctx.arc(x,y+9,8,0,TAU);ctx.fill();
   ctx.fillStyle=C(CL.robeShade);
@@ -3799,6 +3868,7 @@ function drawPlayer(t){
       ctx.beginPath();ctx.arc(x,y+26,40,0,TAU);ctx.stroke();
     }
   }
+  ctx.restore();
   ctx.globalAlpha=1;
 }
 function drawShotsGlow(t){
@@ -3894,10 +3964,26 @@ function drawPartsGlow(){
     drawGlow(p.x,p.y,p.size*3,p.c,a*.8);
   }
 }
+function groundPool(cx,gy,r,color,a){
+  // firelight lies down on the ground it warms
+  ctx.save();
+  ctx.translate(cx,gy);
+  ctx.scale(2.3,.45);
+  drawGlow(0,0,r,color,a);
+  ctx.restore();
+}
 function drawFireGlow(t){
+  // standing flames light the earth beneath them
+  for(const p of props){
+    if(p.dead||p.ash) continue;
+    if(p.x+p.w<cam.x-80||p.x>cam.x+W+80) continue;
+    if((p.kind==='shrine'&&p.lit)||p.kind==='brazier')
+      groundPool(p.x+14,p.y+p.h+2,30,'rgb(255,150,60)',.3);
+  }
   for(const o of flammables()){
     if(o.burn<=0) continue;
     const cx=o.x+o.w/2;
+    groundPool(cx,o.y+o.h+2,Math.max(o.w*.8,34),'rgb(255,120,40)',.4);
     // restrained: readability beats spectacle
     drawGlow(cx,o.y+o.h*.3,Math.max(o.w*.7,30),'rgb(255,122,42)',.4);
     ctx.fillStyle='rgba(255,170,80,.75)';
@@ -4565,6 +4651,20 @@ function drawWorldMap(tt){
     g.font='italic 10px Georgia'; g.fillStyle='#8a6f4a';
     g.fillText(shop.embers+' embers held',wx2,wy2+43);
   }
+  /* the armory: a stand of borrowed splendor */
+  {
+    const ax2=540, ay2=310;
+    g.strokeStyle='#5a4a36'; g.lineWidth=3;
+    g.beginPath();g.moveTo(ax2,ay2);g.lineTo(ax2,ay2-34);g.stroke();       // stand
+    g.beginPath();g.moveTo(ax2-14,ay2-26);g.lineTo(ax2+14,ay2-26);g.stroke(); // crossbar
+    g.fillStyle='#a03028';
+    g.fillRect(ax2-10,ay2-26,20,16);                                        // draped robe
+    g.beginPath();g.arc(ax2,ay2-32,6,0,TAU);g.fill();
+    g.font="12px 'Cinzel',Georgia"; g.fillStyle='#5a3c1a'; g.textAlign='center';
+    g.fillText('THE ARMORY',ax2,ay2+20);
+    g.font='italic 10px Georgia'; g.fillStyle='#8a6f4a';
+    g.fillText('dress the legend',ax2,ay2+33);
+  }
   /* the Thornwood */
   const l2open=!!campaign.l1Cleared;
   node(665,115,l2open,l2open&&!campaign.l2Cleared);
@@ -4657,9 +4757,145 @@ function renderStore(){
   }
 }
 
+/* ---------------- the armory: dress the legend ---------------- */
+let armCls='fire';
+function drawArmoryMage(tt){
+  const c=document.getElementById('armCanvas'); if(!c) return;
+  const g=c.getContext('2d'), t=tt||0;
+  g.clearRect(0,0,230,300);
+  g.save();
+  g.translate(115,165+Math.sin(t*.002)*4);
+  g.scale(2.6,2.6);
+  const CL=CLASSES[armCls];
+  const D=DYES[shop.equip.dye];
+  const robe=D?D.robe:CL.robe, shade=D?D.robeShade:CL.robeShade, cape=D?D.cape:CL.cape;
+  // element motes
+  for(let i=0;i<5;i++){
+    const ph=((t*.0004)+(i*.219))%1;
+    const mx=-34+((i*53)%68);
+    const my=armCls==='fire'?30-ph*70:-40+ph*70;
+    g.globalAlpha=Math.sin(ph*Math.PI)*.7;
+    g.fillStyle=armCls==='fire'?'#ffb267':'#cfe8ff';
+    if(armCls==='fire'){g.beginPath();g.arc(mx,my,1.8,0,TAU);g.fill();}
+    else {g.fillRect(mx-2,my-.5,4,1); g.fillRect(mx-.5,my-2,1,4);}
+    g.globalAlpha=1;
+  }
+  const flut=Math.sin(t*.005)*3;
+  g.fillStyle=cape;
+  g.beginPath();
+  g.moveTo(-4,-16); g.quadraticCurveTo(-22-flut,6,-16-flut,26); g.lineTo(-4,20);
+  g.closePath(); g.fill();
+  g.strokeStyle='#3a2c26'; g.lineWidth=4;
+  g.beginPath(); g.moveTo(0,8); g.lineTo(-4,24); g.moveTo(0,8); g.lineTo(5,24); g.stroke();
+  g.fillStyle=robe; g.fillRect(-8,-16,16,26);
+  g.fillStyle=shade; g.fillRect(-8,2,16,8);
+  g.fillStyle='rgba(255,240,210,.15)'; g.fillRect(4,-16,4,26);
+  g.fillStyle='#e8c49a'; g.beginPath();g.arc(0,-21,8,0,TAU);g.fill();
+  g.fillStyle=shade;
+  g.beginPath();
+  g.moveTo(-9,-19);g.lineTo(-9,-27);g.lineTo(2,-39);g.lineTo(9,-28);g.lineTo(9,-24);g.lineTo(7,-28);g.lineTo(-2,-19);
+  g.closePath();g.fill();
+  if(shop.equip.hat==='antler'){
+    g.strokeStyle='#8a7658'; g.lineWidth=2;
+    g.beginPath();
+    g.moveTo(-6,-34);g.lineTo(-11,-44);g.lineTo(-8,-47);
+    g.moveTo(-11,-44);g.lineTo(-15,-46);
+    g.moveTo(6,-34);g.lineTo(11,-44);g.lineTo(8,-47);
+    g.moveTo(11,-44);g.lineTo(15,-46);
+    g.stroke();
+  }
+  g.strokeStyle=shade; g.lineWidth=3.5;
+  g.beginPath();g.moveTo(2,-6);g.lineTo(14,-18);g.stroke();
+  g.strokeStyle='#7a5a36'; g.lineWidth=3.5;
+  g.beginPath(); g.moveTo(-6,4); g.lineTo(24,-30); g.stroke();
+  const col=CL.weapons[(shop.start!=='BOLT'&&shop.owned['sp_'+shop.start])?shop.start:'BOLT'].color;
+  const pulse=9+Math.sin(t*.006)*3;
+  const rg=g.createRadialGradient(25,-31,0,25,-31,pulse+4);
+  rg.addColorStop(0,col); rg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=rg; g.beginPath();g.arc(25,-31,pulse+4,0,TAU);g.fill();
+  const orb=shop.equip.orb;
+  g.fillStyle='#fff2dd';
+  if(orb==='twin'){g.beginPath();g.arc(22,-34,2,0,TAU);g.fill();g.beginPath();g.arc(28,-28,2,0,TAU);g.fill();}
+  else if(orb==='shard'){g.save();g.translate(25,-31);g.rotate(t*.004);g.fillRect(-3,-3,6,6);g.restore();}
+  else if(orb==='star'){g.save();g.translate(25,-31);g.rotate(t*.003);g.strokeStyle='#fff2dd';g.lineWidth=1.5;
+    g.beginPath();g.moveTo(-4,0);g.lineTo(4,0);g.moveTo(0,-4);g.lineTo(0,4);g.stroke();g.restore();}
+  else {g.beginPath();g.arc(25,-31,2.6,0,TAU);g.fill();}
+  // the companion waits at heel
+  if(shop.equip.pet==='pet'){
+    const bob=Math.sin(t*.008)*1.5;
+    if(armCls==='fire'){
+      g.fillStyle='#c96a32';
+      g.beginPath();g.ellipse(-26,26+bob,8,3.5,0,0,TAU);g.fill();
+      g.beginPath();g.arc(-19,24+bob,3,0,TAU);g.fill();
+      g.fillStyle='#ffdf9a'; g.fillRect(-19,23+bob,1.4,1.4);
+    }else{
+      g.fillStyle='#e8ecf0';
+      g.beginPath();g.ellipse(-26,25+bob,7,4,0,0,TAU);g.fill();
+      g.beginPath();g.arc(-19,22+bob,3.4,0,TAU);g.fill();
+      g.beginPath();g.moveTo(-21,-0+22+bob-3);g.lineTo(-20,15+bob);g.closePath();
+      g.fillStyle='#4a90c8'; g.fillRect(-19,21+bob,1.4,1.4);
+    }
+  }
+  g.restore();
+  // dashed ground line
+  g.strokeStyle='rgba(90,60,30,.35)'; g.setLineDash([3,6]);
+  g.beginPath();g.moveTo(30,238);g.lineTo(200,238);g.stroke();
+  g.setLineDash([]);
+}
+const ARM_SLOTS=[
+  ['dye','Robe Dye',['none','midnight','verdant','gold','ashen'],v=>v==='none'?true:shop.owned['dye_'+v]],
+  ['orb','Staff Orb',['none','twin','shard','star'],v=>v==='none'?true:shop.owned['orb_'+v]],
+  ['trail','Cast Trail',['none','petal','spark','rune'],v=>v==='none'?true:shop.owned['trail_'+v]],
+  ['hat','Crown',['none','antler'],v=>v==='none'?true:shop.owned['hat_antler']],
+  ['pet','Companion',['none','pet'],v=>v==='none'?true:shop.owned['pet']],
+];
+function renderArmory(){
+  const box=document.getElementById('armRows');
+  box.innerHTML='';
+  const mkSel=(label,current,onPrev,onNext)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(90,60,30,.18)';
+    row.innerHTML='<div style="font-family:Cinzel,Georgia;font-size:13px;color:#5a3c1a;min-width:96px">'+label+'</div>';
+    const mid=document.createElement('div');
+    mid.style.cssText='display:flex;align-items:center;gap:8px';
+    const bl=document.createElement('button'); bl.textContent='◀';
+    const bs=document.createElement('span');
+    bs.style.cssText='min-width:110px;text-align:center;font-size:12px;color:#4a3826;font-style:italic';
+    bs.textContent=current;
+    const br=document.createElement('button'); br.textContent='▶';
+    for(const b of [bl,br]){b.className='btn small parch';b.style.cssText='margin:0;padding:3px 10px;font-size:11px';}
+    bl.onclick=onPrev; br.onclick=onNext;
+    mid.appendChild(bl); mid.appendChild(bs); mid.appendChild(br);
+    row.appendChild(mid);
+    box.appendChild(row);
+  };
+  // class preview
+  mkSel('Previewing',CLASSES[armCls].title,
+    ()=>{armCls=armCls==='fire'?'frost':'fire';SFX.clink();renderArmory();},
+    ()=>{armCls=armCls==='fire'?'frost':'fire';SFX.clink();renderArmory();});
+  for(const [slot,label,opts,ownedFn] of ARM_SLOTS){
+    const avail=opts.filter(ownedFn);
+    const cur=shop.equip[slot];
+    const idx=Math.max(0,avail.indexOf(cur));
+    const cyc=d=>{
+      shop.equip[slot]=avail[(idx+d+avail.length)%avail.length];
+      saveShop(); SFX.chime(); renderArmory();
+    };
+    mkSel(label,(cur==='none'?'— none —':cur)+(avail.length<=1?'  (visit the wagon)':''),()=>cyc(-1),()=>cyc(1));
+  }
+  // prepared spell
+  {
+    const avail=['BOLT',...ownedSpells()];
+    const idx=Math.max(0,avail.indexOf(shop.start));
+    const nm=k=>k==='BOLT'?'Bolt':STORE_ITEMS.find(i=>i[1]==='sp_'+k)[2].split(' · ')[armCls==='fire'?0:1]||k;
+    const cyc=d=>{shop.start=avail[(idx+d+avail.length)%avail.length];saveShop();SFX.chime();renderArmory();};
+    mkSel('Prepared Spell',nm(shop.start),()=>cyc(-1),()=>cyc(1));
+  }
+}
+
 /* ---------------- overlays / flow ---------------- */
 const ov=id=>document.getElementById(id);
-const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover','worldmap','store'];
+const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover','worldmap','store','armory'];
 function refreshBestLine(){
   const el=document.getElementById('bestLine');
   if(!el) return;
@@ -4738,6 +4974,8 @@ document.getElementById('bWmL2').onclick=()=>{
 document.getElementById('bWmBack').onclick=()=>{state='charsel';show('charsel');};
 document.getElementById('bWmShop').onclick=()=>{SFX.chime();renderStore();show('store');};
 document.getElementById('bStoreBack').onclick=()=>{show('worldmap');};
+document.getElementById('bWmArm').onclick=()=>{SFX.chime();armCls=cls;renderArmory();show('armory');};
+document.getElementById('bArmBack').onclick=()=>{show('worldmap');};
 let mapLockT=0;
 function tipMapLocked(){mapLockT=Date.now();}
 document.getElementById('bCharBack').onclick=()=>{state='title';show('title');};
@@ -4831,6 +5069,7 @@ function frame(t){
   // living portraits while their pages are open
   if(!ov('bestiary').classList.contains('hidden')) drawPortraits(t);
   if(!ov('charsel').classList.contains('hidden')) drawCharPortraits(t);
+  if(!ov('armory').classList.contains('hidden')) drawArmoryMage(t);
   if(!ov('worldmap').classList.contains('hidden')){
     drawWorldMap(t);
     if(Date.now()-mapLockT<1600){
