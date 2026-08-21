@@ -173,7 +173,7 @@
     <div class="seg" id="selDiff">
       <span data-v="squire">SQUIRE</span><span data-v="knight" class="on">KNIGHT</span><span data-v="warden">WARDEN</span>
     </div>
-    <span id="diffNote" style="color:#8a7260;font-size:12px;font-style:italic">3 lives · a fair fight</span>
+    <span id="diffNote" style="color:#8a7260;font-size:12px;font-style:italic">3 lives · twin wards · a fair fight</span>
   </div>
   <button class="btn small" id="bCharBack" style="margin-top:24px">Back</button>
 </div>
@@ -255,6 +255,7 @@
     <div class="setrow"><label>Pause when tabbed out</label><div class="toggle on" id="sAuto"></div></div>
     <div class="setrow"><label>Show FPS</label><div class="toggle" id="sFps"></div></div>
     <div class="setrow"><label>Damage numbers</label><div class="toggle" id="sDmg"></div></div>
+    <div class="setrow"><label>Double jump</label><div class="toggle" id="sDJ"></div></div>
     <div class="setrow"><label>Fullscreen</label><button class="btn small" id="bFull" style="margin:0;padding:5px 16px;font-size:12px">Toggle</button></div>
     <div id="bindRows" style="border-top:1px solid rgba(255,150,70,.2);margin-top:14px;padding-top:4px"></div>
     <div style="text-align:right"><button class="btn small" id="bBindReset" style="margin-top:4px;padding:5px 14px;font-size:11px">Reset keys</button></div>
@@ -384,7 +385,7 @@ const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy};
 
 /* ---------------- settings ---------------- */
 const SET={vol:.6, music:.5, shake:true, particles:'full', timer:true, glow:1, tut:true,
-  fps:false, vign:true, ragdoll:true, autopause:true, dmgNums:false};
+  fps:false, vign:true, ragdoll:true, autopause:true, dmgNums:false, doubleJump:true};
 try{Object.assign(SET, JSON.parse(localStorage.getItem('arcanade-settings')||'{}'));}catch(e){}
 function saveSet(){try{localStorage.setItem('arcanade-settings',JSON.stringify(SET));}catch(e){} applySet();}
 function applySet(){
@@ -399,6 +400,7 @@ function applySet(){
   document.getElementById('sAuto').classList.toggle('on',SET.autopause);
   document.getElementById('sFps').classList.toggle('on',SET.fps);
   document.getElementById('sDmg').classList.toggle('on',SET.dmgNums);
+  document.getElementById('sDJ').classList.toggle('on',SET.doubleJump!==false);
   document.querySelectorAll('#sPart span').forEach(s=>s.classList.toggle('on',s.dataset.v===SET.particles));
   if(master) master.gain.value=SET.vol*.5;
   for(const k of ['title','field','boss']) if(MUSIC[k]) MUSIC[k].volume=SET.music*.7;
@@ -581,7 +583,7 @@ const CLASSES={
     weapons:{
       BOLT:  {name:'FIRE BOLT',     color:'rgb(255,154,60)',  rate:.14, spd:950, r:5,  dmg:1},
       SPREAD:{name:'EMBER FAN',     color:'rgb(255,179,71)',  rate:.2,  spd:780, r:4,  dmg:.6, n:5, arc:.14, life:.44},
-      LANCE: {name:'FLAME LANCE',   color:'rgb(255,94,60)',   len:500, dps:5,  beamW:7},
+      LANCE: {name:'FLAME LANCE',   color:'rgb(255,94,60)',   len:360, dps:5,  beamW:7},
       HEAVY: {name:'GREATFIRE',     color:'rgb(255,122,42)',  rate:.55, spd:640, r:10, dmg:2.5, g:700, bounces:2},
       BREATH:{name:"DRAKE'S BREATH",color:'rgb(255,196,107)', coneR:245, dps:12, half:.42},
       CRAWLER:{name:'SALAMANDER',   color:'rgb(255,120,50)',  rate:.55, dmg:1.5, spd:330},
@@ -596,7 +598,7 @@ const CLASSES={
       /* frost hits heavier and slower, and its shards pass through men */
       BOLT:  {name:'FROST BOLT',      color:'rgb(140,205,255)', rate:.18, spd:810, r:7,  dmg:1.45},
       SPREAD:{name:'SHARD FAN',       color:'rgb(175,225,255)', rate:.24, spd:820, r:5,  dmg:.9, n:3, arc:.1, life:.5, pierce:1},
-      LANCE: {name:'GLACIER LANCE',   color:'rgb(120,190,255)', len:380, dps:5.5, beamW:12},
+      LANCE: {name:'GLACIER LANCE',   color:'rgb(120,190,255)', len:290, dps:5.5, beamW:12},
       HEAVY: {name:'COMET',           color:'rgb(150,210,250)', rate:.65, spd:600, r:11, dmg:3.2, g:760, bounces:0, shatter:3},
       BREATH:{name:"WINTER'S BREATH", color:'rgb(200,235,255)', coneR:200, dps:10, half:.5},
       CRAWLER:{name:'RIMESHARD',      color:'rgb(160,215,255)', rate:.6,  dmg:1.6, spd:300},
@@ -629,9 +631,9 @@ function ownedSpells(){return ['CRAWLER','MORTAR','NOVA'].filter(k=>shop.owned['
 
 /* ---------------- difficulty ---------------- */
 const DIFFS={
-  squire:{label:'SQUIRE', note:'5 lives · twin wards · a gentler road', lives:5, wards:2, eSpd:.8,  eCad:1.35, eHp:.75, bossHp:.85},
-  knight:{label:'KNIGHT', note:'3 lives · one ward · a fair fight',     lives:3, wards:1, eSpd:1,   eCad:1,    eHp:1,   bossHp:1},
-  warden:{label:'WARDEN', note:'2 lives · NO ward · the Wall bites',    lives:2, wards:0, eSpd:1.15,eCad:.8,   eHp:1.3, bossHp:1.2},
+  squire:{label:'SQUIRE', note:'5 lives · three wards · fewer foes',    lives:5, wards:3, eSpd:.8,  eCad:1.35, eHp:.75, bossHp:.85, eCount:.75},
+  knight:{label:'KNIGHT', note:'3 lives · twin wards · a fair fight',    lives:3, wards:2, eSpd:1,   eCad:1,    eHp:1,   bossHp:1,   eCount:1},
+  warden:{label:'WARDEN', note:'2 lives · one ward · twice the host',   lives:2, wards:1, eSpd:1.15,eCad:.8,   eHp:1.3, bossHp:1.2, eCount:1.35},
 };
 let diff='knight', lives=3;
 const DIFF=()=>DIFFS[diff];
@@ -835,7 +837,7 @@ let player=null;
 function makePlayer(x){
   return {x, y:400, vx:0, vy:0, w:26, h:54, onGround:false, face:1,
     wards:DIFF().wards, keg:false, invulnT:2, dashT:0, dashCd:0, dashDir:1, dropT:0,
-    coyoteT:0, jumpBufT:0,
+    coyoteT:0, jumpBufT:0, airJumps:0, sigilT:0, sigilX:0, sigilY:0,
     weapon:'BOLT', slots:['BOLT',null,null], slot:0,
     fireT:0, lanceTick:0, dead:false, respawnT:0, animT:0, flashT:0};
 }
@@ -989,7 +991,7 @@ function buildLevel2(){
     ['foot',9020],['bomb',9220],['hound',9460],['foot',9720],['arch',9880],['shield',10120],['hound',10320],
     ['hound',10820],['arch',11120],['weave',11420],['hound',11820],['bomb',12120],
     ['arch',13070,120],['hound',13130,-240],['arch',13060,-480],['arch',12950,-960]];
-  for(const [t,x,y] of amb) spawnEnemy(t,x,y);
+  spawnAmbient(amb);
   /* --- ambushes: the forest hunts in packs --- */
   ambushes=[
     {x:1250,done:false,list:[['hound','L'],['hound','R'],['hound','R']]},
@@ -1121,7 +1123,7 @@ function buildLevel1(){
     ['foot',8900],['arch',9120],['bomb',9350],['foot',9500],['shield',9620],['foot',9900],['arch',10120],['bomb',10180],['foot',10400],
     ['foot',10800],['arch',11000],['ball',11500,560],['foot',11650],['bomb',11800],['arch',12000],['foot',12300],
     ['ball',13010,456],['ball',13560,WALLY],['foot',13700],['shield',14100],['foot',14300],['arch',14800],['bomb',14950],['shield',15250]];
-  for(const [t,x,y] of amb) spawnEnemy(t,x,y);
+  spawnAmbient(amb);
   /* --- ambush triggers (no camera lock — they come to you) --- */
   ambushes=[
     {x:3150,done:false,list:[['foot','L'],['foot','R'],['arch','R'],['foot','R']]},
@@ -1179,6 +1181,15 @@ function groundYAt(x,below){
 }
 
 /* ---------------- enemies ---------------- */
+function spawnAmbient(list){
+  // difficulty thins or thickens the host — deterministic by slot, so a level is the same level every run
+  const k=DIFF().eCount||1;
+  list.forEach(([t,x,y],i)=>{
+    if(t!=='ball'&&k<1&&((i*7+3)%4)===0) return;         // Squire: every fourth foe stays home
+    spawnEnemy(t,x,y);
+    if(t!=='ball'&&t!=='bomb'&&k>1&&(i%3)===1) spawnEnemy(t==='shield'?'foot':t,x+rand(50,90),y);   // Warden: reinforcements
+  });
+}
 function spawnEnemy(type,x,y,emerge){
   const e={type,x,y:0,vx:0,vy:0,dead:false,hp:3,w:26,h:50,face:-1,t:rand(0,2),
     windup:0,lunge:0,hurtT:0,chillT:0,kbVx:0,emerge:emerge||0};
@@ -1868,6 +1879,14 @@ function updatePlayer(dt){
     if(p.jumpBufT>0&&(p.onGround||p.coyoteT>0)){
       p.vy=-810; p.onGround=false; p.coyoteT=0; p.jumpBufT=0;
       hiss(.07,.04,2000);
+    }else if(p.jumpBufT>0&&SET.doubleJump&&p.airJumps<1&&!p.onGround&&p.coyoteT<=0&&p.dashT<=0){
+      // the second step: a sigil flares underfoot and the air takes the mage's weight
+      p.vy=-700; p.airJumps++; p.jumpBufT=0;
+      p.sigilT=.42; p.sigilX=p.x; p.sigilY=p.y+p.h;
+      const col=WPN('BOLT').color;
+      spawnRing(p.x,p.y+p.h-4,col);
+      for(let i=0;i<14*pMul();i++){const a=(i/14)*TAU; spawnPart(p.x+Math.cos(a)*16,p.y+p.h-4,Math.cos(a)*90,-rand(40,160),rand(.3,.6),rand(2,4),col,-200,true);}
+      isFire()?(tone('sine',520,880,.18,.07),hiss(.1,.03,1800)):(tone('sine',900,1500,.18,.06),tone('sine',1350,2000,.14,.04,.05));
     }
     if(down('drop')&&p.onGround) p.dropT=.22;
   }
@@ -1895,7 +1914,8 @@ function updatePlayer(dt){
       }
     }
   }
-  if(p.onGround) p.coyoteT=.09;
+  if(p.onGround){p.coyoteT=.09; p.airJumps=0;}
+  if(p.sigilT>0) p.sigilT-=dt;
   // footsteps
   if(p.onGround&&Math.abs(p.vx)>90){
     p.stepT=(p.stepT||0)-dt*Math.abs(p.vx)/380;
@@ -3031,6 +3051,7 @@ function render(t){
   drawBoss(t);
   drawRunners(t);
   drawDebris(t);
+  drawSigil(t);
   drawPet(t);
   drawPlayer(t);
   ctx.globalCompositeOperation='lighter';
@@ -4608,6 +4629,21 @@ function drawShotsGlow(t){
     drawGlow(le.x2,le.y2,22,lc,.9);
   }
 }
+function drawSigil(t){
+  const p=player; if(!p||!(p.sigilT>0)) return;
+  const q=p.sigilT/.42, col=WPN('BOLT').color;
+  ctx.save(); ctx.translate(p.sigilX,p.sigilY); ctx.scale(1,.38);
+  ctx.globalAlpha=q; ctx.strokeStyle=col; ctx.lineWidth=2.5;
+  const R=22+(1-q)*26;
+  ctx.beginPath(); ctx.arc(0,0,R,0,TAU); ctx.stroke();
+  ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,R*.62,0,TAU); ctx.stroke();
+  ctx.rotate(t*.006);
+  ctx.beginPath();
+  for(let i=0;i<6;i++){const a=i*TAU/6; ctx.moveTo(Math.cos(a)*R*.62,Math.sin(a)*R*.62); ctx.lineTo(Math.cos(a+TAU/3)*R*.62,Math.sin(a+TAU/3)*R*.62);}
+  ctx.stroke();
+  ctx.globalAlpha=q*.5; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(0,0,R*.25,0,TAU); ctx.fill();
+  ctx.restore(); ctx.globalAlpha=1;
+}
 function drawDebris(t){
   for(const d of debris){
     if(d.x<cam.x-60||d.x>cam.x+W+60) continue;
@@ -5781,6 +5817,7 @@ document.getElementById('sRag').onclick=()=>{SET.ragdoll=!SET.ragdoll;saveSet();
 document.getElementById('sAuto').onclick=()=>{SET.autopause=!SET.autopause;saveSet();};
 document.getElementById('sFps').onclick=()=>{SET.fps=!SET.fps;saveSet();};
 document.getElementById('sDmg').onclick=()=>{SET.dmgNums=!SET.dmgNums;saveSet();};
+document.getElementById('sDJ').onclick=()=>{SET.doubleJump=!SET.doubleJump;saveSet();};
 document.getElementById('bFull').onclick=()=>{
   if(document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen().catch(()=>{});
