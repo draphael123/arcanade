@@ -198,8 +198,20 @@
       <button class="wmNode" id="bWmDrill" style="left:60px;top:280px;width:130px;height:90px"></button>
       <button class="wmNode" id="bWmL1" style="left:320px;top:150px;width:150px;height:110px"></button>
       <button class="wmNode" id="bWmL2" style="left:590px;top:60px;width:150px;height:110px"></button>
+      <button class="wmNode" id="bWmShop" style="left:190px;top:150px;width:120px;height:90px;display:none"></button>
     </div>
     <button class="btn small parch" id="bWmBack" style="margin-top:10px">Back</button>
+  </div>
+</div>
+
+<div id="store" class="overlay hidden">
+  <div class="panel" style="background:#e9dcbc;color:#3a2c1a;border:3px double #8a6f4a;padding:24px 36px 18px;
+    max-width:680px;max-height:86vh;overflow-y:auto;text-align:left;box-shadow:0 0 70px rgba(0,0,0,.55)">
+    <h2 style="font-weight:normal;letter-spacing:.28em;color:#5a3c1a;font-size:20px;text-align:center;margin-bottom:2px">THE QUARTERMASTER'S WAGON</h2>
+    <div style="text-align:center;font-style:italic;color:#8a6f4a;font-size:12px;margin-bottom:8px">everything fell off the back of a siege</div>
+    <div id="storePurse" style="text-align:center;font-family:'Cinzel',Georgia;letter-spacing:.14em;color:#8a5a1a;font-size:15px;margin-bottom:10px"></div>
+    <div id="storeRows"></div>
+    <div style="text-align:center"><button class="btn small parch" id="bStoreBack" style="margin-top:12px">Back to the Map</button></div>
   </div>
 </div>
 
@@ -537,6 +549,9 @@ const CLASSES={
       LANCE: {name:'FLAME LANCE',   color:'rgb(255,94,60)',   len:500, dps:5,  beamW:7},
       HEAVY: {name:'GREATFIRE',     color:'rgb(255,122,42)',  rate:.55, spd:640, r:10, dmg:2.5, g:700, bounces:2},
       BREATH:{name:"DRAKE'S BREATH",color:'rgb(255,196,107)', coneR:245, dps:12, half:.42},
+      CRAWLER:{name:'SALAMANDER',   color:'rgb(255,120,50)',  rate:.55, dmg:1.5, spd:330},
+      MORTAR:{name:'SKYFALL',       color:'rgb(255,170,80)',  rate:.85, dmg:.9},
+      NOVA:  {name:'CINDER RING',   color:'rgb(255,140,60)',  rate:.95, dmg:2,  novaR:150},
     }},
   frost:{
     title:'CRYOMANCER', robe:'#3f6fa8', robeShade:'#33598a', cape:'#2c4a74',
@@ -549,10 +564,33 @@ const CLASSES={
       LANCE: {name:'GLACIER LANCE',   color:'rgb(120,190,255)', len:380, dps:5.5, beamW:12},
       HEAVY: {name:'COMET',           color:'rgb(150,210,250)', rate:.65, spd:600, r:11, dmg:3.2, g:760, bounces:0, shatter:3},
       BREATH:{name:"WINTER'S BREATH", color:'rgb(200,235,255)', coneR:200, dps:10, half:.5},
+      CRAWLER:{name:'RIMESHARD',      color:'rgb(160,215,255)', rate:.6,  dmg:1.6, spd:300},
+      MORTAR:{name:'HAILRAKE',        color:'rgb(185,225,255)', rate:.9,  dmg:1},
+      NOVA:  {name:"WINTER'S GRASP",  color:'rgb(200,240,255)', rate:1,   dmg:1.8, novaR:160},
     }},
 };
 let cls='fire';
 const WPN=k=>CLASSES[cls].weapons[k];
+
+/* ---------------- the quartermaster's ledger ---------------- */
+const DYES={
+  midnight:{robe:'#3a3f5c',robeShade:'#2c3048',cape:'#232840'},
+  verdant:{robe:'#3f7a44',robeShade:'#33623a',cape:'#28502e'},
+  gold:{robe:'#c9982a',robeShade:'#a87c1e',cape:'#8a6416'},
+  ashen:{robe:'#9aa0a8',robeShade:'#7c828a',cape:'#666c74'},
+};
+let shop={embers:0, owned:{}, equip:{dye:'none',orb:'none',trail:'none',hat:'none',pet:'none'}, start:'BOLT'};
+try{Object.assign(shop,JSON.parse(localStorage.getItem('arcanade-shop')||'{}'));}catch(e){}
+function saveShop(){try{localStorage.setItem('arcanade-shop',JSON.stringify(shop));}catch(e){}}
+let runEmbers=0;
+function earnEmbers(n){
+  shop.embers+=n; runEmbers+=n; saveShop();
+}
+function robeColors(){
+  const CL=CLASSES[cls], d=DYES[shop.equip.dye];
+  return d? d : CL;
+}
+function ownedSpells(){return ['CRAWLER','MORTAR','NOVA'].filter(k=>shop.owned['sp_'+k]);}
 
 /* ---------------- difficulty ---------------- */
 const DIFFS={
@@ -655,6 +693,7 @@ let cam={x:0,y:0}, shakeMag=0, shakeX=0, shakeY=0;
 let gameTime=0, deaths=0, kills=0, relicsFound=0, cpFlashT=0, ambushT=0, bridgeTorched=false;
 let hitstopT=0, dmgFlashT=0, tutorialMode=false, tutDoneT=0;
 let rescued=0, trialsFound=0, runners=[], sealFlashT=0, grabKey=false, branchT=0;
+let petPos={x:0,y:0};
 function hitstop(s){hitstopT=Math.max(hitstopT,s);}
 let checkpoint={x:60};
 let player=null;
@@ -685,6 +724,7 @@ function damageSolid(s,dmg,x,y){
     spawnRing(s.x+s.w/2,s.y+s.h/2,'rgb(255,220,170)');
     if(s.seal){
       trialsFound++; sealFlashT=2.2; SFX.chime(); SFX.pickup();
+      earnEmbers(25);
       pickups.push({x:s.x+s.w/2,y:s.y+30,type:s.reward,t:0,got:false});
     }
   }else if(s.seal&&dmg>=.5){
@@ -719,6 +759,16 @@ function loadLevel(n){
       [5400,[70,125,115],.10],[6800,[40,85,60],.13],[8800,[135,115,90],.09],
       [10400,[115,95,60],.10],[12400,[235,175,95],.09],[14000,[235,175,95],.09]];
     buildLevel2();
+  }
+  // bought spells join the relic pool — duplicates make way for your grimoire
+  const pool=ownedSpells();
+  if(pool.length){
+    const seen={}; let k=0;
+    for(const pk of pickups){
+      if(pk.type==='LIFE') continue;
+      if(seen[pk.type]){pk.type=pool[k%pool.length]; k++;}
+      else seen[pk.type]=true;
+    }
   }
 }
 function buildLevel2(){
@@ -973,7 +1023,7 @@ function startTutorialYard(){
   MARENA={x0:0,x1:0,trig:1e9,cam:0};
   CHECKPOINTS=[60,2060];
   ZONES=[[0,[96,140,80],.05],[2700,[96,140,80],.05]];
-  rescued=0; trialsFound=0; runners=[]; sealFlashT=0; grabKey=false;
+  rescued=0; trialsFound=0; runners=[]; sealFlashT=0; grabKey=false; runEmbers=0;
   lives=DIFF().lives;
   tutorialMode=true; forceTut=false;
   setTutSteps(true);
@@ -1192,6 +1242,7 @@ function damageBoss(dmg,x,y){
   if(dmg>=.5){SFX.bossHurt(); burst(x,y,4,mult>1?'rgb(255,240,180)':'rgb(255,179,71)',.5);}
   if(b.hp<=0){
     b.dead=true; b.deadT=0;
+    earnEmbers(40);
     SFX.explode(); SFX.roar(); shake(20); hitstop(.14);
     spawnRing(b.x,b.y+b.h/2,'rgb(255,240,200)');
   }
@@ -1340,6 +1391,7 @@ function damageMBoss(dmg,x,y){
   if(isFire()&&dmg>=.5&&m.burn<=0&&Math.random()<.3){m.burn=4;SFX.ignite();}
   if(m.hp<=0&&!m.dead){
     m.dead=true; m.deadT=0;
+    earnEmbers(25);
     SFX.explode(); shake(16); hitstop(.12);
     burst(m.x,m.y+m.h/2,36,'rgb(255,154,60)');
     spawnRing(m.x,m.y+m.h/2,'rgb(255,240,200)');
@@ -1619,7 +1671,14 @@ function updatePlayer(dt){
   const sp=p.keg?320:380;   // the keg is heavy
   if(p.dashT>0){
     p.dashT-=dt; p.vx=p.dashDir*900; p.vy=0;
-    if(Math.random()<.85) spawnPart(p.x,p.y+26,0,0,.22,9,WPN('BOLT').color,0,true);
+    if(Math.random()<.85){
+      const tr=shop.equip.trail;
+      if(tr==='petal') spawnPart(p.x+rand(-6,6),p.y+22,rand(-30,30),rand(10,50),.5,4.5,'rgb(255,150,190)',260,true);
+      else if(tr==='spark'){spawnPart(p.x,p.y+26,rand(-60,60),rand(-60,60),.2,3.5,'rgb(255,215,110)',0,true);
+        spawnPart(p.x,p.y+26,rand(-60,60),rand(-60,60),.2,3,'rgb(255,240,180)',0,true);}
+      else if(tr==='rune') spawnPart(p.x,p.y+24,0,rand(-14,4),.45,7,'rgb(190,140,255)',0,true);
+      else spawnPart(p.x,p.y+26,0,0,.22,9,WPN('BOLT').color,0,true);
+    }
   }else{
     let mx=0;
     if(down('left')) mx-=1; if(down('right')) mx+=1;
@@ -1716,6 +1775,14 @@ function updatePlayer(dt){
         shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd,vy:Math.sin(aimA)*wp.spd,g:wp.g,r:wp.r,life:2.4,dmg:wp.dmg,c:wp.color,ball:true,bounces:wp.bounces,shatter:wp.shatter||0});
         castSfx('HEAVY'); kick(aimA,5);
         spawnRing(tipX,tipY,wp.color);
+      }else if(p.weapon==='CRAWLER'){
+        shots.push({x:tipX,y:tipY,vx:(Math.cos(aimA)>=0?1:-1)*wp.spd,vy:0,g:0,r:7,life:2.4,dmg:wp.dmg,c:wp.color,crawl:true,hitSet:[]});
+        castSfx('HEAVY'); kick(aimA,3);
+      }else if(p.weapon==='MORTAR'){
+        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*300,vy:-640,g:1000,r:8,life:3,dmg:wp.dmg,c:wp.color,mortar:true});
+        castSfx('HEAVY'); kick(aimA,4);
+      }else if(p.weapon==='NOVA'){
+        castNova(wp);
       }
     }
   }
@@ -1749,6 +1816,24 @@ function updatePlayer(dt){
   }
 }
 function kick(a,m){shake(m*.4); player.vx-=Math.cos(a)*m*6;}
+function castNova(wp){
+  const p=player, cx=p.x, cy=p.y+26, R=wp.novaR;
+  SFX.explode(); shake(6); hitstop(.035);
+  spawnRing(cx,cy,wp.color); spawnRing(cx,cy-8,wp.color);
+  for(let i=0;i<14*pMul();i++){
+    const a=rand(0,TAU);
+    spawnPart(cx,cy,Math.cos(a)*rand(180,420),Math.sin(a)*rand(180,420),rand(.25,.5),rand(3,5),wp.color,0,true);
+  }
+  for(const e of enemies)
+    if(!e.dead&&dist2(cx,cy,e.x,e.y+e.h/2)<R*R) damageEnemy(e,wp.dmg,e.x,e.y+e.h/2,false,1.7);
+  if(boss&&!boss.dead&&dist2(cx,cy,boss.x,boss.y+boss.h/2)<(R+50)*(R+50)) damageBoss(wp.dmg,boss.x,boss.y+60);
+  if(mboss&&!mboss.dead&&dist2(cx,cy,mboss.x,mboss.y+mboss.h/2)<(R+40)*(R+40)) damageMBoss(wp.dmg,mboss.x,mboss.y+30);
+  for(const sol of solids)
+    if(sol.breakable&&!sol.dead&&dist2(cx,cy,sol.x+sol.w/2,sol.y+sol.h/2)<R*R)
+      damageSolid(sol,wp.dmg,sol.x+sol.w/2,sol.y+sol.h/2);
+  if(isFire()) for(const o of flammables())
+    if(dist2(cx,cy,o.x+o.w/2,o.y+o.h/2)<R*R) ignite(o);
+}
 
 /* lance: hitscan beam */
 let lanceEnd=null;
@@ -1867,6 +1952,7 @@ function damageEnemy(e,dmg,x,y,silent,launch){
   }
   if(e.hp<=0){
     e.dead=true; kills++; SFX.die(); hitstop(.045);
+    earnEmbers(2);
     // the last hit sends them tumbling — sometimes gloriously
     const dir=e.x>=player.x?1:-1;
     const L=(launch||1)*(SET.ragdoll?1:.25);
@@ -1889,6 +1975,40 @@ function updateShots(dt){
     s.x+=s.vx*dt; s.y+=s.vy*dt;
     if(Math.random()<(s.ball?.7:.3)*pMul())
       spawnPart(s.x,s.y,rand(-15,15),rand(-15,15),.22,s.ball?4:2.5,s.c,0,true);
+    // the mortar bursts at the top of its arc
+    if(s.mortar&&s.vy>0){
+      SFX.embers(); burst(s.x,s.y,8,s.c,.6);
+      for(const dvx of [-95,0,95])
+        shots.push({x:s.x,y:s.y,vx:dvx,vy:140,g:900,r:5,life:2,dmg:s.dmg,c:s.c});
+      s.dead=true; continue;
+    }
+    // the crawler hugs the earth and climbs what it meets
+    if(s.crawl){
+      const g2=groundYAt(s.x,s.y-95);
+      if(g2>cam.y+H+220){s.dead=true; continue;}     // walked off the world
+      s.y=g2-7;
+      if(tryFreezeWater(s.x,s.y+10)&&isFire()){s.dead=true; continue;}   // fire drowns; frost paves
+      if(Math.random()<.7*pMul())
+        spawnPart(s.x,s.y-2,rand(-25,25),rand(-60,-15),.25,3,s.c,0,true);
+      let hitSomething=false;
+      for(const e of enemies){
+        if(e.dead||s.hitSet.includes(e)) continue;
+        if(Math.abs(s.x-e.x)<e.w/2+8&&s.y>e.y-12&&s.y<e.y+e.h+8){
+          damageEnemy(e,s.dmg,s.x,s.y);
+          s.hitSet.push(e);
+        }
+      }
+      if(boss&&!boss.dead&&Math.abs(s.x-boss.x)<boss.w/2+8&&s.y>boss.y-8){damageBoss(s.dmg,s.x,s.y);hitSomething=true;}
+      if(mboss&&!mboss.dead&&Math.abs(s.x-mboss.x)<mboss.w/2+8&&s.y>mboss.y-8){damageMBoss(s.dmg,s.x,s.y);hitSomething=true;}
+      if(isFire()) for(const o of flammables())
+        if(s.x>o.x-6&&s.x<o.x+o.w+6&&s.y>o.y-10&&s.y<o.y+o.h+10) ignite(o);
+      for(const sol of solids)
+        if(sol.breakable&&!sol.dead&&s.x>sol.x-6&&s.x<sol.x+sol.w+6&&s.y>sol.y-6&&s.y<sol.y+sol.h+6){
+          damageSolid(sol,s.dmg,s.x,s.y); hitSomething=true; break;
+        }
+      if(hitSomething){burst(s.x,s.y,6,s.c,.5); s.dead=true;}
+      continue;
+    }
     // a hurled keg answers to nothing but impact
     if(s.kegShot){
       s.spinA+=9*dt;
@@ -1927,8 +2047,8 @@ function updateShots(dt){
       if(e.dead) continue;
       if(s.hitSet&&s.hitSet.includes(e)) continue;
       if(s.x>e.x-e.w/2-s.r&&s.x<e.x+e.w/2+s.r&&s.y>e.y-s.r&&s.y<e.y+e.h+s.r){
-        // the pavise turns direct bolts — but frost shards pierce, and splash doesn't care
-        if(e.type==='shield'&&e.emerge<=0&&!s.ball&&!(s.pierce>0)){
+        // the pavise turns direct bolts — but shards pierce, splash doesn't care, and crawlers slip under
+        if(e.type==='shield'&&e.emerge<=0&&!s.ball&&!(s.pierce>0)&&!s.crawl){
           const fromFront=(s.vx>0&&e.face<0)||(s.vx<0&&e.face>0);
           if(fromFront){
             SFX.clink(); burst(s.x,s.y,3,'rgb(205,205,215)',.4);
@@ -2065,7 +2185,7 @@ function explodeBall(s){
 
 /* ---------------- freed villagers ---------------- */
 function freeVillager(cg){
-  cg.dead=true; rescued++;
+  cg.dead=true; rescued++; earnEmbers(15);
   runners.push({x:cg.x+20,y:cg.y+cg.h,vx:-(160+rand(0,80)),t:3.5,ph:rand(0,9)});
   SFX.chime(); shake(2);
   burst(cg.x+20,cg.y+20,14,'rgb(255,220,170)');
@@ -2198,6 +2318,11 @@ function update(dt){
   updateFire(dt);
   updateAmbushes(dt);
   updateRunners(dt);
+  if(shop.equip.pet==='pet'&&player&&!player.dead){
+    const k2=1-Math.pow(.004,dt);
+    petPos.x=lerp(petPos.x,player.x-player.face*46,k2);
+    petPos.y=lerp(petPos.y,player.y+player.h,k2*1.4);
+  }
   updateParts(dt);
   updateCam(dt);
   updateTut(dt);
@@ -2343,6 +2468,7 @@ function render(t){
   drawMBoss(t);
   drawBoss(t);
   drawRunners(t);
+  drawPet(t);
   drawPlayer(t);
   ctx.globalCompositeOperation='lighter';
   drawShotsGlow(t);
@@ -2718,6 +2844,37 @@ function drawShadowAt(x,feetY,w){
   ctx.beginPath();
   ctx.ellipse(x,sy+4,w*.55*(0.65+0.35*a),4.5,0,0,TAU);
   ctx.fill();
+}
+function drawPet(t){
+  if(shop.equip.pet!=='pet'||state!=='play'||!player||player.dead) return;
+  const x=petPos.x, y=petPos.y;
+  const bob=Math.sin(t*.008)*2;
+  const F=player.x>=x?1:-1;
+  if(isFire()){
+    // a hearth salamander, faintly aglow
+    drawGlow(x,y-8,16,'rgb(255,150,70)',.35);
+    ctx.fillStyle='#c96a32';
+    ctx.beginPath();ctx.ellipse(x,y-6+bob,12,5,0,0,TAU);ctx.fill();
+    ctx.beginPath();ctx.arc(x+F*11,y-8+bob,4.5,0,TAU);ctx.fill();
+    ctx.strokeStyle='#c96a32'; ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(x-F*10,y-6+bob);
+    ctx.quadraticCurveTo(x-F*18,y-10+bob+Math.sin(t*.01)*3,x-F*22,y-4+bob);
+    ctx.stroke();
+    ctx.fillStyle='#ffdf9a';
+    ctx.fillRect(x+F*11,y-9+bob,2,2);
+  }else{
+    // a snow fox, all business
+    ctx.fillStyle='#e8ecf0';
+    ctx.beginPath();ctx.ellipse(x,y-8+bob,11,6,0,0,TAU);ctx.fill();
+    ctx.beginPath();ctx.arc(x+F*10,y-11+bob,5,0,TAU);ctx.fill();
+    ctx.beginPath();                                     // ears
+    ctx.moveTo(x+F*7,y-15+bob);ctx.lineTo(x+F*9,y-21+bob);ctx.lineTo(x+F*12,y-15+bob);
+    ctx.closePath();ctx.fill();
+    ctx.beginPath();                                     // the tail is half the fox
+    ctx.ellipse(x-F*14,y-9+bob+Math.sin(t*.009)*2,8,4,F*.5,0,TAU);ctx.fill();
+    ctx.fillStyle='#4a90c8';
+    ctx.fillRect(x+F*10,y-12+bob,2,2);
+  }
 }
 function drawRunners(t){
   for(const r of runners){
@@ -3550,7 +3707,7 @@ function drawPlayer(t){
   if(shimmer) ctx.globalAlpha=.62+.22*Math.sin(t*.012);
   const {x,y}=p;
   const fl=p.flashT>0;
-  const CL=CLASSES[cls];
+  const CL=robeColors();
   const C=(c)=>fl?'#fff6e8':c;
   ctx.fillStyle=C(CL.cape);
   ctx.beginPath();
@@ -3576,6 +3733,15 @@ function drawPlayer(t){
   ctx.moveTo(x-9,y+11);ctx.lineTo(x-9,y+3);ctx.lineTo(x+p.face*2,y-9);
   ctx.lineTo(x+9,y+2);ctx.lineTo(x+9,y+6);ctx.lineTo(x+p.face*7,y+2);
   ctx.lineTo(x-p.face*2,y+11);ctx.closePath();ctx.fill();
+  if(shop.equip.hat==='antler'){   // the Huntsmaster's crown, worn better
+    ctx.strokeStyle=C('#8a7658'); ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.moveTo(x-6,y-6);ctx.lineTo(x-12,y-17);ctx.lineTo(x-9,y-20);
+    ctx.moveTo(x-12,y-17);ctx.lineTo(x-17,y-19);
+    ctx.moveTo(x+6,y-6);ctx.lineTo(x+12,y-17);ctx.lineTo(x+9,y-20);
+    ctx.moveTo(x+12,y-17);ctx.lineTo(x+17,y-19);
+    ctx.stroke();
+  }
   if(p.keg){   // the whole plan, held overhead
     ctx.fillStyle='#6b4a2e';
     ctx.beginPath();ctx.ellipse(x,y-24,11,14,0,0,TAU);ctx.fill();
@@ -3604,7 +3770,22 @@ function drawPlayer(t){
   const gx=(p.tipX||x)-Math.cos(a)*rec, gy=(p.tipY||y)-Math.sin(a)*rec;
   drawGlow(gx,gy,16,c,.9);
   ctx.fillStyle='#ffe9c9';
-  ctx.beginPath();ctx.arc(gx,gy,3,0,TAU);ctx.fill();
+  const orb=shop.equip.orb;
+  if(orb==='twin'){
+    ctx.beginPath();ctx.arc(gx-Math.sin(a)*5,gy+Math.cos(a)*5,2.4,0,TAU);ctx.fill();
+    ctx.beginPath();ctx.arc(gx+Math.sin(a)*5,gy-Math.cos(a)*5,2.4,0,TAU);ctx.fill();
+  }else if(orb==='shard'){
+    ctx.save();ctx.translate(gx,gy);ctx.rotate(t*.004);
+    ctx.fillRect(-3.5,-3.5,7,7);ctx.restore();
+  }else if(orb==='star'){
+    ctx.save();ctx.translate(gx,gy);ctx.rotate(t*.003);
+    ctx.strokeStyle='#ffe9c9';ctx.lineWidth=1.8;
+    ctx.beginPath();
+    ctx.moveTo(-5,0);ctx.lineTo(5,0);ctx.moveTo(0,-5);ctx.lineTo(0,5);
+    ctx.stroke();ctx.restore();
+  }else{
+    ctx.beginPath();ctx.arc(gx,gy,3,0,TAU);ctx.fill();
+  }
   if(rec>3.4){                        // muzzle flash the instant it leaves
     ctx.fillStyle='rgba(255,250,230,.9)';
     ctx.beginPath();ctx.arc(gx,gy,5.5,0,TAU);ctx.fill();
@@ -3814,6 +3995,36 @@ function drawHUD(t){
     ctx.font='11px Georgia'; ctx.fillStyle='rgba(74,56,38,.85)';
     ctx.fillText(lbl('swap')+' · cycle', chipX+2, H-27);
   }
+  // the road so far — a thin thread across the bottom
+  if(!tutorialMode){
+    const pw=360, px0=W/2-pw/2, py0=H-14;
+    ctx.strokeStyle='rgba(74,56,38,.45)'; ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px0+pw,py0);ctx.stroke();
+    for(const c of CHECKPOINTS){
+      const tx2=px0+(c/LEVEL)*pw;
+      ctx.strokeStyle=c<=checkpoint.x?'rgba(200,140,50,.9)':'rgba(74,56,38,.4)';
+      ctx.beginPath();ctx.moveTo(tx2,py0-4);ctx.lineTo(tx2,py0+4);ctx.stroke();
+    }
+    if(MARENA.trig<LEVEL){                              // the mini-boss waits here
+      const mx2=px0+(MARENA.trig/LEVEL)*pw;
+      ctx.fillStyle=(mboss&&mboss.dead)?'rgba(74,56,38,.5)':'#8a2f1a';
+      ctx.save();ctx.translate(mx2,py0);ctx.rotate(Math.PI/4);
+      ctx.fillRect(-3.5,-3.5,7,7);ctx.restore();
+    }
+    const bx6=px0+((LVL===1?BOSS_TRIG:12550)/LEVEL)*pw; // and the boss at road's end
+    ctx.fillStyle=(boss&&boss.dead)?'rgba(74,56,38,.5)':'#7a2418';
+    ctx.beginPath();
+    ctx.moveTo(bx6,py0-7);ctx.lineTo(bx6+6,py0-4);ctx.lineTo(bx6,py0-1);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#7a2418';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(bx6,py0-7);ctx.lineTo(bx6,py0+4);ctx.stroke();
+    // you
+    const dx2=px0+clamp(player.x/LEVEL,0,1)*pw;
+    ctx.fillStyle=WPN('BOLT').color;
+    ctx.beginPath();ctx.arc(dx2,py0,4.5,0,TAU);ctx.fill();
+    ctx.fillStyle='#fff6e0';
+    ctx.beginPath();ctx.arc(dx2,py0,1.8,0,TAU);ctx.fill();
+  }
   if(SET.timer){
     ctx.textAlign='right'; ctx.fillStyle='#4a3826'; ctx.font='13px Georgia';
     const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
@@ -3944,7 +4155,7 @@ function gameOver(){
   const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
   document.getElementById('goStats').innerHTML=
     'reached <b>'+Math.round(player.x/LEVEL*100)+'%</b> of the road &nbsp;·&nbsp; time <b>'+m+':'+String(s).padStart(2,'0')+
-    '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; <b>'+DIFF().label+'</b>';
+    '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; <b style="color:#e8a84a">+'+runEmbers+' embers kept</b> &nbsp;·&nbsp; <b>'+DIFF().label+'</b>';
   show('gameover');
 }
 
@@ -3952,7 +4163,10 @@ function gameOver(){
 function doWin(){
   state='win';
   stopMusic();
-  if(!tutorialMode){campaign['l'+LVL+'Cleared']=true; saveCampaign();}
+  if(!tutorialMode){
+    earnEmbers(campaign['l'+LVL+'Cleared']?150:250);   // first clear pays double honors
+    campaign['l'+LVL+'Cleared']=true; saveCampaign();
+  }
   const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
   // rank: deaths decide the title, dawdling costs a step
   let idx=deaths===0?3:(deaths===1?2:(deaths<=3?1:0));
@@ -3974,7 +4188,8 @@ function doWin(){
     '<span style="font-family:Cinzel,Georgia,serif;font-size:22px;letter-spacing:.2em;color:#ffe9c9">'+rank+'</span><br>'+
     'time <b>'+m+':'+String(s).padStart(2,'0')+'</b> &nbsp;·&nbsp; deaths <b>'+deaths+
     '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; rescued <b>'+rescued+
-    '</b> &nbsp;·&nbsp; trials <b>'+trialsFound+' / 3</b>'+
+    '</b> &nbsp;·&nbsp; trials <b>'+trialsFound+'</b>'+
+    ' &nbsp;·&nbsp; <b style="color:#e8a84a">+'+runEmbers+' embers</b>'+
     ' &nbsp;·&nbsp; <b>'+CLASSES[cls].title+' · '+DIFF().label+'</b>'+bestLine;
   show('win');
 }
@@ -4333,6 +4548,23 @@ function drawWorldMap(tt){
     g.strokeStyle='#4a7a3c'; g.lineWidth=3;
     g.beginPath();g.moveTo(424,196);g.lineTo(430,203);g.lineTo(442,187);g.stroke();
   }
+  /* the wagon, parked where the business is */
+  const shopOpen=!!campaign.l1Cleared;
+  document.getElementById('bWmShop').style.display=shopOpen?'block':'none';
+  if(shopOpen){
+    const wx2=250, wy2=210;
+    g.fillStyle='#6b4a2e';
+    g.fillRect(wx2-26,wy2-18,52,20);
+    g.beginPath();g.moveTo(wx2-26,wy2-18);g.lineTo(wx2-18,wy2-32);g.lineTo(wx2+20,wy2-32);g.lineTo(wx2+26,wy2-18);g.closePath();g.fill();
+    g.fillStyle='#e0d4b0';
+    g.fillRect(wx2-16,wy2-30,34,11);
+    g.fillStyle='#4a3420';
+    g.beginPath();g.arc(wx2-14,wy2+6,7,0,TAU);g.arc(wx2+14,wy2+6,7,0,TAU);g.fill();
+    g.font="12px 'Cinzel',Georgia"; g.fillStyle='#5a3c1a'; g.textAlign='center';
+    g.fillText('THE WAGON',wx2,wy2+30);
+    g.font='italic 10px Georgia'; g.fillStyle='#8a6f4a';
+    g.fillText(shop.embers+' embers held',wx2,wy2+43);
+  }
   /* the Thornwood */
   const l2open=!!campaign.l1Cleared;
   node(665,115,l2open,l2open&&!campaign.l2Cleared);
@@ -4355,9 +4587,79 @@ function drawWorldMap(tt){
   }
 }
 
+/* ---------------- the wagon's stock ---------------- */
+const STORE_ITEMS=[
+  ['Dyes',    'dye_midnight','Midnight Dye','The colleges wear it to funerals. Striking.',60,'dye','midnight'],
+  ['Dyes',    'dye_verdant','Verdant Dye','The forest may mistake you for a friend.',60,'dye','verdant'],
+  ['Dyes',    'dye_gold','Royal Gold Dye','Shines like the purse it emptied.',60,'dye','gold'],
+  ['Dyes',    'dye_ashen','Ashen Dye','The colour of prudent retreats.',60,'dye','ashen'],
+  ['Staff Orbs','orb_twin','Twin Orbs','Two minds, one argument.',50,'orb','twin'],
+  ['Staff Orbs','orb_shard','Cut Shard','It hums when it turns.',50,'orb','shard'],
+  ['Staff Orbs','orb_star','Caged Star','Caught small. Still furious.',50,'orb','star'],
+  ['Cast Trails','trail_petal','Petal Trail','Violence, but make it spring.',80,'trail','petal'],
+  ['Cast Trails','trail_spark','Spark Trail','You leave the forge wherever you go.',80,'trail','spark'],
+  ['Cast Trails','trail_rune','Rune Trail','The old letters follow you home.',80,'trail','rune'],
+  ['Trophies','hat_antler','Antler Crown','The Huntsmaster has no further use for it.',120,'hat','antler'],
+  ['Companions','pet','Hearth Companion','A salamander or a snow fox — whichever answers your hearth.',150,'pet','pet'],
+  ['Spells','sp_CRAWLER','Salamander · Rimeshard','A flame that runs the ground and slips under shields.',220,null,null],
+  ['Spells','sp_MORTAR','Skyfall · Hailrake','A high lob that bursts into falling ruin.',220,null,null],
+  ['Spells','sp_NOVA',"Cinder Ring · Winter's Grasp",'Everything beside you, reminded of its place.',220,null,null],
+];
+function renderStore(){
+  document.getElementById('storePurse').innerHTML='PURSE &nbsp;·&nbsp; <b>'+shop.embers+'</b> embers';
+  const box=document.getElementById('storeRows');
+  box.innerHTML='';
+  let lastSec=null;
+  const mkRow=(name,desc,btnTxt,btnStyle,onclick)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid rgba(90,60,30,.18)';
+    row.innerHTML='<div><div style="font-family:Cinzel,Georgia;font-size:14px;color:#5a3c1a">'+name+
+      '</div><div style="font-size:12px;font-style:italic;color:#8a6f4a">'+desc+'</div></div>';
+    const b=document.createElement('button');
+    b.className='btn small parch';
+    b.style.cssText='margin:0;padding:5px 14px;font-size:11px;min-width:110px;'+btnStyle;
+    b.textContent=btnTxt;
+    if(onclick) b.onclick=onclick; else b.disabled=true;
+    row.appendChild(b);
+    box.appendChild(row);
+  };
+  for(const [sec,id,name,desc,price,slot,val] of STORE_ITEMS){
+    if(sec!==lastSec){
+      lastSec=sec;
+      const h=document.createElement('div');
+      h.style.cssText="font-family:Cinzel,Georgia;letter-spacing:.24em;font-size:12px;color:#8a5a1a;margin:12px 0 2px";
+      h.textContent=sec.toUpperCase();
+      box.appendChild(h);
+    }
+    const owned=!!shop.owned[id];
+    if(!owned){
+      const afford=shop.embers>=price;
+      mkRow(name,desc,price+' embers',afford?'':'opacity:.45',
+        afford?()=>{shop.embers-=price;shop.owned[id]=true;saveShop();SFX.pickup();renderStore();}:null);
+    }else if(slot){
+      const eq=shop.equip[slot]===val;
+      mkRow(name,desc,eq?'WORN — remove':'EQUIP','',()=>{
+        shop.equip[slot]=eq?'none':val; saveShop(); SFX.chime(); renderStore();
+      });
+    }else{
+      mkRow(name,desc,'IN THE GRIMOIRE','opacity:.6',null);
+    }
+  }
+  // prepared spell — what you march out holding
+  const h2=document.createElement('div');
+  h2.style.cssText="font-family:Cinzel,Georgia;letter-spacing:.24em;font-size:12px;color:#8a5a1a;margin:12px 0 2px";
+  h2.textContent='PREPARED SPELL';
+  box.appendChild(h2);
+  for(const k of ['BOLT',...ownedSpells()]){
+    const nm=k==='BOLT'?'Fire Bolt · Frost Bolt':STORE_ITEMS.find(i=>i[1]==='sp_'+k)[2];
+    mkRow(nm,'Begin every march with this in hand.',shop.start===k?'PREPARED':'PREPARE','',
+      shop.start===k?null:()=>{shop.start=k;saveShop();SFX.chime();renderStore();});
+  }
+}
+
 /* ---------------- overlays / flow ---------------- */
 const ov=id=>document.getElementById(id);
-const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover','worldmap'];
+const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover','worldmap','store'];
 function refreshBestLine(){
   const el=document.getElementById('bestLine');
   if(!el) return;
@@ -4394,6 +4696,9 @@ function startGame(){
   tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   setTutSteps(false);
   player=makePlayer(60); player.y=groundYAt(60)-56;
+  const startSpell=(shop.start==='BOLT'||shop.owned['sp_'+shop.start])?shop.start:'BOLT';
+  player.slots=[startSpell,null,null]; player.slot=0; player.weapon=startSpell;
+  runEmbers=0; petPos={x:60,y:player.y+player.h};
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
   playMusic('field');
 }
@@ -4431,6 +4736,8 @@ document.getElementById('bWmL2').onclick=()=>{
   else {SFX.clink();tipMapLocked();}
 };
 document.getElementById('bWmBack').onclick=()=>{state='charsel';show('charsel');};
+document.getElementById('bWmShop').onclick=()=>{SFX.chime();renderStore();show('store');};
+document.getElementById('bStoreBack').onclick=()=>{show('worldmap');};
 let mapLockT=0;
 function tipMapLocked(){mapLockT=Date.now();}
 document.getElementById('bCharBack').onclick=()=>{state='title';show('title');};
