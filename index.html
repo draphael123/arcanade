@@ -116,7 +116,7 @@
       <button class="btn" id="bSettingsT">Settings</button>
     </div>
   </div>
-  <div class="controls"><b>WASD</b> move &nbsp;&middot;&nbsp; <b>mouse</b> aim &nbsp;&middot;&nbsp; <b>click</b> fire &nbsp;&middot;&nbsp; <b>shift</b> dash &nbsp;&middot;&nbsp; <b>S</b> drop &nbsp;&middot;&nbsp; <b>esc</b> pause</div>
+  <div class="controls"><b>WASD</b> move &nbsp;&middot;&nbsp; <b>mouse</b> aim &nbsp;&middot;&nbsp; <b>click</b> fire &nbsp;&middot;&nbsp; <b>Q</b> swap mode &nbsp;&middot;&nbsp; <b>shift</b> dash &nbsp;&middot;&nbsp; <b>S</b> drop &nbsp;&middot;&nbsp; <b>esc</b> pause</div>
 </div>
 
 <div id="intro" class="overlay hidden">
@@ -178,6 +178,7 @@
     <button class="btn small" id="bBestP">Bestiary</button>
     <button class="btn small" id="bSettingsP">Settings</button>
     <button class="btn small" id="bRestart">Restart Siege</button>
+    <button class="btn small" id="bTitle">Return to Title</button>
   </div>
 </div>
 
@@ -293,6 +294,7 @@ const keys={}, mouse={x:W/2,y:H/2,down:false};
 addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='Escape'||e.code==='KeyP') togglePause();
+  if(e.code==='KeyQ'&&!e.repeat) swapFire();
   if(['Space','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -300,7 +302,8 @@ cv.addEventListener('mousemove',e=>{
   const r=cv.getBoundingClientRect();
   mouse.x=(e.clientX-r.left)/viewScale; mouse.y=(e.clientY-r.top)/viewScale;
 });
-cv.addEventListener('mousedown',e=>{if(e.button===0) mouse.down=true; if(e.button===2) tryDash();});
+cv.addEventListener('mousedown',e=>{if(e.button===0) mouse.down=true; if(e.button===2) swapFire();});
+cv.addEventListener('wheel',e=>{swapFire();e.preventDefault();},{passive:false});
 addEventListener('mouseup',e=>{if(e.button===0) mouse.down=false;});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
@@ -319,7 +322,7 @@ let paused=false, settingsFrom=null;
 let solids=[], props=[], enemies=[], shots=[], eshots=[], parts=[], pickups=[], gates=[];
 let boss=null, bossIntroT=0, winT=0;
 let cam={x:0}, shakeMag=0, shakeX=0, shakeY=0;
-let gameTime=0, deaths=0, kills=0, relicsFound=0;
+let gameTime=0, deaths=0, kills=0, relicsFound=0, cpFlashT=0;
 let checkpoint={x:60}, hintT=6;
 const CHECKPOINTS=[60,2060,3690,5190];
 let player=null;
@@ -327,7 +330,8 @@ let player=null;
 function makePlayer(x){
   return {x, y:400, vx:0, vy:0, w:26, h:54, onGround:false, face:1,
     ward:true, invulnT:2, dashT:0, dashCd:0, dashDir:1, dropT:0,
-    weapon:'BOLT', fireT:0, lanceTick:0, dead:false, respawnT:0, animT:0, flashT:0};
+    weapon:'BOLT', slots:['BOLT',null], slot:0,
+    fireT:0, lanceTick:0, dead:false, respawnT:0, animT:0, flashT:0};
 }
 
 /* ---------------- level construction ---------------- */
@@ -339,6 +343,7 @@ function damageSolid(s,dmg,x,y){
   if(s.hp<=0){
     s.dead=true; SFX.explode(); shake(9);
     burst(s.x+s.w/2,s.y+s.h/2,28,s.stoneWall?'rgb(170,170,160)':'rgb(200,150,90)');
+    spawnRing(s.x+s.w/2,s.y+s.h/2,'rgb(255,220,170)');
   }
 }
 function P(x,y,w,h,kind){const p={x,y,w,h,kind,flam:true,burn:0,spreadT:0,dead:false,ash:false};props.push(p);return p;}
@@ -348,6 +353,9 @@ function buildLevel(){
   // ground
   S(-80,600,1480,240);                                  // field  0..1400
   for(let i=0;i<7;i++) S(1400+i*80,600,80,16,{flam:true,plank:true}); // bridge 1400..1960
+  // stone piers in the moat — the crossing never depends on the bridge surviving
+  S(1548,646,74,180,{stone:true,pier:true});
+  S(1756,646,74,180,{stone:true,pier:true});
   S(1960,600,2740,240);                                 // far bank + camp ..4700
   S(4700,552,140,300,{stone:true}); S(4840,504,140,340,{stone:true}); S(4980,456,140,400,{stone:true}); // stair
   S(5120,420,1360,420,{stone:true});                    // wall top ..6480
@@ -378,6 +386,14 @@ function buildLevel(){
   }
   // straw training dummy for the tutorial (very flammable)
   P(430,groundYAt(430)-58,26,58,'dummy');
+  // meadow furniture: fences and bushes (both honest fuel)
+  for(const fx of [200,760,2260,2700,3320]) P(fx,groundYAt(fx)-30,92,30,'fence');
+  for(const bx of [330,1090,2510,3460,4390]) P(bx,groundYAt(bx)-26,52,26,'bush');
+  // waystone braziers — checkpoints you can see catch fire
+  for(const cx of CHECKPOINTS){
+    const s=P(cx-14,groundYAt(cx)-64,28,64,'shrine');
+    s.flam=false; s.lit=(cx===60);
+  }
   // pickups
   pickups=[
     {x:1240,y:600-64,type:'EMBERS',t:0,got:false},
@@ -430,10 +446,15 @@ function spawnEnemy(type,x,y,emerge){
 }
 
 function updateEnemies(dt){
+  const ag=activeGate();
   for(const e of enemies){
     if(e.dead) continue;
     e.t+=dt;
     if(e.emerge>0){e.emerge-=dt;}
+    if(e.hurtT>0) e.hurtT-=dt;
+    // nobody slips out of a locked arena (and archers can't kite past its walls)
+    if(ag&&e.type!=='ball'&&e.x>ag.camX-10&&e.x<ag.camX+W+10)
+      e.x=clamp(e.x,ag.camX+22,ag.camX+W-22);
     const px=player.x, dx=px-e.x, adx=Math.abs(dx);
     if(e.type!=='ball'){
       // gravity + ground
@@ -457,7 +478,7 @@ function updateEnemies(dt){
           if(e.windup<=0){e.lunge=.26;}
         }else{
           e.face=dx>0?1:-1;
-          if(adx<780&&adx>44&&grounded) e.x+=e.face*128*dt;
+          if(adx<(e.wave?1e5:780)&&adx>44&&grounded) e.x+=e.face*128*dt;
           else if(adx<=44&&grounded&&e.windup<=0){e.windup=.42;}
         }
       }else if(e.type==='arch'&&e.emerge<=0){
@@ -575,6 +596,7 @@ function damageBoss(seg,dmg,x,y){
   seg.hp-=dmg; SFX.bossHurt(); burst(x,y,5,'rgb(255,196,107)');
   if(seg.hp<=0){
     seg.dead=true; SFX.explode(); shake(14); burst(seg.x,seg.y,34,'rgb(255,154,60)');
+    spawnRing(seg.x,seg.y,'rgb(255,240,200)');
     if(boss.segs.every(s=>!s.weak||s.dead)){
       boss.dead=true; SFX.explode(); SFX.roar(); shake(22);
     }
@@ -617,9 +639,8 @@ function updateFire(dt){
       if(e.dead||e.type==='ball') continue;
       if(rectsOverlap(o.x-6,o.y-14,o.w+12,o.h+14,e.x-e.w/2,e.y,e.w,e.h)) damageEnemy(e,4*dt,e.x,e.y+20,true);
     }
-    // and the player
-    if(!player.dead&&rectsOverlap(o.x-2,o.y-8,o.w+4,o.h+8,player.x-player.w/2,player.y,player.w,player.h))
-      hitPlayer();
+    // the pyromancer walks through their own flames unharmed —
+    // fire's price is what it burns down, not your ward
     if(o.burn<=0){
       // consumed
       if(o.kind){o.ash=true;}
@@ -630,6 +651,15 @@ function updateFire(dt){
 }
 
 /* ---------------- player ---------------- */
+function swapFire(){
+  const p=player;
+  if(!p||p.dead||state!=='play'||paused||!p.slots[1]) return;
+  p.slot=1-p.slot;
+  p.weapon=p.slots[p.slot];
+  p.fireT=Math.max(p.fireT,.1);
+  SFX.clink();
+  spawnRing(p.tipX||p.x,p.tipY||p.y+22,WEAPONS[p.weapon].color);
+}
 function tryDash(){
   const p=player;
   if(p.dead||p.dashCd>0||state!=='play'||paused) return;
@@ -668,9 +698,9 @@ function killPlayer(){
   if(boss&&!boss.dead){boss=null;bossIntroT=0;}
 }
 function respawn(){
-  const cx=checkpoint.x, keep=player.weapon; // relics never respawn, so death keeps yours
+  const cx=checkpoint.x, keepSlots=player.slots, keepSlot=player.slot; // relics never respawn, so death keeps yours
   player=makePlayer(cx);
-  player.weapon=keep;
+  player.slots=keepSlots; player.slot=keepSlot; player.weapon=keepSlots[keepSlot];
   player.y=groundYAt(cx)-56;
   eshots=[];
   // clear enemies crowding the checkpoint
@@ -684,8 +714,17 @@ function updatePlayer(dt){
     return;
   }
   p.animT+=dt; p.invulnT-=dt; p.dashCd-=dt; p.flashT-=dt; p.dropT-=dt;
-  // checkpoints
-  for(const c of CHECKPOINTS) if(p.x>c&&c>checkpoint.x) checkpoint.x=c;
+  // checkpoints — the waystone brazier catches as you pass
+  for(const c of CHECKPOINTS) if(p.x>c&&c>checkpoint.x){
+    checkpoint.x=c; cpFlashT=2.2;
+    SFX.pickup(); shake(3);
+    const sh=props.find(q=>q.kind==='shrine'&&Math.abs(q.x+14-c)<20);
+    if(sh&&!sh.lit){
+      sh.lit=true;
+      burst(c,sh.y+6,20,'rgb(255,170,80)');
+      spawnRing(c,sh.y+8,'rgb(255,190,110)');
+    }
+  }
   // aim
   const wm={x:mouse.x+cam.x, y:mouse.y};
   p.face=wm.x>=p.x?1:-1;
@@ -705,7 +744,11 @@ function updatePlayer(dt){
   }
   if((keys['ShiftLeft']||keys['ShiftRight'])&&!p._shiftHeld){tryDash();}
   p._shiftHeld=keys['ShiftLeft']||keys['ShiftRight'];
+  // dash afterimages
+  if(p.dashT>0&&Math.random()<.85)
+    spawnPart(p.x,p.y+26,0,0,.22,9,'rgb(220,90,60)',0,true);
   // integrate + collide
+  const fallV=p.vy, wasAir=!p.onGround;
   p.x+=p.vx*dt;
   for(const s of solids){
     if(s.dead||s.oneWay) continue;
@@ -728,6 +771,12 @@ function updatePlayer(dt){
         p.y=s.y+s.h; p.vy=0;
       }
     }
+  }
+  // landing dust
+  if(p.onGround&&wasAir&&fallV>560){
+    for(let i=0;i<6*pMul();i++)
+      spawnPart(p.x+rand(-10,10),p.y+p.h-2,rand(-90,90),rand(-60,-10),rand(.25,.45),rand(2.5,4),'rgb(205,195,170)',300,true);
+    shake(1.5);
   }
   // gate walls
   const g=activeGate();
@@ -752,15 +801,18 @@ function updatePlayer(dt){
       if(p.weapon==='BOLT'){
         shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*950,vy:Math.sin(aimA)*950,g:0,r:5,life:.9,dmg:1,c:wp.color});
         SFX.shoot(); kick(aimA,2);
+        burst(tipX,tipY,2,wp.color,.4);
       }else if(p.weapon==='EMBERS'){
         for(let i=-2;i<=2;i++){
           const a=aimA+i*.14+rand(-.02,.02);
           shots.push({x:tipX,y:tipY,vx:Math.cos(a)*780,vy:Math.sin(a)*780,g:0,r:4,life:.44,dmg:.6,c:wp.color});
         }
         SFX.embers(); kick(aimA,3);
+        burst(tipX,tipY,3,wp.color,.4);
       }else if(p.weapon==='FIREBALL'){
         shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*640,vy:Math.sin(aimA)*640,g:700,r:10,life:2.4,dmg:2.5,c:wp.color,ball:true,bounces:2});
         SFX.fireball(); kick(aimA,5);
+        spawnRing(tipX,tipY,wp.color);
       }
     }
   }
@@ -770,11 +822,17 @@ function updatePlayer(dt){
     if(pk.got) continue;
     pk.t+=dt;
     if(dist2(pk.x,pk.y,p.x,p.y+24)<44*44){
-      pk.got=true; p.weapon=pk.type; relicsFound++;
+      pk.got=true; relicsFound++;
+      // a relic fills your second fire mode, then replaces whichever you're not holding
+      if(!p.slots[1]){p.slots[1]=pk.type; p.slot=1;}
+      else {p.slots[1-p.slot]=pk.type; p.slot=1-p.slot;}
+      p.weapon=p.slots[p.slot];
       if(!p.ward){p.ward=true;}
       p.invulnT=Math.max(p.invulnT,.6);
       SFX.pickup(); burst(pk.x,pk.y,20,WEAPONS[pk.type].color);
-      tip('relic','A relic — your spell is changed, and your ward restored.');
+      spawnRing(pk.x,pk.y,WEAPONS[pk.type].color);
+      if(relicsFound===1) tip('relic','A second fire mode! Press Q or right-click to swap. Relics also mend your ward.');
+      else tip('relic2','The new relic replaces your stowed mode — Q swaps between the two.');
     }
   }
 }
@@ -868,12 +926,13 @@ function fireBreath(x,y,a,dt){
 function damageEnemy(e,dmg,x,y,silent){
   if(e.dead) return;
   e.hp-=dmg;
-  if(!silent) SFX.hit();
-  if(!silent) burst(x,y,3,'rgb(255,179,71)',.5);
+  if(!silent){SFX.hit(); burst(x,y,3,'rgb(255,179,71)',.5); e.hurtT=.09;}
   if(e.hp<=0){
     e.dead=true; kills++; SFX.die();
     burst(e.x,e.y+e.h/2,16,'rgb(255,154,60)');
     burst(e.x,e.y+e.h/2,6,'rgb(40,25,35)',.8);
+    spawnRing(e.x,e.y+e.h/2,'rgb(255,190,110)');
+    shake(2);
   }
 }
 function updateShots(dt){
@@ -950,6 +1009,7 @@ function updateShots(dt){
 }
 function explodeBall(s){
   SFX.explode(); shake(7); burst(s.x,s.y,22,s.c);
+  spawnRing(s.x,s.y,'rgb(255,220,170)');
   for(const e of enemies){
     if(e.dead) continue;
     if(dist2(s.x,s.y,e.x,e.y+e.h/2)<75*75) damageEnemy(e,1.5,e.x,e.y+e.h/2);
@@ -978,8 +1038,11 @@ function updateGates(dt){
       if(g.delay<=0&&g.wi<g.waves.length){
         g.cur=[];
         for(const [t,side] of g.waves[g.wi]){
-          const x=side==='L'?g.camX-30:g.camX+W+30;
-          g.cur.push(spawnEnemy(t,x,undefined,.6));
+          // spawn INSIDE the arena — off-camera spawns strand archers out of reach
+          const x=side==='L'?g.camX+60:g.camX+W-60;
+          const e=spawnEnemy(t,x,undefined,.7);
+          e.wave=true;
+          g.cur.push(e);
         }
       }
       continue;
@@ -1009,16 +1072,19 @@ function burst(x,y,n,c,spd=1){
     spawnPart(x,y,Math.cos(a)*v,Math.sin(a)*v-60,rand(.3,.8),rand(2,5),c,400,true);
   }
 }
+function spawnRing(x,y,c){
+  parts.push({x,y,vx:0,vy:0,life:.38,max:.38,size:0,c,grav:0,add:true,ring:true});
+}
 function updateParts(dt){
   for(const p of parts){
     p.life-=dt; p.vy+=(p.grav||0)*dt;
     p.x+=p.vx*dt; p.y+=p.vy*dt;
   }
   parts=parts.filter(p=>p.life>0);
-  // ambient drifting embers
-  if(Math.random()<.35*pMul())
-    spawnPart(cam.x+rand(0,W), H+10, rand(-30,10), rand(-60,-25), rand(2,4.5), rand(1.5,3),
-      'rgb(255,140,58)',0,true);
+  // drifting pollen and leaves on the wind — sparse, low, unhurried
+  if(Math.random()<.09*pMul())
+    spawnPart(cam.x+rand(0,W+200), rand(H*.35,H*.75), rand(-40,-12), rand(8,24), rand(2.5,4.5), rand(1.4,2.2),
+      Math.random()<.6?'rgb(255,250,215)':'rgb(150,200,110)',0,true);
 }
 function shake(m){if(SET.shake) shakeMag=Math.min(24,shakeMag+m);}
 
@@ -1070,6 +1136,7 @@ function update(dt){
   updateParts(dt);
   updateCam(dt);
   updateTut(dt);
+  cpFlashT-=dt;
   if(Math.abs(player.x-2850)<110) tip('force','Splintered wood burns. Cracked stone breaks. Cast at it.');
   if(bossIntroT>0) bossIntroT-=dt;
 }
@@ -1103,11 +1170,27 @@ function render(t){
     ctx.ellipse(cx2+cw*.45,cy2+7,cw*.55,13,0,0,TAU);
     ctx.fill();
   }
+  // birds wheeling over the fields
+  ctx.strokeStyle='#3a4452'; ctx.lineWidth=2; ctx.lineCap='round';
+  for(let i=0;i<4;i++){
+    const span=W+300;
+    const bx=((t*(.018+i*.004)+i*430)%span+span)%span-150;
+    const by=86+((i*83)%150)+Math.sin(t*.001+i*2)*12;
+    const flap=Math.sin(t*.02+i*1.7)*3.5;
+    ctx.beginPath();
+    ctx.moveTo(bx-8,by);
+    ctx.quadraticCurveTo(bx-4,by-4-flap,bx,by);
+    ctx.quadraticCurveTo(bx+4,by-4-flap,bx+8,by);
+    ctx.stroke();
+  }
   // layered green hills, far to near, castles standing in the haze
   drawRidge(.12,'#a9c2b2',430,3.1);
   drawCastles(t);
   drawRidge(.32,'#7fae74',470,7.7);
+  drawForest(.32,470,7.7,'#639a5c');
+  drawVillage(t);
   drawRidge(.55,'#4f8a4c',520,12.3);
+  drawForest(.55,520,12.3,'#3d7040');
   drawTrees(t);
   ctx.save();
   ctx.translate(-cam.x+shakeX,shakeY);
@@ -1180,6 +1263,70 @@ function castle(x,by,s,t){
   ctx.fillRect(-5,-100,10,16);
   ctx.fillRect(-78,-78,7,10); ctx.fillRect(71,-78,7,10);
   ctx.restore();
+}
+function drawForest(par,base,seed,color){
+  // continuous canopy band along a ridge crest — the lowlands are woodland
+  ctx.fillStyle=color;
+  const step=42, start=Math.floor((cam.x*par-70)/step);
+  ctx.beginPath();
+  for(let b=start;b*step-cam.x*par<=W+70;b++){
+    const x=b*step-cam.x*par;
+    const h=((b*2654435761)>>>8)%20;
+    const y=base+ridge(b*step,seed)-4;
+    ctx.moveTo(x+22+h,y);
+    ctx.arc(x,y,20+h,0,TAU);
+  }
+  ctx.fill();
+  // pines poking above the canopy
+  const pstep=126, ps=Math.floor((cam.x*par-70)/pstep);
+  for(let b=ps;b*pstep-cam.x*par<=W+70;b++){
+    const k=((b*40503)>>>4)%10;
+    if(k<4) continue;
+    const x=b*pstep-cam.x*par;
+    const y=base+ridge(b*pstep,seed)+4;
+    ctx.beginPath();
+    ctx.moveTo(x-13,y);ctx.lineTo(x,y-44-k*3);ctx.lineTo(x+13,y);ctx.closePath();ctx.fill();
+  }
+}
+function drawVillage(t){
+  // cottages and a windmill planted on the mid ridge
+  const par=.32, span=W+360;
+  const spots=[[240,'cot'],[860,'mill'],[1560,'cot'],[2050,'cot']];
+  for(const [lx,kind] of spots){
+    const x=((lx-cam.x*par)%span+span)%span-180;
+    const by=474+ridge(x+cam.x*par,7.7);
+    if(kind==='cot'){
+      ctx.fillStyle='#c3ab84';
+      ctx.fillRect(x-16,by-22,32,22);
+      ctx.fillStyle='#8a5a40';
+      ctx.beginPath();ctx.moveTo(x-20,by-22);ctx.lineTo(x,by-38);ctx.lineTo(x+20,by-22);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#6a4a34';
+      ctx.fillRect(x-4,by-12,8,12);
+      ctx.fillStyle='#8a8f92';
+      ctx.fillRect(x+8,by-36,5,10);          // chimney
+      // smoke puffs
+      for(let k=0;k<3;k++){
+        const ph=((t*.02+k*40+lx)%120);
+        ctx.fillStyle='rgba(230,230,225,'+(0.3*(1-ph/120))+')';
+        ctx.beginPath();ctx.arc(x+11+ph*.18+Math.sin(t*.002+k)*2,by-40-ph*.5,3+ph*.05,0,TAU);ctx.fill();
+      }
+    }else{
+      ctx.fillStyle='#a08a68';
+      ctx.beginPath();                        // tapered tower
+      ctx.moveTo(x-14,by);ctx.lineTo(x-8,by-46);ctx.lineTo(x+8,by-46);ctx.lineTo(x+14,by);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#6a4a34';
+      ctx.beginPath();ctx.arc(x,by-48,7,0,TAU);ctx.fill();
+      ctx.strokeStyle='#5a4a36'; ctx.lineWidth=3;
+      const ang=t*.0008;
+      for(let k=0;k<4;k++){
+        const a=ang+k*Math.PI/2;
+        ctx.beginPath();
+        ctx.moveTo(x,by-48);
+        ctx.lineTo(x+Math.cos(a)*26,by-48+Math.sin(a)*26);
+        ctx.stroke();
+      }
+    }
+  }
 }
 function drawTrees(t){
   const par=.55, span=W+240;
@@ -1345,6 +1492,36 @@ function drawProps(t){
       ctx.beginPath();
       ctx.moveTo(x+6,y+2); ctx.lineTo(x+34+fl,y+9); ctx.lineTo(x+6,y+18);
       ctx.closePath(); ctx.fill();
+    }else if(p.kind==='fence'){
+      ctx.fillStyle=burning?'#4a2410':'#6b4a2e';
+      for(let px=x;px<x+w;px+=28) ctx.fillRect(px,y+4,6,h-4);
+      ctx.fillRect(x,y+8,w,5); ctx.fillRect(x,y+19,w,5);
+    }else if(p.kind==='bush'){
+      ctx.fillStyle=burning?'#7a3a14':'#3f7a3c';
+      ctx.beginPath();
+      ctx.arc(x+14,y+h-10,13,0,TAU);
+      ctx.arc(x+32,y+h-13,15,0,TAU);
+      ctx.arc(x+44,y+h-8,10,0,TAU);
+      ctx.fill();
+      if(!burning){
+        ctx.fillStyle='#d86a8a';
+        ctx.fillRect(x+12,y+6,3,3); ctx.fillRect(x+34,y+2,3,3); ctx.fillRect(x+44,y+10,3,3);
+      }
+    }else if(p.kind==='shrine'){
+      ctx.fillStyle='#6d7580';                       // waystone pillar
+      ctx.fillRect(x+6,y+16,16,h-16);
+      ctx.fillRect(x,y+12,28,8);                     // bowl lip
+      ctx.fillStyle='#565e6a';
+      ctx.beginPath();ctx.moveTo(x+2,y+12);ctx.lineTo(x+14,y+2);ctx.lineTo(x+26,y+12);ctx.closePath();ctx.fill();
+      if(p.lit){
+        const fx=x+14, fy=y+2+Math.sin(t*.012+x)*2;
+        drawGlow(fx,fy,30,'rgb(255,150,60)',.7);
+        ctx.fillStyle='rgba(255,180,90,.92)';
+        ctx.beginPath();
+        ctx.moveTo(fx-6,fy+7);
+        ctx.quadraticCurveTo(fx,fy-13-Math.sin(t*.015+x)*4,fx+6,fy+7);
+        ctx.closePath();ctx.fill();
+      }
     }else if(p.kind==='dummy'){
       ctx.fillStyle='#4a3826';
       ctx.fillRect(x+w/2-3,y+18,6,h-18);            // pole
@@ -1399,6 +1576,7 @@ function drawEnemies(t){
     if(e.emerge>0) drawGlow(e.x,e.y+e.h/2,40,'rgb(255,90,60)',e.emerge);
     const {x,y,w,h}=e;
     const flash=e.windup>0;
+    const hurt=e.hurtT>0;
     if(e.type==='foot'){
       ctx.fillStyle='#3f342c';                             // legs
       ctx.fillRect(x-w/2,y+34,w,h-34);
@@ -1454,6 +1632,10 @@ function drawEnemies(t){
       ctx.fillStyle=flash?'#ffffff':'#ff8c3a';             // sight
       ctx.fillRect(x-3,y+12,6,4);
     }
+    if(hurt){                                              // white hit-pop
+      ctx.fillStyle='rgba(255,255,255,.55)';
+      ctx.fillRect(x-w/2-3,y-3,w+6,h+6);
+    }
   }
 }
 function drawBoss(t){
@@ -1504,7 +1686,9 @@ function drawBoss(t){
 function drawPlayer(t){
   const p=player;
   if(p.dead) return;
-  if(p.invulnT>0&&Math.floor(t*.02)%2===0&&p.dashT<=0) return; // blink
+  // soft shimmer while invulnerable (never the old strobe, never outside play)
+  const shimmer=p.invulnT>0&&state==='play'&&p.dashT<=0;
+  if(shimmer) ctx.globalAlpha=.62+.22*Math.sin(t*.012);
   const {x,y}=p;
   const fl=p.flashT>0;
   const C=(c)=>fl?'#fff6e8':c;
@@ -1554,6 +1738,7 @@ function drawPlayer(t){
     ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(x,y+26,34,0,TAU);ctx.stroke();
   }
+  ctx.globalAlpha=1;
 }
 function drawShotsGlow(t){
   for(const s of shots){
@@ -1589,6 +1774,12 @@ function drawShotsGlow(t){
 function drawPartsGlow(){
   for(const p of parts){
     const a=clamp(p.life/p.max,0,1);
+    if(p.ring){
+      ctx.strokeStyle=p.c; ctx.globalAlpha=a*.9*SET.glow; ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(p.x,p.y,(1-a)*44+6,0,TAU);ctx.stroke();
+      ctx.globalAlpha=1;
+      continue;
+    }
     drawGlow(p.x,p.y,p.size*3,p.c,a*.8);
   }
 }
@@ -1629,12 +1820,29 @@ function drawHUD(t){
   ctx.restore();
   ctx.font='13px Georgia'; ctx.fillStyle='#4a3826'; ctx.textAlign='left';
   ctx.fillText(player.ward?'WARD':'WARD DOWN',52,38);
-  // weapon
-  const wp=WEAPONS[player.weapon];
-  ctx.font='16px Georgia'; ctx.fillStyle=wp.color;
-  ctx.strokeStyle='rgba(40,20,10,.65)'; ctx.lineWidth=2.5;
-  ctx.strokeText(wp.name, 24, H-24);
-  ctx.fillText(wp.name, 24, H-24);
+  // fire modes — two chips, active one lit
+  let chipX=24;
+  for(let i=0;i<2;i++){
+    const wn=player.slots[i];
+    const active=i===player.slot&&wn;
+    const label=wn?WEAPONS[wn].name:'— empty —';
+    ctx.font=(active?'16px':'13px')+' Georgia';
+    const tw=ctx.measureText(label).width;
+    ctx.fillStyle=active?'rgba(42,28,16,.85)':'rgba(42,28,16,.5)';
+    ctx.fillRect(chipX-8,H-46,tw+16,30);
+    if(active){
+      ctx.strokeStyle=WEAPONS[wn].color; ctx.lineWidth=1.5;
+      ctx.strokeRect(chipX-7.5,H-45.5,tw+15,29);
+    }
+    ctx.textAlign='left';
+    ctx.fillStyle=wn?(active?WEAPONS[wn].color:'rgba(220,200,170,.55)'):'rgba(220,200,170,.4)';
+    ctx.fillText(label, chipX, H-25);
+    chipX+=tw+28;
+  }
+  if(player.slots[1]){
+    ctx.font='11px Georgia'; ctx.fillStyle='rgba(74,56,38,.85)';
+    ctx.fillText('Q · swap', chipX+2, H-27);
+  }
   // timer/deaths
   if(SET.timer){
     ctx.textAlign='right'; ctx.fillStyle='#4a3826'; ctx.font='13px Georgia';
@@ -1654,6 +1862,14 @@ function drawHUD(t){
     ctx.strokeRect(W/2-mw/2+.5,112.5,mw-1,39);
     ctx.fillStyle='#f2e2c2';
     ctx.fillText(msg,W/2,137);
+  }
+  // checkpoint fanfare
+  if(cpFlashT>0){
+    ctx.textAlign='center';
+    ctx.globalAlpha=clamp(cpFlashT/.6,0,1);
+    ctx.font='19px Georgia'; ctx.fillStyle='#8a5a1a';
+    ctx.fillText('— T H E   R O A D   R E M E M B E R S —', W/2, 92);
+    ctx.globalAlpha=1;
   }
   // gate banner
   const g=activeGate();
@@ -1788,6 +2004,7 @@ document.getElementById('bSettingsP').onclick=()=>{settingsFrom='pause';show('se
 document.getElementById('bSetBack').onclick=()=>{show(settingsFrom==='pause'?'pause':'title');};
 document.getElementById('bResume').onclick=()=>{paused=false;hideAll();};
 document.getElementById('bRestart').onclick=()=>{startGame();};
+document.getElementById('bTitle').onclick=()=>{paused=false;state='title';show('title');};
 document.getElementById('bAgain').onclick=()=>{startGame();};
 function togglePause(){
   if(state!=='play') return;
