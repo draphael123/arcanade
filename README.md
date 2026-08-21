@@ -27,3 +27,4 @@ python serve.py 5818
 
 Single-file Canvas 2D, no dependencies. `window.ARCANADE` exposes a debug API
 (`warp`, `ignite`, `god`, `state`, entity lists) for scripted playtests.
+- "Echoes of Time" — Kevin MacLeod (incompetech.com), CC BY 4.0 — Level III

@@ -260,7 +260,7 @@
     <div class="setrow"><label>Fullscreen</label><button class="btn small" id="bFull" style="margin:0;padding:5px 16px;font-size:12px">Toggle</button></div>
     <div id="bindRows" style="border-top:1px solid rgba(255,150,70,.2);margin-top:14px;padding-top:4px"></div>
     <div style="text-align:right"><button class="btn small" id="bBindReset" style="margin-top:4px;padding:5px 14px;font-size:11px">Reset keys</button></div>
-    <div class="setnote">music: "Teller of the Tales", "Celtic Impulse", "Master of the Feast" — Kevin MacLeod (incompetech.com), CC BY 4.0</div>
+    <div class="setnote">music: "Teller of the Tales", "Celtic Impulse", "Master of the Feast", "Echoes of Time" — Kevin MacLeod (incompetech.com), CC BY 4.0</div>
     <button class="btn small" id="bSetBack" style="margin-top:16px">Back</button>
   </div>
 </div>
@@ -542,14 +542,15 @@ const SFX={
 };
 
 /* ---------------- music (CC BY 4.0 — Kevin MacLeod, incompetech.com) ---------------- */
-const MUSIC={title:null,field:null,boss:null,cur:null,dead:false};
+const MUSIC={title:null,field:null,boss:null,heart:null,cur:null,dead:false};
 function initMusic(){
   if(MUSIC.field||MUSIC.dead) return;
   try{
     MUSIC.title=new Audio('audio/title.mp3');
     MUSIC.field=new Audio('audio/field.mp3');
     MUSIC.boss=new Audio('audio/boss.mp3');
-    for(const a of [MUSIC.title,MUSIC.field,MUSIC.boss]){
+    MUSIC.heart=new Audio('audio/heart.mp3');   // Echoes of Time — the inside of the tree
+    for(const a of [MUSIC.title,MUSIC.field,MUSIC.boss,MUSIC.heart]){
       a.loop=true; a.volume=SET.music*.7;
       a.addEventListener('error',()=>{MUSIC.dead=true;});
     }
@@ -1355,7 +1356,7 @@ function startTutorialYard(){
   tut.active=true; tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   player=makePlayer(60); player.y=groundYAt(60)-56;
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
-  playMusic(LVL===3?'title':'field');
+  playMusic(LVL===3?'heart':'field');
 }
 function groundYAt(x,below){
   let best=1e9;
@@ -2139,7 +2140,7 @@ function killPlayer(){
   dmgFlashT=.7;
   burst(p.x,p.y+24,40,WPN('BOLT').color);
   burst(p.x,p.y+24,14,'rgb(255,230,180)');
-  if(boss&&!boss.dead){boss=null;bossIntroT=0;playMusic(LVL===3?'title':'field');stopDrums();}
+  if(boss&&!boss.dead){boss=null;bossIntroT=0;playMusic(LVL===3?'heart':'field');stopDrums();}
   runLog.push({f:p.x/LEVEL,k:'death'});
   if(mboss&&!mboss.dead){mboss=null;mbIntroT=0;}
 }
