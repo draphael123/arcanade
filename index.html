@@ -523,9 +523,11 @@ function castSfx(k){
 
 /* ---------------- input + rebindable keys ---------------- */
 const keys={}, mouse={x:W/2,y:H/2,down:false};
-const DEFAULT_BINDS={left:'KeyA',right:'KeyD',jump:'KeyW',drop:'KeyS',dash:'Space',swap:'KeyQ',grab:'KeyF'};
+const DEFAULT_BINDS={left:'KeyA',right:'KeyD',jump:'KeyW',drop:'KeyS',dash:'ShiftLeft',swap:'KeyQ',grab:'KeyF'};
 let BINDS={...DEFAULT_BINDS};
 try{Object.assign(BINDS,JSON.parse(localStorage.getItem('arcanade-binds')||'{}'));}catch(e){}
+// migrate saves from the era when SPACE was the dash default
+if(BINDS.dash==='Space'&&BINDS.jump==='KeyW') BINDS.dash='ShiftLeft';
 function saveBinds(){
   try{localStorage.setItem('arcanade-binds',JSON.stringify(BINDS));}catch(e){}
   refreshBindUI(); refreshControlsLine();
@@ -548,13 +550,16 @@ addEventListener('keydown',e=>{
   if(e.code==='Escape'||e.code==='KeyP') togglePause();
   if(e.code===BINDS.swap&&!e.repeat) swapFire();
   if(e.code===BINDS.dash&&!e.repeat) tryDash();
-  if(e.code===BINDS.jump&&!e.repeat&&player) player.jumpBufT=.12;
+  // Space always jumps too, unless it's been claimed by another action
+  const spaceJump=e.code==='Space'&&!Object.values(BINDS).includes('Space');
+  if((e.code===BINDS.jump||spaceJump)&&!e.repeat&&player) player.jumpBufT=.12;
   if(e.code===BINDS.grab&&!e.repeat) grabKey=true;
   if(['Space','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup',e=>{
   keys[e.code]=false;
-  if(e.code===BINDS.jump&&player&&player.vy<-200) player.vy*=.55; // variable jump height
+  const spaceJump=e.code==='Space'&&!Object.values(BINDS).includes('Space');
+  if((e.code===BINDS.jump||spaceJump)&&player&&player.vy<-200) player.vy*=.55; // variable jump height
 });
 cv.addEventListener('mousemove',e=>{
   const r=cv.getBoundingClientRect();
