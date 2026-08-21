@@ -57,6 +57,11 @@
   /* character select */
   #charsel h2{font-weight:normal;letter-spacing:.4em;color:#ffd9a8;font-size:24px;margin-bottom:26px}
   #charsel .cards{display:flex;gap:30px}
+  .card-ch.storm{border-color:#8a6ad8}
+  .card-ch.storm:hover{box-shadow:0 0 30px rgba(160,120,255,.35)}
+  .card-ch.locked{opacity:.42;filter:grayscale(.7)}
+  .card-ch .lock{display:none;font-size:11px;color:#e0c9ff;font-style:italic;margin-top:8px;letter-spacing:.08em}
+  .card-ch.locked .lock{display:block}
   .card-ch{width:250px;padding:26px 22px 22px;background:rgba(16,10,22,.72);cursor:pointer;
     border:1px solid rgba(255,215,150,.3);transition:all .2s;text-align:center}
   .card-ch:hover{transform:translateY(-6px)}
@@ -166,6 +171,12 @@
       <canvas id="csI" width="120" height="140"></canvas>
       <h3>CRYOMANCER</h3>
       <p>Frost slows everything it touches &mdash; and the moat itself will bear your weight. Walk where none can.</p>
+    </div>
+    <div class="card-ch storm" id="chStorm">
+      <canvas id="csS" width="120" height="140"></canvas>
+      <h3>STORMCALLER</h3>
+      <p>Lightning is quick, and it jumps &mdash; every hit arcs to the next man and holds him still. Charged sap throws you skyward.</p>
+      <div class="lock" id="chStormLock">take the crown of the Thornwood to unlock</div>
     </div>
   </div>
   <div style="margin-top:28px;display:flex;align-items:center;gap:16px">
@@ -513,7 +524,7 @@ const SFX={
   iceLance(){tone('sine',980,1150,.05,.04);},
   iceBreath(){hiss(.09,.04,4500);},
   freeze(){tone('sine',1500,600,.22,.1); hiss(.16,.08,6000);},
-  hit(){smp('punch',.55)||tone('square',180,70,.06,.09); if(typeof isFire==='function'){isFire()?hiss(.07,.035,2200):tone('sine',1900,2600,.05,.035);}},
+  hit(){smp('punch',.55)||tone('square',180,70,.06,.09); if(typeof isFire==='function'){isFire()?hiss(.07,.035,2200):(isStorm()?tone('square',2400,500,.04,.035):tone('sine',1900,2600,.05,.035));}},
   clink(){smp('metalL',.4,1.15)||tone('square',1300,900,.04,.05);},
   die(){smp('punchH',.6); hiss(.12,.06,1400); tone('triangle',220,40,.16,.07);},
   shatter(){smp('glass',.7); tone('sine',950,280,.3,.08);},
@@ -634,7 +645,25 @@ const CLASSES={
       MORTAR:{name:'HAILRAKE',        color:'rgb(185,225,255)', rate:.9,  dmg:1},
       NOVA:  {name:"WINTER'S GRASP",  color:'rgb(200,240,255)', rate:1,   dmg:1.8, novaR:160},
     }},
+  storm:{
+    title:'STORMCALLER', robe:'#6a4aa8', robeShade:'#55388a', cape:'#3f2a6a', unlock:'l2Cleared',
+    dummyStep:'Shock the straw dummy — lightning jumps',
+    ranks:['SPARK NOVICE','STORMBORN','THUNDERLORD','THE UNBROKEN SKY'],
+    weapons:{
+      /* lightning is quick and light, and every hit arcs to the next man */
+      BOLT:  {name:'SPARK',        color:'rgb(225,205,255)', rate:.12, spd:1250, r:4, dmg:.8},
+      SPREAD:{name:'FORK',         color:'rgb(235,220,255)', rate:.22, spd:1000, r:4, dmg:.55, n:3, arc:.2, life:.4, pierce:1},
+      LANCE: {name:'ARC',          color:'rgb(200,180,255)', len:320, dps:5,  beamW:5},
+      HEAVY: {name:'THUNDERHEAD',  color:'rgb(210,190,255)', rate:.5,  spd:720, r:9,  dmg:2.2, g:600, bounces:1},
+      BREATH:{name:'STATIC',       color:'rgb(230,215,255)', coneR:230, dps:11, half:.38},
+      CRAWLER:{name:'GROUNDING',   color:'rgb(200,185,255)', rate:.5,  dmg:1.3, spd:380},
+      MORTAR:{name:'SKYSTRIKE',    color:'rgb(220,205,255)', rate:.8,  dmg:.9},
+      NOVA:  {name:'STORMHEART',   color:'rgb(235,225,255)', rate:.9,  dmg:1.8, novaR:170},
+    }},
 };
+function classUnlocked(k){const u=CLASSES[k].unlock; return !u||!!(typeof campaign!=='undefined'&&campaign[u]);}
+function availableClasses(){return Object.keys(CLASSES).filter(classUnlocked);}
+const elemColor=()=>cls==='fire'?'rgb(255,154,60)':(cls==='frost'?'rgb(170,220,255)':'rgb(220,200,255)');
 let cls='fire';
 const WPN=k=>CLASSES[cls].weapons[k];
 
@@ -667,9 +696,15 @@ const DIFFS={
 let diff='knight', lives=3;
 const DIFF=()=>DIFFS[diff];
 const isFire=()=>cls==='fire';
+const isFrost=()=>cls==='frost';
+const isStorm=()=>cls==='storm';
+let arcs=[], chainDepth=0;
 function castSfx(k){
   if(isFire()){
     if(k==='BOLT')SFX.shoot(); else if(k==='SPREAD')SFX.embers(); else SFX.fireball();
+  }else if(isStorm()){
+    if(k==='HEAVY'){tone('sawtooth',220,50,.3,.14); hiss(.2,.1,3500);}
+    else {tone('square',1100,260,.06,.07); hiss(.05,.04,4200);}
   }else{
     if(k==='HEAVY')SFX.iceHeavy(); else SFX.iceShoot();
   }
@@ -832,6 +867,12 @@ function trySap(x,y){
       burst(x,sp.y,10,'rgb(255,190,90)',.6);
       tip('draft','The sap catches — and the heat climbs. Stand in it and rise.');
       if(sp.stand) sp.broken=true;
+    }else if(isStorm()){
+      sp.charge=5;
+      tone('square',1800,400,.12,.08); hiss(.2,.06,4000);
+      burst(x,sp.y,10,'rgb(225,205,255)',.6); spawnRing(x,sp.y,'rgb(230,215,255)');
+      tip('charge','The sap takes the charge. Stand in it — and it throws you.');
+      if(sp.stand) sp.broken=true;
     }else{
       const stack=solids.filter(c=>c.crust&&!c.dead&&c.pool===sp&&Math.abs(c.x+46-x)<70);
       if(stack.length>=4) return true;
@@ -859,6 +900,12 @@ function drawSap(t){
     ctx.fillStyle='rgba(255,240,200,.35)';
     for(let k=0;k<4;k++){const bx=sp.x0+((k*157+t*.02)%(sp.x1-sp.x0)); ctx.beginPath(); ctx.arc(bx,sp.y+6+Math.sin(t*.003+k)*2,2,0,TAU); ctx.fill();}
     ctx.fillStyle='rgba(255,230,170,.5)'; ctx.fillRect(sp.x0,sp.y,sp.x1-sp.x0,2);
+    if(sp.charge>0){   // crackling
+      ctx.strokeStyle='rgba(235,220,255,'+clamp(sp.charge/1.5,0,1)*.9+')'; ctx.lineWidth=1.5; ctx.beginPath();
+      for(let k=0;k<5;k++){const sx=rand(sp.x0,sp.x1), sy=sp.y+rand(0,sp.d); ctx.moveTo(sx,sy); ctx.lineTo(sx+rand(-12,12),sy+rand(-10,6));}
+      ctx.stroke();
+      drawGlow((sp.x0+sp.x1)/2,sp.y+4,(sp.x1-sp.x0)*.5,'rgb(200,180,255)',.25);
+    }
     drawGlow((sp.x0+sp.x1)/2,sp.y+4,(sp.x1-sp.x0)*.5,'rgb(255,180,80)',.18);
   }
   for(const d of drafts){
@@ -1545,8 +1592,9 @@ function updateEnemies(dt){
     if(e.emerge>0){e.emerge-=dt;}
     if(e.hurtT>0) e.hurtT-=dt;
     if(e.leanT>0) e.leanT-=dt;
+    if(e.shockT>0) e.shockT-=dt;
     if(e.chillT>0) e.chillT-=dt;
-    const cold=(e.chillT>0?0.45:1)*DIFF().eSpd;  // frost and difficulty both scale pace
+    const cold=(e.chillT>0?0.45:1)*(e.shockT>0?0:1)*DIFF().eSpd;   // chill slows; shock stops  // frost and difficulty both scale pace
     // knockback decay
     e.x+=e.kbVx*dt; e.kbVx*=Math.pow(.0005,dt);
     // boss arena: nothing wanders out while the Warden fights
@@ -2397,7 +2445,7 @@ function updateFire(dt){
 function tryFreezeWater(x,y){
   for(const wtr of WATERS){
     if(x<=wtr.x0||x>=wtr.x1) continue;
-    if(!isFire()&&y>658){
+    if(isFrost()&&y>658){
       const floes=solids.filter(s=>s.ice&&!s.dead);
       if(floes.length<8&&!floes.some(f=>Math.abs(f.x+46-x)<70)){
         solids.push({x:x-46,y:668,w:92,h:12,ice:true,melt:9,oneWay:false,flam:false,burn:0,spreadT:0,dead:false});
@@ -2408,8 +2456,8 @@ function tryFreezeWater(x,y){
       }
       return true;
     }
-    if(isFire()&&y>672){
-      burst(x,672,5,'rgb(210,215,220)',.4);   // steam fizzle
+    if(!isFrost()&&y>672){
+      burst(x,672,5,isStorm()?'rgb(220,200,255)':'rgb(210,215,220)',.4);   // steam fizzle, or a harmless crackle
       return true;
     }
   }
@@ -2523,6 +2571,14 @@ function updatePlayer(dt){
       if(p.x>sp2.x0&&p.x<sp2.x1&&p.y+p.h<sp2.y+12&&p.y>sp2.y-560){
         p.vy=Math.min(p.vy,-470); p.onGround=false; p.airJumps=0;
         if(Math.random()<.4) spawnPart(p.x+rand(-10,10),p.y+p.h,rand(-20,20),-rand(60,140),.3,2.5,'rgb(255,190,90)',0,true);
+      }
+    }
+    { // charged sap: it throws whoever stands in it
+      const spc=sapAt(p.x,p.y+p.h);
+      if(spc&&spc.charge>0&&p.vy>=-50){
+        spc.charge=0; p.vy=-1250; p.onGround=false; p.coyoteT=0; p.airJumps=0;
+        SFX.freeze(); tone('square',600,1800,.18,.09); shake(5);
+        spawnRing(p.x,p.y+p.h,'rgb(230,215,255)'); burst(p.x,p.y+p.h,16,'rgb(225,205,255)',.7);
       }
     }
     if(p.jumpBufT>0&&(p.onGround||p.coyoteT>0)){
@@ -2714,7 +2770,7 @@ let lanceEnd=null;
 function fireLance(x,y,a,dt){
   const p=player;
   p.lanceTick-=dt;
-  if(p.lanceTick<=0){p.lanceTick=.09; isFire()?SFX.lance():SFX.iceLance();}
+  if(p.lanceTick<=0){p.lanceTick=.09; isFire()?SFX.lance():(isStorm()?tone('square',1400,1000,.05,.03):SFX.iceLance());}
   const dx=Math.cos(a), dy=Math.sin(a);
   const LW=WPN('LANCE');
   const MAX=LW.len; let end=MAX, endSolid=null;
@@ -2739,7 +2795,8 @@ function fireLance(x,y,a,dt){
           continue;
         }
         damageEnemy(e,LW.dps*dt,sx,sy);
-        if(!isFire()) e.chillT=2.5;   // the glacier grips harder
+        if(isFrost()) e.chillT=2.5;   // the glacier grips harder
+        if(isStorm()) e.shockT=.2;
       }
     }
     if(boss&&!boss.dead&&sx>boss.x-boss.w/2&&sx<boss.x+boss.w/2&&sy>boss.y&&sy<boss.y+boss.h)
@@ -2755,7 +2812,7 @@ function fireLance(x,y,a,dt){
 function fireBreath(x,y,a,dt){
   const p=player;
   p.lanceTick-=dt;
-  if(p.lanceTick<=0){p.lanceTick=.1; isFire()?SFX.breath():SFX.iceBreath();}
+  if(p.lanceTick<=0){p.lanceTick=.1; isFire()?SFX.breath():(isStorm()?hiss(.09,.04,5200):SFX.iceBreath());}
   const BW=WPN('BREATH');
   const R=BW.coneR, HALF=BW.half;
   for(const e of enemies){
@@ -2803,17 +2860,46 @@ function fireBreath(x,y,a,dt){
       if(da<HALF+.15) damageSolid(s,BW.dps*dt,cx,cy);
     }
   }
-  if(!isFire()) tryFreezeWater(x+Math.cos(a)*160,y+Math.sin(a)*160);
+  if(isFrost()) tryFreezeWater(x+Math.cos(a)*160,y+Math.sin(a)*160);
   for(let i=0;i<4*pMul();i++){
     const pa=a+rand(-HALF,HALF), pv=rand(280,520);
     const c=isFire()
       ?(Math.random()<.5?'rgb(255,196,107)':'rgb(255,122,42)')
-      :(Math.random()<.5?'rgb(200,235,255)':'rgb(150,210,250)');
+      :(isStorm()?(Math.random()<.5?'rgb(235,220,255)':'rgb(200,180,255)')
+      :(Math.random()<.5?'rgb(200,235,255)':'rgb(150,210,250)'));
     spawnPart(x,y,Math.cos(pa)*pv,Math.sin(pa)*pv-30,rand(.25,.5),rand(3,6),c,0,true);
   }
 }
 
 /* ---------------- shots ---------------- */
+function shockEnemy(e,dmg){
+  // the shock holds them; the charge looks for the next body
+  e.shockT=.35;
+  if(chainDepth>0) return;
+  let best=null, bd=150*150;
+  for(const o of enemies){ if(o===e||o.dead||o.emerge>0) continue; const d=dist2(e.x,e.y+e.h/2,o.x,o.y+o.h/2); if(d<bd){bd=d;best=o;} }
+  if(best){
+    chainDepth++;
+    arcs.push({x1:e.x,y1:e.y+e.h/2,x2:best.x,y2:best.y+best.h/2,t:.14});
+    tone('square',2600,900,.05,.03);
+    damageEnemy(best,dmg*.4,best.x,best.y+best.h/2,false);
+    chainDepth--;
+  }
+}
+function drawArcs(){
+  if(!arcs.length) return;
+  ctx.globalCompositeOperation='lighter';
+  for(const a of arcs){
+    const q=clamp(a.t/.14,0,1);
+    ctx.strokeStyle='rgba(230,215,255,'+(q*.9)+')'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(a.x1,a.y1);
+    const segs=6;
+    for(let i=1;i<segs;i++){const f=i/segs; ctx.lineTo(a.x1+(a.x2-a.x1)*f+rand(-9,9),a.y1+(a.y2-a.y1)*f+rand(-9,9));}
+    ctx.lineTo(a.x2,a.y2); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,'+(q*.6)+')'; ctx.lineWidth=1; ctx.stroke();
+  }
+  ctx.globalCompositeOperation='source-over';
+}
 function damageEnemy(e,dmg,x,y,silent,launch){
   if(e.dead) return;
   const amped=e.chillT>0;
@@ -2825,7 +2911,8 @@ function damageEnemy(e,dmg,x,y,silent,launch){
     e.leanT=.09; e.leanDir=dir;
     if(SET.dmgNums) floatText(x,y-12,String(Math.round(dmg*10)/10),amped?'#ffd27a':'#fff2dd',false);
     e.kbVx=(e.x>player.x?1:-1)*130;
-    if(!isFire()) e.chillT=1.6;
+    if(isFrost()) e.chillT=1.6;
+    if(isStorm()) shockEnemy(e,dmg);
     markSeen(e.type);           // first blood inks its page in the bestiary
   }
   if(e.hp<=0){
@@ -2866,7 +2953,7 @@ function damageEnemy(e,dmg,x,y,silent,launch){
     e.spin=(Math.random()<.5?-1:1)*rand(5,10)*(big?1.5:1)*(SET.ragdoll?1:.3);
     e.spinA=0; e.settled=false; e.bounced=false;
     e.deathT=big?1.5:1.05; e.deathT0=e.deathT;
-    burst(e.x,e.y+e.h/2,10,isFire()?'rgb(255,154,60)':'rgb(170,220,255)');
+    burst(e.x,e.y+e.h/2,10,elemColor());
     spawnRing(e.x,e.y+e.h/2,'rgb(255,190,110)');
     shake(big?4:2);
   }
@@ -2970,7 +3057,7 @@ function updateShots(dt){
     if(boss&&!boss.dead){
       if(s.x>boss.x-boss.w/2-s.r&&s.x<boss.x+boss.w/2+s.r&&s.y>boss.y-s.r&&s.y<boss.y+boss.h+s.r){
         damageBoss(s.dmg,s.x,s.y);
-        if(!isFire()) boss.chillT=1.2;
+        if(isFrost()) boss.chillT=1.2;
         if(s.ball) explodeBall(s);
         s.dead=true; continue;
       }
@@ -2978,7 +3065,7 @@ function updateShots(dt){
     if(mboss&&!mboss.dead){
       if(s.x>mboss.x-mboss.w/2-s.r&&s.x<mboss.x+mboss.w/2+s.r&&s.y>mboss.y-s.r&&s.y<mboss.y+mboss.h+s.r){
         damageMBoss(s.dmg,s.x,s.y);
-        if(!isFire()) mboss.chillT=1.4;
+        if(isFrost()) mboss.chillT=1.4;
         if(s.ball) explodeBall(s);
         s.dead=true; continue;
       }
@@ -3070,7 +3157,7 @@ function updateShots(dt){
 }
 function explodeBall(s){
   SFX.explode(); shake(7); burst(s.x,s.y,22,s.c); kickCam(s.x,s.y);
-  spawnRing(s.x,s.y,isFire()?'rgb(255,220,170)':'rgb(200,235,255)');
+  spawnRing(s.x,s.y,isFire()?'rgb(255,220,170)':(isStorm()?'rgb(235,225,255)':'rgb(200,235,255)'));
   // frost comet shatters into shards
   if(s.shatter){
     for(let i=0;i<s.shatter;i++){
@@ -3313,6 +3400,8 @@ function update(dt){
   debris=debris.filter(d=>d.t>0);
   if(relicCard){relicCard.t-=dt; if(relicCard.t<=0) relicCard=null;}
   for(const d of drafts) d.t-=dt; drafts=drafts.filter(d=>d.t>0);
+  for(const a of arcs) a.t-=dt; arcs=arcs.filter(a=>a.t>0);
+  for(const sp of SAPS) if(sp.charge>0) sp.charge-=dt;
   for(const q of puddles) q.t-=dt; puddles=puddles.filter(q=>q.t>0);
   for(const s of solids){
     if(s.crumbleT>0){
@@ -3360,22 +3449,23 @@ function update(dt){
         const sx=tx+520, sy=-60, T=1.25, g=620;
         eshots.push({x:sx,y:sy,vx:(tx-sx)/T,vy:(600-sy)/T-.5*g*T,g,r:11,life:2.6,boulder:true,cold:true});
       }
-      tip('torch','They shell the bridge! Freeze the moat — the water will bear you.');
+      tip('torch',isFrost()?'They shell the bridge! Freeze the moat — the water will bear you.':'They shell the bridge! The piers below still stand — jump them.');
     }
   }
   if(LVL===1){
     if(Math.abs(player.x-2850)<110) tip('force','Splintered wood burns. Cracked stone breaks. Cast at it.');
     if(Math.abs(player.x-4440)<70) tip('gap','Too far to jump? Jump, then DASH in the air.');
-    if(Math.abs(player.x-8030)<70) tip('river', isFire()
-      ? 'The bridge is long gone. The stones remember one.'
-      : 'Still water ahead. You know what to do.');
+    if(Math.abs(player.x-8030)<70) tip('river', isFrost()
+      ? 'Still water ahead. You know what to do.'
+      : 'The bridge is long gone. The stones remember one.');
   }else if(LVL===2){
     if(Math.abs(player.x-640)<80) tip('hound','Warhounds run you down. Dash through the lunge, or meet it in the air.');
     if(Math.abs(player.x-1420)<80) tip('canopy','Two roads: the floor, or the branches above. '+(isFire()?'Mind your sparks up there — the canopy is tinder.':'The high road is drier. And flammable.'));
     if(Math.abs(player.x-12440)<80) tip('climb','The only way is up. The old tree drops dead wood on climbers.');
   }else if(LVL===3){
-    if(Math.abs(player.x-1380)<70) tip('sap','Sap. It will hold you like amber holds a fly. '+(isFire()?'Heat it, and it lifts.':'Chill it, and it bears you.'));
+    if(Math.abs(player.x-1380)<70) tip('sap','Sap. It will hold you like amber holds a fly. '+(isFire()?'Heat it, and it lifts.':(isStorm()?'Charge it, and it throws you.':'Chill it, and it bears you.')));
     if(Math.abs(player.x-2080)<60&&player.y>300) tip('well','The Sapwell. Up, by bough and sap. Three gates are too tall to jump — use what you are.');
+    if(Math.abs(player.x-2080)<60&&player.y>300&&isStorm()) tip('well_storm','Stormcaller: spark the basin, step in, and let it throw you. The gate above is yours.');
     if(Math.abs(player.x-3000)<70&&player.y<-2000) tip('grub','Things hang from the ceiling here. They let go when you are under them.');
     if(Math.abs(player.x-9500)<70) tip('black','Black water. It does not bear frost for long, and fire not at all.');
   }else if(LVL===4){
@@ -3817,6 +3907,7 @@ function render(t){
   drawFireGlow(t);
   ctx.globalCompositeOperation='source-over';
   drawShotCores();
+  drawArcs();
   drawFloaters();
   ctx.restore();
   if(zoom!==1) ctx.restore();
@@ -3844,7 +3935,7 @@ function drawHeroMage(key,hx,hy,sc,face,t){
     const mx=-34+((i*47)%68);
     const my=key==='fire'?30-ph*84:-54+ph*84;
     ctx.globalAlpha=Math.sin(ph*Math.PI)*.75;
-    ctx.fillStyle=key==='fire'?'#ffb267':'#cfe8ff';
+    ctx.fillStyle=key==='fire'?'#ffb267':(key==='storm'?'#e0ccff':'#cfe8ff');
     if(key==='fire'){ctx.beginPath();ctx.arc(mx,my,1.8,0,TAU);ctx.fill();}
     else {ctx.fillRect(mx-2,my-.5,4,1); ctx.fillRect(mx-.5,my-2,1,4);}
     ctx.globalAlpha=1;
@@ -5080,8 +5171,14 @@ function drawEnemies(t){
       ctx.fillStyle='rgba(140,205,255,.28)';
       ctx.fillRect(x-w/2-2,y-2,w+4,h+4);
     }
+    if(e.shockT>0&&!e.dead){
+      ctx.fillStyle='rgba(235,220,255,.35)'; ctx.fillRect(x-w/2-2,y-2,w+4,h+4);
+      ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=1.5; ctx.beginPath();
+      for(let k=0;k<3;k++){const sx=x+rand(-w/2,w/2), sy=y+rand(0,h); ctx.moveTo(sx,sy); ctx.lineTo(sx+rand(-8,8),sy+rand(-8,8));}
+      ctx.stroke();
+    }
     if(hurt){   // hit flash carries the element that did it
-      ctx.fillStyle=isFire()?'rgba(255,255,255,.55)':'rgba(190,225,255,.6)';
+      ctx.fillStyle=isFire()?'rgba(255,255,255,.55)':(isStorm()?'rgba(235,220,255,.65)':'rgba(190,225,255,.6)');
       ctx.fillRect(x-w/2-3,y-3,w+6,h+6);
     }
     if(e.elite&&!e.dead){
@@ -6237,7 +6334,8 @@ function drawPortraits(tt){
 }
 function drawCharPortraits(tt){
   tt=tt||0;
-  for(const [id,key] of [['csF','fire'],['csI','frost']]){
+  const sc=document.getElementById('chStorm'); if(sc) sc.classList.toggle('locked',!classUnlocked('storm'));
+  for(const [id,key] of [['csF','fire'],['csI','frost'],['csS','storm']]){
     portrait(id,(g,t)=>{
       const CL=CLASSES[key];
       const bob=Math.sin(t*.002+(key==='frost'?2:0))*3;
@@ -6247,8 +6345,9 @@ function drawCharPortraits(tt){
         const mx=-38+((i*53)%76);
         const my=key==='fire'?34-ph*74:-40+ph*74;
         g.globalAlpha=Math.sin(ph*Math.PI)*.8;
-        g.fillStyle=key==='fire'?'#ffb267':'#cfe8ff';
+        g.fillStyle=key==='fire'?'#ffb267':(key==='storm'?'#e0ccff':'#cfe8ff');
         if(key==='fire'){g.beginPath();g.arc(mx,my,2,0,TAU);g.fill();}
+        else if(key==='storm'){ if(((t*.02+i*7)|0)%5===0){ g.strokeStyle='#e0ccff'; g.lineWidth=1.5; g.beginPath(); g.moveTo(mx-4,my-6); g.lineTo(mx+1,my-1); g.lineTo(mx-2,my+1); g.lineTo(mx+4,my+7); g.stroke(); } }
         else {g.fillRect(mx-2.5,my-.6,5,1.2); g.fillRect(mx-.6,my-2.5,1.2,5);}
         g.globalAlpha=1;
       }
@@ -6609,8 +6708,8 @@ function renderArmory(){
   };
   // class preview
   mkSel('Previewing',CLASSES[armCls].title,
-    ()=>{armCls=armCls==='fire'?'frost':'fire';SFX.clink();renderArmory();},
-    ()=>{armCls=armCls==='fire'?'frost':'fire';SFX.clink();renderArmory();});
+    ()=>{const L=availableClasses(); armCls=L[(L.indexOf(armCls)-1+L.length)%L.length];SFX.clink();renderArmory();},
+    ()=>{const L=availableClasses(); armCls=L[(L.indexOf(armCls)+1)%L.length];SFX.clink();renderArmory();});
   for(const [slot,label,opts,ownedFn] of ARM_SLOTS){
     const avail=opts.filter(ownedFn);
     const cur=shop.equip[slot];
@@ -6638,7 +6737,7 @@ function refreshBestLine(){
   const el=document.getElementById('bestLine');
   if(!el) return;
   const parts=[];
-  for(const k of ['fire','frost']){
+  for(const k of Object.keys(CLASSES)){
     let best=null;
     for(const d of Object.keys(DIFFS)){
       try{
@@ -6713,6 +6812,7 @@ document.getElementById('bStart').onclick=()=>{initAudio();SFX.pickup();forceTut
 document.getElementById('bTutorial').onclick=()=>{initAudio();SFX.chime();forceTut=true;state='charsel';show('charsel');};
 document.getElementById('chFire').onclick=()=>{cls='fire';SFX.ignite();forceTut?startTutorialYard():(state='map',show('worldmap'));};
 document.getElementById('chFrost').onclick=()=>{cls='frost';SFX.freeze();forceTut?startTutorialYard():(state='map',show('worldmap'));};
+document.getElementById('chStorm').onclick=()=>{ if(!classUnlocked('storm')){SFX.clink();return;} cls='storm';tone('square',900,2400,.2,.1);hiss(.2,.06,4000);forceTut?startTutorialYard():(state='map',show('worldmap'));};
 document.getElementById('bWmDrill').onclick=()=>{startTutorialYard();};
 document.getElementById('bWmL1').onclick=()=>{SFX.chime();pendingLevel=1;campaign.l1Cleared?startGame():runIntro();};
 document.getElementById('bWmL2').onclick=()=>{
