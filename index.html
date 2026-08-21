@@ -58,6 +58,9 @@
   #charsel h2{font-weight:normal;letter-spacing:.4em;color:#ffd9a8;font-size:24px;margin-bottom:26px}
   #charsel .cards{display:flex;gap:30px}
   .card-ch.storm{border-color:#8a6ad8}
+  .card-ch.paladin{border-color:#c9a227}
+  .card-ch.paladin:hover{box-shadow:0 0 30px rgba(230,190,90,.35)}
+  #charsel .cards{flex-wrap:wrap;justify-content:center;max-width:1100px}
   .card-ch.storm:hover{box-shadow:0 0 30px rgba(160,120,255,.35)}
   .card-ch.locked{opacity:.42;filter:grayscale(.7)}
   .card-ch .lock{display:none;font-size:11px;color:#e0c9ff;font-style:italic;margin-top:8px;letter-spacing:.08em}
@@ -177,6 +180,12 @@
       <h3>STORMCALLER</h3>
       <p>Lightning is quick, and it jumps &mdash; every hit arcs to the next man and holds him still. Charged sap throws you skyward.</p>
       <div class="lock" id="chStormLock">take the crown of the Thornwood to unlock</div>
+    </div>
+    <div class="card-ch paladin" id="chPaladin">
+      <canvas id="csP" width="120" height="140"></canvas>
+      <h3>PALADIN</h3>
+      <p>Sword and shield. Light thrown close and hard, a third ward, and a guard that turns anything &mdash; at the cost of reach and a lighter step.</p>
+      <div class="lock" id="chPaladinLock">silence the horn to unlock</div>
     </div>
   </div>
   <div style="margin-top:28px;display:flex;align-items:center;gap:16px">
@@ -524,7 +533,7 @@ const SFX={
   iceLance(){tone('sine',980,1150,.05,.04);},
   iceBreath(){hiss(.09,.04,4500);},
   freeze(){tone('sine',1500,600,.22,.1); hiss(.16,.08,6000);},
-  hit(){smp('punch',.55)||tone('square',180,70,.06,.09); if(typeof isFire==='function'){isFire()?hiss(.07,.035,2200):(isStorm()?tone('square',2400,500,.04,.035):tone('sine',1900,2600,.05,.035));}},
+  hit(){smp('punch',.55)||tone('square',180,70,.06,.09); if(typeof isFire==='function'){isFire()?hiss(.07,.035,2200):(isStorm()?tone('square',2400,500,.04,.035):(isPaladin()?tone('sine',1400,2100,.05,.03):tone('sine',1900,2600,.05,.035)));}},
   clink(){smp('metalL',.4,1.15)||tone('square',1300,900,.04,.05);},
   die(){smp('punchH',.6); hiss(.12,.06,1400); tone('triangle',220,40,.16,.07);},
   shatter(){smp('glass',.7); tone('sine',950,280,.3,.08);},
@@ -617,7 +626,8 @@ function drawGlow(x,y,r,color,alpha=1){
 /* ---------------- classes ---------------- */
 const CLASSES={
   fire:{
-    title:'PYROMANCER', robe:'#a83c30', robeShade:'#8a2f28', cape:'#7a2622',
+    title:'PYROMANCER', robe:'#a83c30', robeShade:'#8a2f28', cape:'#7a2622', dashKind:'flash', wardKind:'detonate',
+    dashName:'FLASHSTEP', wardName:'DETONATING WARD',
     dummyStep:'Burn the straw dummy — fire spreads',
     ranks:['CINDER NOVICE','TORCHBEARER','SIEGEBREAKER','THE ETERNAL FLAME'],
     weapons:{
@@ -631,7 +641,8 @@ const CLASSES={
       NOVA:  {name:'CINDER RING',   color:'rgb(255,140,60)',  rate:.95, dmg:2,  novaR:150},
     }},
   frost:{
-    title:'CRYOMANCER', robe:'#3f6fa8', robeShade:'#33598a', cape:'#2c4a74',
+    title:'CRYOMANCER', robe:'#3f6fa8', robeShade:'#33598a', cape:'#2c4a74', dashKind:'glide', wardKind:'freeze',
+    dashName:'GLIDE', wardName:'FREEZING WARD',
     dummyStep:'Shatter the straw dummy with frost',
     ranks:['HOARFROST NOVICE','WINTERBORN','GLACIER LORD','THE UNMELTING'],
     weapons:{
@@ -646,7 +657,8 @@ const CLASSES={
       NOVA:  {name:"WINTER'S GRASP",  color:'rgb(200,240,255)', rate:1,   dmg:1.8, novaR:160},
     }},
   storm:{
-    title:'STORMCALLER', robe:'#6a4aa8', robeShade:'#55388a', cape:'#3f2a6a', unlock:'l2Cleared',
+    title:'STORMCALLER', robe:'#6a4aa8', robeShade:'#55388a', cape:'#3f2a6a', unlock:'l2Cleared', dashKind:'blink', wardKind:'reflect',
+    dashName:'BLINK', wardName:'REFLECTING WARD',
     dummyStep:'Shock the straw dummy — lightning jumps',
     ranks:['SPARK NOVICE','STORMBORN','THUNDERLORD','THE UNBROKEN SKY'],
     weapons:{
@@ -660,10 +672,30 @@ const CLASSES={
       MORTAR:{name:'SKYSTRIKE',    color:'rgb(220,205,255)', rate:.8,  dmg:.9},
       NOVA:  {name:'STORMHEART',   color:'rgb(235,225,255)', rate:.9,  dmg:1.8, novaR:170},
     }},
+  paladin:{
+    title:'PALADIN', robe:'#cfd4dc', robeShade:'#a8aeb8', cape:'#c9a227', unlock:'l4Cleared',
+    dashKind:'bash', wardKind:'smite', dashName:'SHIELD BASH', wardName:'SMITING WARD',
+    wardBonus:1, jumpMul:.85, dashMul:.6, melee:true,
+    dummyStep:'Cleave the straw dummy with light',
+    ranks:['SQUIRE OF DAWN','SWORN SHIELD','LIGHTBRINGER','THE UNBOWED'],
+    weapons:{
+      /* the sword throws light, not far — every cast is a swing */
+      BOLT:  {name:'LIGHT CLEAVE',   color:'rgb(255,240,190)', rate:.28, spd:1100, r:8,  dmg:1.6, life:.14},
+      SPREAD:{name:'RADIANT ARC',    color:'rgb(255,245,205)', rate:.32, spd:1000, r:6,  dmg:.9,  n:3, arc:.3, life:.13},
+      LANCE: {name:'SUNLANCE',       color:'rgb(255,230,160)', len:200, dps:6.5, beamW:9},
+      HEAVY: {name:'HAMMER OF DAWN', color:'rgb(255,220,140)', rate:.6,  spd:520, r:10, dmg:3,   g:900, bounces:0},
+      BREATH:{name:'HALO',           color:'rgb(255,248,220)', coneR:150, dps:13, half:.6},
+      CRAWLER:{name:'CONSECRATE',    color:'rgb(255,235,170)', rate:.5,  dmg:1.4, spd:300},
+      MORTAR:{name:'JUDGEMENT',      color:'rgb(255,240,190)', rate:.8,  dmg:1},
+      NOVA:  {name:'AEGIS BURST',    color:'rgb(255,250,225)', rate:.9,  dmg:2.4, novaR:140},
+    }},
 };
+const isPaladin=()=>cls==='paladin';
+const maxWards=()=>DIFF().wards+(CLASSES[cls].wardBonus||0);
+let fireTrail=[];
 function classUnlocked(k){const u=CLASSES[k].unlock; return !u||!!(typeof campaign!=='undefined'&&campaign[u]);}
 function availableClasses(){return Object.keys(CLASSES).filter(classUnlocked);}
-const elemColor=()=>cls==='fire'?'rgb(255,154,60)':(cls==='frost'?'rgb(170,220,255)':'rgb(220,200,255)');
+const elemColor=()=>cls==='fire'?'rgb(255,154,60)':(cls==='frost'?'rgb(170,220,255)':(cls==='paladin'?'rgb(255,240,190)':'rgb(220,200,255)'));
 let cls='fire';
 const WPN=k=>CLASSES[cls].weapons[k];
 
@@ -702,6 +734,9 @@ let arcs=[], chainDepth=0;
 function castSfx(k){
   if(isFire()){
     if(k==='BOLT')SFX.shoot(); else if(k==='SPREAD')SFX.embers(); else SFX.fireball();
+  }else if(isPaladin()){
+    if(k==='HEAVY'){tone('sine',320,90,.3,.14); smp('metalH',.35,.8);}
+    else {tone('sine',760,1500,.08,.07); smp('metalL',.22,1.35);}
   }else if(isStorm()){
     if(k==='HEAVY'){tone('sawtooth',220,50,.3,.14); hiss(.2,.1,3500);}
     else {tone('square',1100,260,.06,.07); hiss(.05,.04,4200);}
@@ -712,7 +747,7 @@ function castSfx(k){
 
 /* ---------------- input + rebindable keys ---------------- */
 const keys={}, mouse={x:W/2,y:H/2,down:false};
-const DEFAULT_BINDS={left:'KeyA',right:'KeyD',jump:'KeyW',drop:'KeyS',dash:'ShiftLeft',swap:'KeyQ',grab:'KeyF'};
+const DEFAULT_BINDS={left:'KeyA',right:'KeyD',jump:'KeyW',drop:'KeyS',dash:'ShiftLeft',swap:'KeyQ',grab:'KeyF',ability:'KeyE'};
 let BINDS={...DEFAULT_BINDS};
 try{Object.assign(BINDS,JSON.parse(localStorage.getItem('arcanade-binds')||'{}'));}catch(e){}
 // migrate saves from the era when SPACE was the dash default
@@ -881,7 +916,7 @@ function trySap(x,y){
       const cx=clamp(x,sp.x0+46,sp.x1-46);
       solids.push({x:cx-46,y:ny,w:92,h:12,crust:true,pool:sp,melt:45,oneWay:false,flam:false,burn:0,spreadT:0,dead:false});
       SFX.freeze(); burst(cx,ny+4,10,'rgb(255,225,170)',.5); spawnRing(cx,ny+4,'rgb(255,230,180)');
-      tip('crust','Frozen sap bears weight — and freezes again on top of itself. Build a stair.');
+      tip('crust',isFrost()?'Frozen sap bears weight — and freezes again on top of itself. Build a stair.':'The light hardens the sap — and hardens again on top of itself. Build a stair.');
       if(sp.stand) sp.broken=true;
     }
     return true;
@@ -1025,7 +1060,8 @@ let player=null;
 
 function makePlayer(x){
   return {x, y:400, vx:0, vy:0, w:26, h:54, onGround:false, face:1,
-    wards:DIFF().wards, keg:false, invulnT:2, dashT:0, dashCd:0, dashDir:1, dropT:0,
+    wards:DIFF().wards+(CLASSES[cls].wardBonus||0), keg:false, invulnT:2, dashT:0, dashCd:0, dashDir:1, dropT:0,
+    guardM:1, guarding:false, siphoning:false, siphon:0, wardRegenT:0, frozenT:0, smiteT:0, dashSpd:900, dashKind:'flash',
     coyoteT:0, jumpBufT:0, airJumps:0, sigilT:0, sigilX:0, sigilY:0,
     weapon:'BOLT', slots:['BOLT',null,null], slot:0,
     fireT:0, lanceTick:0, dead:false, respawnT:0, animT:0, flashT:0};
@@ -2483,17 +2519,77 @@ function tryDash(){
   let dir=0;
   if(down('left')) dir=-1; if(down('right')) dir=1;
   if(!dir) dir=p.face;
-  p.dashT=.16; p.dashCd=.55; p.dashDir=dir; p.invulnT=Math.max(p.invulnT,.24);
+  if(p.frozenT>0||p.guarding) return;
+  const CL=CLASSES[cls], kind=CL.dashKind||'flash';
+  if(kind==='blink'){
+    // the Stormcaller does not cross the space — he is simply on the other side of it, and everything between is shocked
+    let ex=p.x+dir*240;
+    for(const s2 of solids){
+      if(s2.dead||s2.oneWay) continue;
+      if(p.y+p.h>s2.y&&p.y<s2.y+s2.h){
+        if(dir>0&&s2.x>=p.x&&s2.x<ex+p.w/2) ex=s2.x-p.w/2-2;
+        if(dir<0&&s2.x+s2.w<=p.x&&s2.x+s2.w>ex-p.w/2) ex=s2.x+s2.w+p.w/2+2;
+      }
+    }
+    ex=clamp(ex,20,LEVEL-20);
+    arcs.push({x1:p.x,y1:p.y+27,x2:ex,y2:p.y+27,t:.16});
+    for(const e of enemies){
+      if(e.dead||e.emerge>0) continue;
+      const lo=Math.min(p.x,ex)-e.w/2, hi=Math.max(p.x,ex)+e.w/2;
+      if(e.x>lo&&e.x<hi&&Math.abs((e.y+e.h/2)-(p.y+27))<60){ damageEnemy(e,1,e.x,e.y+e.h/2,false); e.shockT=.5; }
+    }
+    burst(p.x,p.y+27,8,'rgb(225,205,255)',.6); p.x=ex; burst(p.x,p.y+27,8,'rgb(225,205,255)',.6);
+    p.dashT=.06; p.dashCd=.6; p.dashDir=dir; p.dashKind=kind; p.dashSpd=0; p.invulnT=Math.max(p.invulnT,.3);
+    tone('square',1200,2600,.1,.08); hiss(.08,.05,5000);
+    return;
+  }
+  const mul=CL.dashMul||1;
+  p.dashT=.16*(kind==='glide'?1.35:mul); p.dashCd=.55; p.dashDir=dir; p.dashKind=kind;
+  p.dashSpd=kind==='glide'?680:(kind==='bash'?820:900);
+  p.invulnT=Math.max(p.invulnT,.24); p.trailX=p.x;
+  if(kind==='bash'){ SFX.clang(); p.bashed=[]; }
   hiss(.12,.08,3000);
 }
 function hitPlayer(){
   const p=player;
   if(p.dead||p.invulnT>0) return;
   if(ARC.god) return;
+  if(p.guarding&&p.guardM>0){
+    // the shield takes it — at a price in stamina
+    p.guardM=Math.max(0,p.guardM-.34); p.invulnT=.22; SFX.clang(); shake(4);
+    burst(p.x+p.face*14,p.y+24,8,'rgb(255,240,200)',.5); spawnRing(p.x+p.face*12,p.y+24,'rgb(255,230,170)');
+    floatText(p.x,p.y-10,'BLOCKED','#ffe9b0',false);
+    return;
+  }
   if(p.wards>0){
     p.wards--; p.invulnT=1.2; p.flashT=.12; shake(9); SFX.shatter();
     dmgFlashT=.45;
     burst(p.x,p.y+24,22,'rgb(140,200,255)');
+    const wk=CLASSES[cls].wardKind;
+    if(wk==='detonate'){   // a broken fire-ward is a spell
+      const R=150;
+      for(const e of enemies) if(!e.dead&&dist2(p.x,p.y+24,e.x,e.y+e.h/2)<R*R) damageEnemy(e,2,e.x,e.y+e.h/2,false,1.8);
+      if(boss&&!boss.dead&&dist2(p.x,p.y+24,boss.x,boss.y+boss.h/2)<(R+50)*(R+50)) damageBoss(2,boss.x,boss.y+60);
+      if(mboss&&!mboss.dead&&dist2(p.x,p.y+24,mboss.x,mboss.y+mboss.h/2)<(R+40)*(R+40)) damageMBoss(2,mboss.x,mboss.y+30);
+      burst(p.x,p.y+24,26,'rgb(255,154,60)'); spawnRing(p.x,p.y+24,'rgb(255,200,120)'); SFX.explode(); kickCam(p.x+p.face*40,p.y);
+      floatText(p.x,p.y-20,'THE WARD DETONATES','#ffb267',true);
+    }else if(wk==='freeze'){   // a broken frost-ward is a pause, and it comes back
+      p.frozenT=.8; p.invulnT=Math.max(p.invulnT,1.5); p.wardRegenT=9; p.vx=0;
+      burst(p.x,p.y+24,14,'rgb(200,235,255)',.3); SFX.freeze();
+      floatText(p.x,p.y-20,'THE WARD FREEZES','#9fd4ff',true);
+    }else if(wk==='reflect'){   // a broken storm-ward throws the blow back
+      let tgt=null, bd=600*600;
+      for(const e of enemies){ if(e.dead) continue; const d=dist2(p.x,p.y,e.x,e.y); if(d<bd){bd=d;tgt=e;} }
+      if(boss&&!boss.dead){ const d=dist2(p.x,p.y,boss.x,boss.y); if(d<bd){bd=d;tgt=boss;} }
+      if(mboss&&!mboss.dead){ const d=dist2(p.x,p.y,mboss.x,mboss.y); if(d<bd){bd=d;tgt=mboss;} }
+      if(tgt){ const dx=tgt.x-p.x, dy=(tgt.y+(tgt.h||40)/2)-(p.y+20), L=Math.hypot(dx,dy)||1;
+        shots.push({x:p.x,y:p.y+20,vx:dx/L*1100,vy:dy/L*1100,g:0,r:7,life:1.2,dmg:3,c:'rgb(235,220,255)',pierce:2,hitSet:[]});
+        arcs.push({x1:p.x,y1:p.y+20,x2:tgt.x,y2:tgt.y+20,t:.14}); tone('square',1600,400,.1,.08); }
+      floatText(p.x,p.y-20,'REFLECTED','#e0ccff',true);
+    }else if(wk==='smite'){   // a broken holy ward sanctifies the next blow
+      p.smiteT=4; burst(p.x,p.y+24,14,'rgb(255,240,190)',.4); tone('sine',880,1760,.3,.08);
+      floatText(p.x,p.y-20,'SMITE READY','#ffe9b0',true);
+    }
     tip('ward', p.wards>0?'A ward shattered — another still holds.':'Your ward shattered — one more hit kills. Relics restore it.');
   }else{
     killPlayer();
@@ -2549,9 +2645,29 @@ function updatePlayer(dt){
     : {x:mouse.x+cam.x, y:mouse.y};
   p.face=wm.x>=p.x?1:-1;
   const inSap=!!sapAt(p.x,p.y+p.h)||puddles.some(q=>Math.abs(q.x-p.x)<q.w/2&&Math.abs(q.y-(p.y+p.h))<22);
-  const sp=(p.keg?320:380)*(inSap?.32:1);   // the keg is heavy; the sap is heavier
+  const abil=down('ability')&&state==='play'&&!paused&&!p.keg&&p.frozenT<=0;
+  if(isPaladin()){
+    p.guarding=abil&&p.guardM>0&&p.onGround;
+    if(p.guarding) p.guardM=Math.max(0,p.guardM-dt*.3); else p.guardM=Math.min(1,p.guardM+dt*.28);
+    p.siphoning=false;
+  }else{ p.siphoning=abil&&p.onGround; p.guarding=false; }
+  if(p.frozenT>0) p.frozenT-=dt;
+  if(p.wardRegenT>0){ p.wardRegenT-=dt; if(p.wardRegenT<=0&&p.wards<maxWards()){ p.wards++; SFX.chime(); spawnRing(p.x,p.y+24,'rgb(140,200,255)'); floatText(p.x,p.y-20,'THE WARD REGROWS','#9fd4ff',true); } }
+  if(p.smiteT>0) p.smiteT-=dt;
+  const sp=(p.keg?320:380)*(inSap?.32:1)*(p.guarding||p.siphoning?.3:1)*(p.frozenT>0?0:1);   // the keg is heavy; the sap is heavier
   if(p.dashT>0){
-    p.dashT-=dt; p.vx=p.dashDir*900; p.vy=0;
+    p.dashT-=dt; p.vx=p.dashDir*(p.dashSpd||900); p.vy=0;
+    if(p.dashKind==='flash'&&Math.abs(p.x-(p.trailX||p.x))>16){ p.trailX=p.x; fireTrail.push({x:p.x,y:p.y+p.h,t:1.3}); }
+    if(p.dashKind==='glide'&&p.dashT<=0&&!p.onGround){   // the glide ends on ice she made
+      solids.push({x:p.x-42,y:p.y+p.h+2,w:84,h:8,ice:true,melt:2.2,oneWay:true,flam:false,burn:0,spreadT:0,dead:false});
+      SFX.freeze(); burst(p.x,p.y+p.h+4,8,'rgb(200,235,255)',.4);
+    }
+    if(p.dashKind==='bash'){
+      for(const e of enemies){
+        if(e.dead||e.emerge>0||(p.bashed&&p.bashed.includes(e))) continue;
+        if(rectsOverlap(p.x-p.w/2-8,p.y,p.w+16,p.h,e.x-e.w/2,e.y,e.w,e.h)){ (p.bashed=p.bashed||[]).push(e); damageEnemy(e,1.2,e.x,e.y+e.h/2,false,1.6); e.kbVx=p.dashDir*360; e.windup=0; SFX.clang(); shake(3); }
+      }
+    }
     if(Math.random()<.85){
       const tr=shop.equip.trail;
       if(tr==='petal') spawnPart(p.x+rand(-6,6),p.y+22,rand(-30,30),rand(10,50),.5,4.5,'rgb(255,150,190)',260,true);
@@ -2581,12 +2697,12 @@ function updatePlayer(dt){
         spawnRing(p.x,p.y+p.h,'rgb(230,215,255)'); burst(p.x,p.y+p.h,16,'rgb(225,205,255)',.7);
       }
     }
-    if(p.jumpBufT>0&&(p.onGround||p.coyoteT>0)){
-      p.vy=inSap?-420:-810; p.onGround=false; p.coyoteT=0; p.jumpBufT=0;
+    if(p.jumpBufT>0&&(p.onGround||p.coyoteT>0)&&p.frozenT<=0&&!p.guarding&&!p.siphoning){
+      p.vy=(inSap?-420:-810)*(CLASSES[cls].jumpMul||1); p.onGround=false; p.coyoteT=0; p.jumpBufT=0;
       hiss(.07,.04,2000);
     }else if(p.jumpBufT>0&&SET.doubleJump&&p.airJumps<1&&!p.onGround&&p.coyoteT<=0&&p.dashT<=0){
       // the second step: a sigil flares underfoot and the air takes the mage's weight
-      p.vy=-700; p.airJumps++; p.jumpBufT=0;
+      p.vy=-700*(CLASSES[cls].jumpMul||1); p.airJumps++; p.jumpBufT=0;
       p.sigilT=.42; p.sigilX=p.x; p.sigilY=p.y+p.h;
       const col=WPN('BOLT').color;
       spawnRing(p.x,p.y+p.h-4,col);
@@ -2676,7 +2792,7 @@ function updatePlayer(dt){
     }
     p.holdT=0;
   }
-  if((mouse.down||gp.fire)&&state==='play'&&!paused&&!p.keg){
+  if((mouse.down||gp.fire)&&state==='play'&&!paused&&!p.keg&&!p.guarding&&!p.siphoning&&p.frozenT<=0){
     tut.flags.fired=true;
     if(p.weapon==='LANCE'){
       fireLance(tipX,tipY,aimA,dt);
@@ -2685,7 +2801,7 @@ function updatePlayer(dt){
     }else if(p.fireT<=0){
       p.fireT=wp.rate;
       if(p.weapon==='BOLT'){
-        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd,vy:Math.sin(aimA)*wp.spd,g:0,r:wp.r,life:.9,dmg:wp.dmg,c:wp.color});
+        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd,vy:Math.sin(aimA)*wp.spd,g:0,r:wp.r,life:wp.life||.9,dmg:wp.dmg,c:wp.color});
         castSfx('BOLT'); kick(aimA,2);
         burst(tipX,tipY,2,wp.color,.4);
       }else if(p.weapon==='SPREAD'){
@@ -2904,6 +3020,7 @@ function damageEnemy(e,dmg,x,y,silent,launch){
   if(e.dead) return;
   const amped=e.chillT>0;
   if(amped) dmg*=1.3;      // the cold opens them up — chill is a setup, not a garnish
+  if(player&&player.smiteT>0&&!silent){ dmg*=3; player.smiteT=0; floatText(x,y-22,'SMITE','#ffe9b0',true); SFX.clang(); hitstop(.06); }
   e.hp-=dmg;
   if(!silent){
     const dir=e.x>player.x?1:-1;
@@ -3114,6 +3231,17 @@ function updateShots(dt){
     }
     s.vy+=(s.g||0)*dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
     if(s.wave&&Math.random()<.5) spawnPart(s.x,s.y+6,rand(-30,30),rand(-70,-20),.3,3,'rgb(205,195,170)',300,true);
+    if(player.siphoning&&!player.dead&&!s.bomb&&!s.wave&&!s.boulder&&dist2(s.x,s.y,player.x,player.y+27)<74*74){
+      // the ring takes it apart and keeps the thread
+      s.dead=true; player.siphon++;
+      burst(s.x,s.y,7,elemColor(),.4); tone('sine',600+player.siphon*220,1300,.12,.06);
+      if(player.siphon>=3){
+        player.siphon=0;
+        if(player.wards<maxWards()){ player.wards++; SFX.chime(); spawnRing(player.x,player.y+24,'rgb(140,200,255)'); floatText(player.x,player.y-20,'WARD WOVEN','#9fd4ff',true); }
+        else floatText(player.x,player.y-20,'WARDS FULL','#9fd4ff',false);
+      }
+      continue;
+    }
     if(!s.bomb&&!player.dead&&s.x>player.x-player.w/2-s.r&&s.x<player.x+player.w/2+s.r&&
         s.y>player.y-s.r&&s.y<player.y+player.h+s.r){
       if(player.keg){player.keg=false; explodeKegAt(player.x,player.y+10);}  // they hit the keg.
@@ -3401,6 +3529,13 @@ function update(dt){
   if(relicCard){relicCard.t-=dt; if(relicCard.t<=0) relicCard=null;}
   for(const d of drafts) d.t-=dt; drafts=drafts.filter(d=>d.t>0);
   for(const a of arcs) a.t-=dt; arcs=arcs.filter(a=>a.t>0);
+  for(const f of fireTrail){
+    f.t-=dt;
+    for(const e of enemies) if(!e.dead&&Math.abs(e.x-f.x)<18&&Math.abs((e.y+e.h)-f.y)<30){ damageEnemy(e,2.2*dt,e.x,e.y+e.h/2,true); if(Math.random()<.2) spawnPart(e.x,e.y+e.h/2,rand(-30,30),-rand(30,80),.3,2.5,'rgb(255,154,60)',0,true); }
+    for(const o of flammables()) if(f.x>o.x-6&&f.x<o.x+o.w+6&&f.y>o.y-6&&f.y<o.y+o.h+10) ignite(o);
+    if(Math.random()<.5*pMul()) spawnPart(f.x+rand(-6,6),f.y-2,rand(-10,10),-rand(30,90),rand(.25,.5),rand(2,4),'rgb(255,150,60)',0,true);
+  }
+  fireTrail=fireTrail.filter(f=>f.t>0);
   for(const sp of SAPS) if(sp.charge>0) sp.charge-=dt;
   for(const q of puddles) q.t-=dt; puddles=puddles.filter(q=>q.t>0);
   for(const s of solids){
@@ -3463,7 +3598,7 @@ function update(dt){
     if(Math.abs(player.x-1420)<80) tip('canopy','Two roads: the floor, or the branches above. '+(isFire()?'Mind your sparks up there — the canopy is tinder.':'The high road is drier. And flammable.'));
     if(Math.abs(player.x-12440)<80) tip('climb','The only way is up. The old tree drops dead wood on climbers.');
   }else if(LVL===3){
-    if(Math.abs(player.x-1380)<70) tip('sap','Sap. It will hold you like amber holds a fly. '+(isFire()?'Heat it, and it lifts.':(isStorm()?'Charge it, and it throws you.':'Chill it, and it bears you.')));
+    if(Math.abs(player.x-1380)<70) tip('sap','Sap. It will hold you like amber holds a fly. '+(isFire()?'Heat it, and it lifts.':(isStorm()?'Charge it, and it throws you.':(isPaladin()?'Bless it, and it bears you.':'Chill it, and it bears you.'))));
     if(Math.abs(player.x-2080)<60&&player.y>300) tip('well','The Sapwell. Up, by bough and sap. Three gates are too tall to jump — use what you are.');
     if(Math.abs(player.x-2080)<60&&player.y>300&&isStorm()) tip('well_storm','Stormcaller: spark the basin, step in, and let it throw you. The gate above is yours.');
     if(Math.abs(player.x-3000)<70&&player.y<-2000) tip('grub','Things hang from the ceiling here. They let go when you are under them.');
@@ -3898,6 +4033,7 @@ function render(t){
   drawBoss(t);
   drawRunners(t);
   drawDebris(t);
+  drawFireTrail(t);
   drawSigil(t);
   drawPet(t);
   drawPlayer(t);
@@ -4444,7 +4580,7 @@ function drawTerrain(t){
       ctx.fillStyle='rgba(255,255,255,.5)';
       ctx.fillRect(s.x,s.y,s.w,3);
     }else if(s.crust){
-      ctx.fillStyle='rgba(255,226,170,'+clamp(s.melt/3,0,1)*.95+')';
+      ctx.fillStyle=(isPaladin()?'rgba(255,244,200,':'rgba(255,226,170,')+clamp(s.melt/3,0,1)*.95+')';
       ctx.fillRect(s.x,s.y,s.w,s.h);
       ctx.fillStyle='rgba(255,250,230,.6)'; ctx.fillRect(s.x,s.y,s.w,3);
       ctx.fillStyle='rgba(180,110,40,.35)'; for(let k=0;k<4;k++) ctx.fillRect(s.x+10+k*22,s.y+5,3,5);
@@ -5423,6 +5559,52 @@ function drawBoss(t){
   }
   if(falling){ctx.restore();ctx.globalAlpha=1;}
 }
+function drawPaladinBody(p,x,y,t,C,fl,casting){
+  const F=p.face, CL=robeColors(), a=p.aimA||0;
+  const run=p.onGround&&Math.abs(p.vx)>40 ? Math.sin(p.animT*14)*8 : 0;
+  // the tabard, gold, over the cloak
+  ctx.fillStyle=C(CL.cape);
+  ctx.beginPath(); ctx.moveTo(x-F*3,y+14); ctx.quadraticCurveTo(x-F*16,y+32,x-F*12,y+50); ctx.lineTo(x-F*2,y+44); ctx.closePath(); ctx.fill();
+  // greaves
+  ctx.lineWidth=6; ctx.strokeStyle=C('#8a8f98');
+  ctx.beginPath(); ctx.moveTo(x-3,y+38); ctx.lineTo(x-6+run*.6,y+54); ctx.moveTo(x+3,y+38); ctx.lineTo(x+6-run*.6,y+54); ctx.stroke();
+  ctx.fillStyle=C('#3a2c26'); ctx.fillRect(x-9,y+52,6,3); ctx.fillRect(x+3,y+52,6,3);
+  // cuirass and tabard front
+  ctx.fillStyle=C(CL.robe); ctx.fillRect(x-9,y+14,18,26); if(!fl) tone2(x-9,y+14,18,26);
+  ctx.fillStyle=C(CL.cape); ctx.fillRect(x-4,y+16,8,22);
+  ctx.fillStyle=C('#ffe9b0'); ctx.fillRect(x-1,y+20,2,10); ctx.fillRect(x-3,y+23,6,2);   // a sunburst cross
+  ctx.fillStyle=C(CL.robeShade); ctx.beginPath(); ctx.arc(x-9,y+17,5,0,TAU); ctx.arc(x+9,y+17,5,0,TAU); ctx.fill();   // pauldrons
+  // helm, visor, plume
+  ctx.fillStyle=C(CL.robe); ctx.beginPath(); ctx.arc(x,y+8,9,0,TAU); ctx.fill();
+  ctx.fillStyle=C('#2a2018'); ctx.fillRect(x+F*1,y+6,7,3);
+  ctx.fillStyle=C('#b8504a'); ctx.beginPath(); ctx.moveTo(x-F*1,y-1); ctx.quadraticCurveTo(x-F*10,y-12+Math.sin(t*.01)*2,x-F*16,y-2); ctx.quadraticCurveTo(x-F*9,y-3,x-F*1,y+3); ctx.closePath(); ctx.fill();
+  // shield arm: raised in front when guarding, otherwise slung
+  const g=p.guarding;
+  ctx.lineWidth=4; ctx.strokeStyle=C(CL.robeShade);
+  ctx.beginPath(); ctx.moveTo(x-F*5,y+20); ctx.lineTo(g?x+F*12:x-F*9,g?y+26:y+32); ctx.stroke();
+  const sx=g?x+F*16:x-F*12, sy=g?y+14:y+22;
+  ctx.fillStyle=C('#6b4a2e'); ctx.fillRect(sx-7,sy,14,g?30:22);
+  ctx.strokeStyle=C('#c9a227'); ctx.lineWidth=2; ctx.strokeRect(sx-6.5,sy+.5,13,(g?30:22)-1);
+  ctx.fillStyle=C('#ffe9b0'); ctx.fillRect(sx-1,sy+6,2,g?14:8);
+  if(g) drawGlow(sx,sy+15,22+Math.sin(t*.01)*3,'rgb(255,230,170)',.45);
+  // sword arm along the aim; the blade throws light
+  const rec=(WPN(p.weapon).rate&&p.fireT>0)?clamp(p.fireT/WPN(p.weapon).rate,0,1):0;
+  const swing=a+(rec>0?-F*(rec-.5)*1.2:0);
+  ctx.lineWidth=4; ctx.strokeStyle=C(CL.robeShade);
+  ctx.beginPath(); ctx.moveTo(x+F*3,y+20); ctx.lineTo(x+Math.cos(swing)*12,y+22+Math.sin(swing)*12); ctx.stroke();
+  const hx=x+Math.cos(swing)*12, hy=y+22+Math.sin(swing)*12, bl=30;
+  ctx.strokeStyle=C('#e8c49a'); ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(hx-Math.cos(swing)*4,hy-Math.sin(swing)*4); ctx.lineTo(hx+Math.cos(swing)*2,hy+Math.sin(swing)*2); ctx.stroke();
+  ctx.strokeStyle=C('#f4f6f8'); ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(hx,hy); ctx.lineTo(hx+Math.cos(swing)*bl,hy+Math.sin(swing)*bl); ctx.stroke();
+  const glow=.35+rec*.6+(p.smiteT>0?.4:0);
+  drawGlow(hx+Math.cos(swing)*bl*.6,hy+Math.sin(swing)*bl*.6,14+rec*10,'rgb(255,240,190)',glow);
+  if(p.smiteT>0) drawGlow(x,y+20,40,'rgb(255,240,190)',.25+.15*Math.sin(t*.02));
+  if(p.wards>0){
+    ctx.strokeStyle='rgba(255,220,140,'+(0.3+0.12*Math.sin(t*.005))+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x,y+26,34,0,TAU); ctx.stroke();
+    if(p.wards>1){ ctx.strokeStyle='rgba(255,220,140,'+(0.2+0.1*Math.sin(t*.005+1))+')'; ctx.beginPath(); ctx.arc(x,y+26,40,0,TAU); ctx.stroke(); }
+    if(p.wards>2){ ctx.strokeStyle='rgba(255,220,140,.18)'; ctx.beginPath(); ctx.arc(x,y+26,46,0,TAU); ctx.stroke(); }
+  }
+}
 function drawPlayer(t){
   const p=player;
   if(p.dead) return;
@@ -5456,6 +5638,7 @@ function drawPlayer(t){
     for(let i=0;i<5;i++){const lx=x-p.dashDir*(22+i*13), ly=y+10+i*9; ctx.moveTo(lx,ly); ctx.lineTo(lx-p.dashDir*18,ly);}
     ctx.stroke();
   }
+  if(isPaladin()){ drawPaladinBody(p,x,y,t,C,fl,casting); ctx.restore(); ctx.globalAlpha=1; return; }
   ctx.fillStyle=C(CL.cape);
   ctx.beginPath();
   const flut=Math.sin(t*.012)*4+Math.abs(p.vx)*.02;
@@ -5546,6 +5729,15 @@ function drawPlayer(t){
     ctx.fillStyle='rgba(255,250,230,.9)';
     ctx.beginPath();ctx.arc(gx,gy,5.5,0,TAU);ctx.fill();
   }
+  if(p.siphoning){   // the weaving ring
+    ctx.save(); ctx.translate(x,y+27); ctx.rotate(t*.004);
+    ctx.strokeStyle='rgba(140,200,255,.8)'; ctx.lineWidth=2; ctx.setLineDash([10,8]);
+    ctx.beginPath(); ctx.arc(0,0,64,0,TAU); ctx.stroke(); ctx.setLineDash([]);
+    for(let i=0;i<3;i++){ const aa=i*TAU/3; ctx.fillStyle=i<p.siphon?'#9fd4ff':'rgba(140,200,255,.3)'; ctx.beginPath(); ctx.arc(Math.cos(aa)*64,Math.sin(aa)*64,4,0,TAU); ctx.fill(); }
+    ctx.restore();
+    drawGlow(x,y+27,50,'rgb(140,200,255)',.18);
+  }
+  if(p.frozenT>0){ ctx.fillStyle='rgba(200,235,255,.45)'; ctx.fillRect(x-12,y-4,24,p.h+6); }
   if(p.wards>0){
     ctx.strokeStyle='rgba(90,160,255,'+(0.3+0.12*Math.sin(t*.005))+')';
     ctx.lineWidth=2;
@@ -5638,6 +5830,17 @@ function drawShotsGlow(t){
     ctx.beginPath();ctx.moveTo(le.x1,le.y1);ctx.lineTo(le.x2,le.y2);ctx.stroke();
     drawGlow(le.x2,le.y2,22,lc,.9);
   }
+}
+function drawFireTrail(t){
+  if(!fireTrail.length) return;
+  ctx.globalCompositeOperation='lighter';
+  for(const f of fireTrail){
+    const q=clamp(f.t/1.3,0,1);
+    drawGlow(f.x,f.y-6,16+q*10,'rgb(255,140,50)',.5*q);
+    ctx.fillStyle='rgba(255,190,90,'+(.7*q)+')';
+    ctx.beginPath(); ctx.moveTo(f.x-8,f.y); ctx.quadraticCurveTo(f.x-3,f.y-10-q*8,f.x+Math.sin(t*.02+f.x)*3,f.y-18-q*10); ctx.quadraticCurveTo(f.x+4,f.y-8,f.x+8,f.y); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';
 }
 function drawSigil(t){
   const p=player; if(!p||!(p.sigilT>0)) return;
@@ -5772,7 +5975,7 @@ function drawBossCard(type,rem,total){
 }
 function drawHUD(t){
   if(state!=='play') return;
-  const maxW=Math.max(DIFF().wards,player.wards);
+  const maxW=Math.max(maxWards(),player.wards);
   for(let i=0;i<Math.max(maxW,1);i++){
     ctx.save();
     ctx.translate(30+i*24,34);
@@ -5787,6 +5990,15 @@ function drawHUD(t){
     ctx.restore();
   }
   ctx.font='13px Georgia'; ctx.fillStyle='#4a3826'; ctx.textAlign='left';
+  // the held ability: guard meter for the paladin, siphon pips for the mages
+  if(isPaladin()){
+    ctx.fillStyle='rgba(20,10,25,.6)'; ctx.fillRect(30,88,80,6);
+    ctx.fillStyle=player.guarding?'#ffe9b0':'#c9a227'; ctx.fillRect(30,88,80*clamp(player.guardM,0,1),6);
+    ctx.font='9px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText('GUARD  '+lbl('ability'),116,95);
+  }else{
+    for(let i=0;i<3;i++){ ctx.fillStyle=i<player.siphon?'#9fd4ff':'rgba(20,10,25,.5)'; ctx.beginPath(); ctx.arc(36+i*14,91,4,0,TAU); ctx.fill(); }
+    ctx.font='9px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText('SIPHON  '+lbl('ability'),80,95);
+  }
   ctx.fillText(player.wards>0?'WARD'+(player.wards>1?' ×'+player.wards:''):(DIFF().wards===0?'NO WARD':'WARD DOWN'), 30+Math.max(maxW,1)*24, 38);
   // lives — wax-seal tokens
   const nTok=Math.max(DIFF().lives,lives);
@@ -6335,6 +6547,24 @@ function drawPortraits(tt){
 function drawCharPortraits(tt){
   tt=tt||0;
   const sc=document.getElementById('chStorm'); if(sc) sc.classList.toggle('locked',!classUnlocked('storm'));
+  const pc=document.getElementById('chPaladin'); if(pc) pc.classList.toggle('locked',!classUnlocked('paladin'));
+  portrait('csP',(g,t)=>{ // the paladin: shield up, blade alight
+    const bob=Math.sin(t*.002+1)*3; g.translate(0,bob); g.scale(1.35,1.35);
+    const CL=CLASSES.paladin;
+    for(let i=0;i<4;i++){ const ph=((t*.0005)+(i*.25))%1; g.globalAlpha=Math.sin(ph*Math.PI)*.7; g.fillStyle='#ffe9b0'; g.beginPath(); g.arc(-30+i*20,30-ph*70,1.6,0,TAU); g.fill(); }
+    g.globalAlpha=1;
+    g.fillStyle=CL.cape; g.beginPath(); g.moveTo(-3,-14); g.quadraticCurveTo(-18,6,-12,26); g.lineTo(-2,20); g.closePath(); g.fill();
+    g.strokeStyle='#8a8f98'; g.lineWidth=6; g.beginPath(); g.moveTo(-3,12); g.lineTo(-6,30); g.moveTo(3,12); g.lineTo(6,30); g.stroke();
+    g.fillStyle=CL.robe; g.fillRect(-9,-12,18,26); g.fillStyle=CL.cape; g.fillRect(-4,-10,8,22); g.fillStyle='#ffe9b0'; g.fillRect(-1,-6,2,10); g.fillRect(-3,-3,6,2);
+    g.fillStyle=CL.robeShade; g.beginPath(); g.arc(-9,-9,5,0,TAU); g.arc(9,-9,5,0,TAU); g.fill();
+    g.fillStyle=CL.robe; g.beginPath(); g.arc(0,-18,9,0,TAU); g.fill(); g.fillStyle='#2a2018'; g.fillRect(1,-20,7,3);
+    g.fillStyle='#b8504a'; g.beginPath(); g.moveTo(-1,-27); g.quadraticCurveTo(-10,-38+Math.sin(t*.01)*2,-16,-28); g.quadraticCurveTo(-9,-29,-1,-23); g.closePath(); g.fill();
+    g.fillStyle='#6b4a2e'; g.fillRect(9,-8,14,30); g.strokeStyle='#c9a227'; g.lineWidth=2; g.strokeRect(9.5,-7.5,13,29); g.fillStyle='#ffe9b0'; g.fillRect(15,-2,2,14);
+    const sw=-1.1+Math.sin(t*.003)*.25;
+    g.strokeStyle='#e8c49a'; g.lineWidth=4; g.beginPath(); g.moveTo(-8,-4); g.lineTo(-8+Math.cos(sw)*6,-4+Math.sin(sw)*6); g.stroke();
+    g.strokeStyle='#f4f6f8'; g.lineWidth=3; g.beginPath(); g.moveTo(-8+Math.cos(sw)*6,-4+Math.sin(sw)*6); g.lineTo(-8+Math.cos(sw)*30,-4+Math.sin(sw)*30); g.stroke();
+    g.fillStyle='rgba(255,240,190,.35)'; g.beginPath(); g.arc(-8+Math.cos(sw)*24,-4+Math.sin(sw)*24,9,0,TAU); g.fill();
+  },tt);
   for(const [id,key] of [['csF','fire'],['csI','frost'],['csS','storm']]){
     portrait(id,(g,t)=>{
       const CL=CLASSES[key];
@@ -6774,7 +7004,7 @@ function startGame(){
   const startSpell=(shop.start==='BOLT'||shop.owned['sp_'+shop.start])?shop.start:'BOLT';
   player.slots=[startSpell,null,null]; player.slot=0; player.weapon=startSpell;
   runEmbers=0; petPos={x:60,y:player.y+player.h};
-  streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums(); wisps=[]; hornProp=null;
+  streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums(); wisps=[]; hornProp=null; fireTrail=[]; arcs=[];
   startAmbience();
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
   playMusic('field');
@@ -6813,6 +7043,7 @@ document.getElementById('bTutorial').onclick=()=>{initAudio();SFX.chime();forceT
 document.getElementById('chFire').onclick=()=>{cls='fire';SFX.ignite();forceTut?startTutorialYard():(state='map',show('worldmap'));};
 document.getElementById('chFrost').onclick=()=>{cls='frost';SFX.freeze();forceTut?startTutorialYard():(state='map',show('worldmap'));};
 document.getElementById('chStorm').onclick=()=>{ if(!classUnlocked('storm')){SFX.clink();return;} cls='storm';tone('square',900,2400,.2,.1);hiss(.2,.06,4000);forceTut?startTutorialYard():(state='map',show('worldmap'));};
+document.getElementById('chPaladin').onclick=()=>{ if(!classUnlocked('paladin')){SFX.clink();return;} cls='paladin';SFX.clang();tone('sine',660,1320,.3,.08);forceTut?startTutorialYard():(state='map',show('worldmap'));};
 document.getElementById('bWmDrill').onclick=()=>{startTutorialYard();};
 document.getElementById('bWmL1').onclick=()=>{SFX.chime();pendingLevel=1;campaign.l1Cleared?startGame():runIntro();};
 document.getElementById('bWmL2').onclick=()=>{
@@ -6926,7 +7157,7 @@ document.querySelectorAll('#sPart span').forEach(s=>s.onclick=()=>{SET.particles
 applySet();
 
 /* ---------------- key rebinding UI ---------------- */
-const BIND_LABELS=[['left','Move left'],['right','Move right'],['jump','Jump'],['drop','Drop down'],['dash','Dodge dash'],['swap','Cycle mode'],['grab','Grab / throw']];
+const BIND_LABELS=[['left','Move left'],['right','Move right'],['jump','Jump'],['drop','Drop down'],['dash','Dodge dash'],['swap','Cycle mode'],['grab','Grab / throw'],['ability','Guard / Siphon (hold)']];
 function refreshBindUI(){
   const box=document.getElementById('bindRows');
   if(!box) return;
