@@ -1390,16 +1390,16 @@ function loadLevel(n){
       [12400,[190,70,50],.11],[17100,[190,70,50],.11]];
     buildLevel1(); BOSS_MARK=BOSS_TRIG;
   }else if(n===2){
-    LEVEL=14000; WALLX=1e9; ARENA=12520; BOSS_TRIG=1e9; CAM_MIN_Y=-1580;
+    LEVEL=14000; WALLX=1e9; ARENA=12520; BOSS_TRIG=1e9; CAM_MIN_Y=-1960;
     WATERS=[{x0:5610,x1:5890},{x0:6210,x1:6490}];
     CHASMS=[[5400,6800]];
-    CHECKPOINTS=[60,1900,3300,4390,5450,6900,8900,10500,12350,12860];
-    CP_Y={12860:-426};
+    CHECKPOINTS=[60,1900,3300,4390,5450,6900,8900,10500,12350,12860,12700];
+    CP_Y={12860:-426,12700:-1400};
     MARENA={x0:4420,x1:5390,trig:4650,cam:4420};
     ZONES=[[0,[60,115,70],.10],[3200,[80,95,50],.11],[4400,[210,180,90],.08],
       [5400,[70,125,115],.10],[6800,[40,85,60],.13],[8800,[135,115,90],.09],
       [10400,[115,95,60],.10],[12400,[235,175,95],.09],[14000,[235,175,95],.09]];
-    buildLevel2(); BOSS_MARK=12550; CP_Y={12860:-426};
+    buildLevel2(); BOSS_MARK=12550; CP_Y={12860:-426,12700:-1400};
   }else if(n===3){
     LEVEL=14000; WALLX=1e9; ARENA=12600; BOSS_TRIG=12700; CAM_MIN_Y=-2200-Math.round(H*.62)-110;
     WATERS=[{x0:9900,x1:10200},{x0:10700,x1:11000},{x0:12600,x1:13960}];
@@ -1483,6 +1483,7 @@ function buildLevel2(){
       if(i===7){ S(bx+190-30,by,170,16,{oneWay:true,plank:true,bough:true,rootRight:true});   // a side bough, and someone on it
         const cg=P(bx+190-30+70,by-54,42,54,'cage'); cg.flam=false; cg.hp=2; }
       if(i===8){ const sh=P(bx+20-14,by-64,28,64,'shrine'); sh.flam=false; sh.lit=false; }   // a rest, halfway
+      if(i===16){ const sh2=P(12700-14,-1400-64,28,64,'shrine'); sh2.flam=false; sh2.lit=false; }   // and one at the top, before the old tree
       if(i===15){ const wv=spawnEnemy('weave',bx+95,by); wv.perch=true; }                     // the gardener, above you
       by-=112;
     }
@@ -1511,7 +1512,7 @@ function buildLevel2(){
     const cg=P(cx2,groundYAt(cx2)-54,42,54,'cage'); cg.flam=false; cg.hp=2;
   }
   for(const cx of CHECKPOINTS){
-    if(cx===12860) continue;
+    if(cx===12860||cx===12700) continue;
     const s=P(cx-14,groundYAt(cx)-64,28,64,'shrine');
     s.flam=false; s.lit=(cx===60);
   }
@@ -2992,7 +2993,7 @@ function updatePlayer(dt){
   }
   const wm=gp.aimT>0
     ? {x:p.x+gp.aimX*400, y:p.y+22+gp.aimY*400}   // right stick owns the aim while it moves
-    : {x:mouse.x+cam.x, y:mouse.y};
+    : {x:mouse.x+cam.x, y:mouse.y+cam.y};   // the aim lives in the world, not on the screen
   p.face=wm.x>=p.x?1:-1;
   const inSting=stings.some(st=>dist2(st.x,st.y,p.x,p.y+27)<st.r*st.r);
   const inSap=!!sapAt(p.x,p.y+p.h)||puddles.some(q=>Math.abs(q.x-p.x)<q.w/2&&Math.abs(q.y-(p.y+p.h))<22)||inSting;
@@ -3867,7 +3868,8 @@ function updateCam(dt){
   // the climb: camera rises with you, never below ground level
   // look ahead of a fast fall so the ground arrives on screen before you do
   const lead=player.vy>700?clamp((player.vy-700)*.25,0,220):0;
-  const ty=clamp(player.y+player.h-H*.62+lead,CAM_MIN_Y,0);
+  let ty=clamp(player.y+player.h-H*.62+lead,CAM_MIN_Y,0);
+  if(LVL===2&&boss&&!boss.dead&&boss.type==='thorn') ty=-1400-H*.72;   // the crown room: floor low, sky high
   cam.y=lerp(cam.y,ty,1-Math.pow(player.vy>700?.00002:.002,dt));
   shakeMag*=Math.pow(.001,dt);
   punchX*=Math.pow(.0004,dt); punchY*=Math.pow(.0004,dt);
@@ -5017,11 +5019,11 @@ function drawTerrain(t){
     const grad=ctx.createLinearGradient(tx0,0,tx0+tw,0);
     grad.addColorStop(0,'#3e2e1c'); grad.addColorStop(.45,'#54402a'); grad.addColorStop(.8,'#66502f'); grad.addColorStop(1,'#46351f');
     ctx.fillStyle=grad;
-    ctx.fillRect(tx0,-1560,tw,2200);
+    ctx.fillRect(tx0,LVL===4?-1560:-2300,tw,LVL===4?2200:2940);
     ctx.strokeStyle='rgba(28,20,12,.5)'; ctx.lineWidth=3;   // bark furrows
     for(const fx of [tx0+34,tx0+78,tx0+126,tx0+160]){
       ctx.beginPath();
-      for(let yy=-1540;yy<620;yy+=90)
+      for(let yy=(LVL===4?-1540:-2280);yy<620;yy+=90)
         ctx.lineTo(fx+Math.sin(yy*.01+fx)*7,yy);
       ctx.stroke();
     }
