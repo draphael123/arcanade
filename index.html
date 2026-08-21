@@ -199,6 +199,7 @@
       <button class="wmNode" id="bWmL1" style="left:320px;top:150px;width:150px;height:110px"></button>
       <button class="wmNode" id="bWmL2" style="left:590px;top:60px;width:150px;height:110px"></button>
       <button class="wmNode" id="bWmL3" style="left:640px;top:250px;width:150px;height:120px"></button>
+      <button class="wmNode" id="bWmL4" style="left:440px;top:20px;width:150px;height:110px"></button>
       <button class="wmNode" id="bWmShop" style="left:190px;top:150px;width:120px;height:90px;display:none"></button>
       <button class="wmNode" id="bWmArm" style="left:480px;top:250px;width:120px;height:90px"></button>
     </div>
@@ -260,7 +261,7 @@
     <div class="setrow"><label>Fullscreen</label><button class="btn small" id="bFull" style="margin:0;padding:5px 16px;font-size:12px">Toggle</button></div>
     <div id="bindRows" style="border-top:1px solid rgba(255,150,70,.2);margin-top:14px;padding-top:4px"></div>
     <div style="text-align:right"><button class="btn small" id="bBindReset" style="margin-top:4px;padding:5px 14px;font-size:11px">Reset keys</button></div>
-    <div class="setnote">music: "Teller of the Tales", "Celtic Impulse", "Master of the Feast", "Echoes of Time" — Kevin MacLeod (incompetech.com), CC BY 4.0</div>
+    <div class="setnote">music: "Teller of the Tales", "Celtic Impulse", "Master of the Feast", "Echoes of Time", "Five Armies" — Kevin MacLeod (incompetech.com), CC BY 4.0</div>
     <button class="btn small" id="bSetBack" style="margin-top:16px">Back</button>
   </div>
 </div>
@@ -343,6 +344,11 @@
       <h3>The Taproot</h3>
       <p>The Great Tree's true body, a root-mouth in black water. The bark turns spells. Only the open mouth is flesh &mdash; and when it withers, the floor goes with it.</p>
       <p class="tip">Jump the surge, read the marks, and pour everything into the gape. After half, the edges sink: live in the middle.</p>
+    </div></div>
+    <div class="bst"><canvas id="bc15" width="92" height="92"></canvas><div>
+      <h3>The Horn of Bone</h3>
+      <p>The warlords' last captain, on a beast the size of a horse, with the horn that bought a forest. It does not stand and fight. It runs the whole road, and everything you have killed runs with it.</p>
+      <p class="tip">Five grounds, one bar. Each ground has a rule that strips its armour; learn it, bleed a fifth, and chase. Dawdle and it heals. On the crown it drops the horn &mdash; pick it up.</p>
     </div></div>
     <div style="text-align:center"><button class="btn small parch" id="bBestBack" style="margin-top:16px">Close</button></div>
   </div>
@@ -542,7 +548,7 @@ const SFX={
 };
 
 /* ---------------- music (CC BY 4.0 — Kevin MacLeod, incompetech.com) ---------------- */
-const MUSIC={title:null,field:null,boss:null,heart:null,cur:null,dead:false};
+const MUSIC={title:null,field:null,boss:null,heart:null,horn:null,cur:null,dead:false};
 function initMusic(){
   if(MUSIC.field||MUSIC.dead) return;
   try{
@@ -550,7 +556,8 @@ function initMusic(){
     MUSIC.field=new Audio('audio/field.mp3');
     MUSIC.boss=new Audio('audio/boss.mp3');
     MUSIC.heart=new Audio('audio/heart.mp3');   // Echoes of Time — the inside of the tree
-    for(const a of [MUSIC.title,MUSIC.field,MUSIC.boss,MUSIC.heart]){
+    MUSIC.horn=new Audio('audio/horn.mp3');     // Five Armies — the Horn of Bone
+    for(const a of [MUSIC.title,MUSIC.field,MUSIC.boss,MUSIC.heart,MUSIC.horn]){
       a.loop=true; a.volume=SET.music*.7;
       a.addEventListener('error',()=>{MUSIC.dead=true;});
     }
@@ -761,10 +768,58 @@ const SPELL_DESC={BOLT:'steady fire, no surprises',SPREAD:'a fan of shots for cr
 const ZONE_NAMES={
   1:[[0,'The Field'],[1400,'The Moat'],[1960,'Forest Road'],[4400,'The Ravine'],[6260,'Burned Village'],[8000,'The River'],[8720,'Siege Camp'],[10600,'The Quarry'],[12400,'The Approach'],[13080,'The Wall']],
   2:[[0,'Forest Gate'],[1200,'Hollow Way'],[3200,'Bramble Maze'],[4400,'The Glade'],[5400,'The Marsh'],[6800,'Deep Wood'],[8800,'The Scar'],[10400,'The Roots'],[12400,'The Great Tree']],
-  3:[[0,'The Hollow'],[2000,'The Sapwell'],[2800,'The Heartwood'],[5400,'The Gall'],[7300,'The Descent'],[9400,'The Roots'],[12600,'The Taproot']]};
+  3:[[0,'The Hollow'],[2000,'The Sapwell'],[2800,'The Heartwood'],[5400,'The Gall'],[7300,'The Descent'],[9400,'The Roots'],[12600,'The Taproot']],
+  4:[[0,'The Causeway'],[2400,'The Gap'],[3400,'The Ridge'],[5500,'The Lowland'],[6400,'The Bog'],[7700,'The Ash'],[8850,'The Spire'],[10400,'The Crown']]};
 function floatText(x,y,txt,col,big){floaters.push({x,y,txt,col,t:1,big:!!big});}
 let setpiece={camp:0,campT:0,pack:0,packT:0,fall:0,fallT:0};
 let SAPS=[], drafts=[], puddles=[], CP_Y=null, BOSS_MARK=15860;
+/* ---- Level IV: the Horn of Bone. One boss, five stands, and the running between them. ---- */
+let HORN_STANDS=[], wisps=[], hornProp=null;
+const HORN_LORE={
+  causeway:['THE CAUSEWAY','It charges. It tires after. That is the whole of it, here.'],
+  ridge:['THE RIDGE','It rides the boughs above you. Three of them hold its road — take them.'],
+  bog:['THE BOG','It stands in the sap. Do to the sap what you do.'],
+  spire:['THE SPIRE','It climbs ahead of you. Get above it and it has no armour.'],
+  crown:['THE CROWN','On foot at last. Nothing left to run to.']};
+function hornStand(){return boss&&boss.type==='horn'?HORN_STANDS[boss.stand]:null;}
+function hornCall(b){
+  // the horn: everything you have killed answers it
+  const st=HORN_STANDS[b.stand]; if(!st) return;
+  const alive=enemies.filter(e=>!e.dead&&e.horn).length;
+  const cap=b.phase2?6:4;
+  if(alive>=cap) return;
+  SFX.roar(); SFX.chime(); shake(4); spawnRing(b.x,b.y+20,'rgb(235,225,200)');
+  tone('sawtooth',196,196,.5,.09); tone('sawtooth',294,294,.5,.07,.12); tone('sawtooth',392,392,.7,.07,.24);
+  const nfor=b.phase2?3:2;
+  for(let k=0;k<nfor&&alive+k<cap;k++){
+    let e=null;
+    const side=k%2?1:-1;
+    if(st.kind==='causeway'){e=spawnEnemy('foot',clamp(player.x+side*(240+k*40),st.x0-200,st.x1+200),undefined,.8);}
+    else if(st.kind==='ridge'){e=spawnEnemy('hound',clamp(player.x+side*300,st.x0-100,st.x1+100),600,.8);}
+    else if(st.kind==='bog'){e=spawnEnemy('grub',clamp(player.x+side*(120+k*60),st.x0,st.x1),600-520); e.ceil=false; e.vy=0;}
+    else if(st.kind==='spire'){const bough=solids.filter(s2=>s2.bough&&!s2.dead&&s2.x>st.x0&&Math.abs(s2.y-player.y)<260); const s2=bough[(k+Math.floor(Math.random()*bough.length))%Math.max(1,bough.length)]; if(s2) e=spawnEnemy('arch',s2.x+s2.w/2,s2.y,.8);}
+    else {e=spawnEnemy(k%2?'arch':'foot',clamp(player.x+side*280,st.x0+60,st.x1-60),-1200,.8);}
+    if(e){e.wave=true; e.horn=true;}
+  }
+}
+function hornStandStart(i){
+  const b=boss, st=HORN_STANDS[i];
+  b.stand=i; b.mode='stand'; b.stT=1.6; b.st='idle'; b.callT=2.5; b.standHp0=b.hp; b.arrived=gameTime; b.breath=false;
+  b.climbI=0; b.kickT=2; b.broken=false; b.vx=0;
+  if(st.kind==='ridge'){b.x=st.x0+260; b.y=380-b.h;}
+  else if(st.kind==='bog'){b.x=7050; b.y=560-b.h;}
+  else if(st.kind==='spire'){b.x=9470; b.y=groundYAt(9470)-b.h; b.climbI=0;}
+  else if(st.kind==='crown'){b.x=st.x0+700; b.y=-1200-b.h; b.w=40; b.h=92; b.mounted=false;}
+  else {b.x=st.x0+600; b.y=600-b.h;}
+  floatText(b.x,b.y-30,HORN_LORE[st.kind][0],'#ffd27a',true);
+  tip('stand_'+st.kind,HORN_LORE[st.kind][1]);
+}
+function hornFlee(){
+  const b=boss; b.mode='flee'; b.st='flee'; b.fleeFrom=b.stand; b.stand++;
+  for(const e of enemies) if(e.horn&&!e.dead){e.dead=true; e.deathT=.3; e.settled=true; e.corpseVx=0; e.corpseVy=0; e.spin=0; e.spinA=0;}
+  floatText(b.x,b.y-30,'IT RUNS','#ffd27a',true); SFX.roar(); SFX.javelin();
+  tip('chase','It runs for the next ground. Run it down — if it rests ten breaths before you arrive, it heals.');
+}
 /* ---- sap: the Great Tree's blood. Frost makes it a crust you can stand on; fire makes it an updraft you can ride. ---- */
 function sapAt(x,y){for(const sp of SAPS) if(x>sp.x0&&x<sp.x1&&y>sp.y-6&&y<sp.y+sp.d+40) return sp; return null;}
 function trySap(x,y){
@@ -776,6 +831,7 @@ function trySap(x,y){
       SFX.ignite(); hiss(.3,.08,1400);
       burst(x,sp.y,10,'rgb(255,190,90)',.6);
       tip('draft','The sap catches — and the heat climbs. Stand in it and rise.');
+      if(sp.stand) sp.broken=true;
     }else{
       const stack=solids.filter(c=>c.crust&&!c.dead&&c.pool===sp&&Math.abs(c.x+46-x)<70);
       if(stack.length>=4) return true;
@@ -785,6 +841,7 @@ function trySap(x,y){
       solids.push({x:cx-46,y:ny,w:92,h:12,crust:true,pool:sp,melt:45,oneWay:false,flam:false,burn:0,spreadT:0,dead:false});
       SFX.freeze(); burst(cx,ny+4,10,'rgb(255,225,170)',.5); spawnRing(cx,ny+4,'rgb(255,230,180)');
       tip('crust','Frozen sap bears weight — and freezes again on top of itself. Build a stair.');
+      if(sp.stand) sp.broken=true;
     }
     return true;
   }
@@ -826,6 +883,7 @@ const BOSS_CARDS={
   thorn:['OLD THORNHEART','older than the road, and it remembers'],
   hunt:['THE HUNTSMASTER','the packs answer no one else'],
   gall:['THE GALL-MOTHER','she is what the tree grew to keep you'],
+  horn:['THE HORN OF BONE','every corpse on this road answers it'],
   taproot:['THE TAPROOT','the tree was only ever the door'],
   cm:['THE CATAPULT MASTER','his machine is timber and tar']};
 function mixHex(a,b,t){
@@ -979,7 +1037,7 @@ function loadLevel(n){
       [5400,[70,125,115],.10],[6800,[40,85,60],.13],[8800,[135,115,90],.09],
       [10400,[115,95,60],.10],[12400,[235,175,95],.09],[14000,[235,175,95],.09]];
     buildLevel2(); BOSS_MARK=12550;
-  }else{
+  }else if(n===3){
     LEVEL=14000; WALLX=1e9; ARENA=12600; BOSS_TRIG=12700; CAM_MIN_Y=-2200-Math.round(H*.62)-110;
     WATERS=[{x0:9900,x1:10200},{x0:10700,x1:11000},{x0:12600,x1:13960}];
     CHASMS=[];
@@ -988,6 +1046,14 @@ function loadLevel(n){
     ZONES=[[0,[120,80,40],.10],[2000,[160,110,50],.10],[2800,[110,70,40],.12],[5400,[150,90,60],.12],
       [7300,[90,60,40],.13],[9400,[60,45,50],.12],[12600,[80,40,50],.14],[14000,[80,40,50],.14]];
     buildLevel3(); BOSS_MARK=BOSS_TRIG;
+  }else{
+    LEVEL=12000; WALLX=1e9; ARENA=0; BOSS_TRIG=240; CAM_MIN_Y=-1200-Math.round(H*.62)-110;
+    WATERS=[{x0:1000,x1:1240}];
+    CHASMS=[[2700,3000]];
+    CHECKPOINTS=[60,2450,3420,5520,6420,7720,8860,10460];
+    MARENA={x0:0,x1:0,trig:1e9,cam:0};
+    ZONES=[[0,[96,140,80],.05],[3400,[60,115,70],.09],[6400,[70,125,115],.10],[7700,[150,110,85],.09],[8850,[115,95,60],.10],[10400,[235,175,95],.09],[12000,[235,175,95],.09]];
+    buildLevel4(); BOSS_MARK=10500;
   }
   bakeBackdrop();
   // bought spells join the relic pool — duplicates make way for your grimoire
@@ -1191,6 +1257,63 @@ function buildLevel3(){
     {x:11100,done:false,list:[['root','L'],['root','R'],['weave','R']]},
   ];
 }
+function buildLevel4(){
+  resetWorld();
+  /* ============ IV · THE HORN OF BONE — one boss, the whole road ============ */
+  HORN_STANDS=[
+    {x0:1300,x1:2350,kind:'causeway'},
+    {x0:3500,x1:5300,kind:'ridge'},
+    {x0:6400,x1:7600,kind:'bog'},
+    {x0:8850,x1:10300,kind:'spire'},
+    {x0:10500,x1:11900,kind:'crown'}];
+  CP_Y={60:600,2450:600,3420:600,5520:600,6420:600,7720:600,8860:600,10460:-1200};
+  /* --- I. the causeway 0..2700 --- */
+  S(-80,600,1080,240);
+  S(1090,646,70,150,{stone:true,pier:true});
+  S(1240,600,1460,240);
+  /* --- the gap 2700..3000 (dash) --- */
+  S(3000,600,3400,240);
+  /* --- II. the ridge 3400..5500: the canopy road it rides --- */
+  {
+    let k=0;
+    for(let bx=3500;bx<=5300;bx+=260){ S(bx,k%2?470:440,160,14,{oneWay:true,flam:true,plank:true,bough:true,rootRight:!!(k%2)}); k++; }
+    for(const kx of [3900,4420,4940]) S(kx,380,180,16,{oneWay:true,flam:true,plank:true,bough:true,breakable:true,hp:7,keyBough:true,rootRight:kx>4400});
+    for(const tx of [3560,4080,4600,5120]) P(tx,380,44,220,'trunkS');
+  }
+  /* --- III. the bog 6400..7700 --- */
+  S(6400,600,450,240); S(6850,600,400,240,{bark:true}); S(7250,600,1600,240);
+  const pool={x0:6850,x1:7250,y:572,d:28,stand:true}; SAPS.push(pool);
+  S(7000,556,100,44,{bark:true,knot:true});                        // the knot it stands on
+  /* --- IV. the spire 8850..10400: a dead oak, the last climb --- */
+  S(8850,600,1550,240);
+  {
+    const L=(y)=>S(9380,y,180,16,{oneWay:true,plank:true,bough:true,rootRight:true});
+    const R=(y)=>S(9650,y,180,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+    let y=470, side=0;
+    for(let i=0;i<13;i++){ (side?R:L)(y); y-=125; side^=1; }     // 470 .. -1030
+  }
+  /* --- V. the crown 10400..12000 --- */
+  S(9400,-1200,2600,60,{bark:true});
+  S(10400,600,1600,240);                                           // the lowland under the crown — you can fall and climb back
+  S(11960,-1600,80,1000,{bark:true});
+  /* --- props --- */
+  const grassAt=[120,300,520,760,1300,1500,1700,1900,2100,2300,2500,3100,3300,3500,3700,3900,4100,4400,4700,5000,5200,5400,5700,6000,6200,6500,6700,7300,7500,7800,8100,8400,8700,9000,9200,10500,10800,11100,11400,11700];
+  for(const gx of grassAt) if(gx<10400||gx>=10400) P(gx,600-16,34,16,'grass');
+  for(const bx of [420,1800,2400,3200,5600,6600,7400,8300,9100]) P(bx,groundYAt(bx)-26,52,26,'bush');
+  for(const fx of [200,1400]) P(fx,570,92,30,'fence');
+  for(const tx of [5700,6000,7900,8200,8600]) P(tx,380,44,220,'trunkS');
+  for(const hx of [7800,8100,8500]) P(hx,600-84,120,84,'tent');
+  for(const cx of CHECKPOINTS){ const sh=P(cx-14,CP_Y[cx]-64,28,64,'shrine'); sh.flam=false; sh.lit=(cx===60); }
+  for(const bx2 of [10560,11840]){ const br=P(bx2,-1200-58,28,58,'brazier'); br.flam=false; }
+  pickups=[
+    {x:700,y:600-64,type:'SPREAD',t:0,got:false},
+    {x:3200,y:600-64,type:'LANCE',t:0,got:false},
+    {x:5900,y:600-64,type:'HEAVY',t:0,got:false},
+    {x:8300,y:600-64,type:'BREATH',t:0,got:false},
+    {x:10470,y:-1200-64,type:'LIFE',t:0,got:false},
+  ];
+  ambushes=[];                                                     // nothing lives here but what the horn calls
+}
 function buildLevel1(){
   resetWorld();
   /* ============ THE ROAD TO VHAL — ~17,000px ============ */
@@ -1356,7 +1479,7 @@ function startTutorialYard(){
   tut.active=true; tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   player=makePlayer(60); player.y=groundYAt(60)-56;
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
-  playMusic(LVL===3?'heart':'field');
+  playMusic(LVL===4?'horn':(LVL===3?'heart':'field'));
 }
 function groundYAt(x,below){
   let best=1e9;
@@ -1427,7 +1550,7 @@ function updateEnemies(dt){
     // knockback decay
     e.x+=e.kbVx*dt; e.kbVx*=Math.pow(.0005,dt);
     // boss arena: nothing wanders out while the Warden fights
-    if(boss&&!boss.dead&&e.type!=='ball'&&e.x>ARENA-10)
+    if(boss&&!boss.dead&&boss.type!=='horn'&&e.type!=='ball'&&e.x>ARENA-10)
       e.x=clamp(e.x,ARENA+22,ARENA+W-22);
     const px=player.x, dx=px-e.x, adx=Math.abs(dx);
     if(!e.aggroed&&e.emerge<=0&&adx<560&&e.type!=='ball'){e.aggroed=true; SFX.grunt(e.type);}
@@ -1571,7 +1694,15 @@ function rectsOverlap(ax,ay,aw,ah,bx,by,bw,bh){
 
 /* ---------------- boss: the Warden of Vhal ---------------- */
 function startBoss(){
-  if(LVL===3){
+  if(LVL===4){
+    const bhp=Math.round(900*DIFF().bossHp);
+    boss={type:'horn', x:1900, y:600-70, w:96, h:70, hp:bhp, max:bhp, face:-1, mounted:true,
+      st:'idle', stT:2.5, stand:0, mode:'stand', callT:3, hurtT:0, chillT:0, deadT:0, dead:false, throwN:0, throwT:0, walkT:0, hornThrown:false};
+    bossIntroT=2.6; SFX.roar(); SFX.javelin();
+    playMusic('horn');
+    hornStandStart(0);
+    tip('horn','The Horn of Bone. One bar of health for the whole road — and it will not stand and fight.');
+  }else if(LVL===3){
     const bhp=Math.round(280*DIFF().bossHp);
     boss={type:'taproot', x:ARENA+670, y:300, w:220, h:170, hp:bhp, max:bhp, face:-1,
       st:'idle', stT:2.2, atkN:0, marks:null, hurtT:0, chillT:0, deadT:0, dead:false, mouth:0};
@@ -1599,6 +1730,16 @@ function damageBoss(dmg,x,y){
   if(!b||b.dead) return;
   let mult=(b.st==='winded'?2:1)*(b.chillT>0?1.2:1);
   if(b.type==='taproot'&&b.st!=='gape'&&b.st!=='winded'){mult*=.15; if(dmg>=.5&&Math.random()<.25) tip('shut','Its mouth is shut — the bark turns your spells. Wait for it to gape.');}
+  if(b.type==='horn'){
+    if(b.mode==='flee') return;                                   // you cannot shoot a thing that is leaving
+    const st=HORN_STANDS[b.stand];
+    let armored=false;
+    if(st.kind==='ridge') armored=!b.broken;
+    else if(st.kind==='bog') armored=!b.broken;
+    else if(st.kind==='spire') armored=!(player.y<b.y-30);
+    else if(st.kind==='causeway') armored=b.st!=='winded';
+    if(armored){mult*=.12; if(dmg>=.5&&Math.random()<.2) tip('armored_'+st.kind,HORN_LORE[st.kind][1]);}
+  }
   b.hp-=dmg*mult;
   b.hurtT=.09;
   markSeen(b.type);
@@ -1633,6 +1774,10 @@ function updateBoss(dt){
       b.st='winded'; b.stT=1.2;
       floatText(b.x,b.y-30,'HE CASTS OFF THE SHIELD','#ffd27a',true);
       tip('warden2','The shield is down — he is faster, and there is nothing at his back now.');
+    }else if(b.type==='horn'){
+      // wounded: the horn calls louder, and more often
+      b.callT=Math.min(b.callT,1);
+      floatText(b.x,b.y-40,'THE HORN CALLS LOUDER','#ffd27a',true);
     }else if(b.type==='taproot'){
       // Wither: the water drains from the edges, the outer knots sink, and the brood comes up the drain
       for(const s of solids) if(s.knot&&s.edge&&!s.dead) s.sinkT=4;
@@ -1645,6 +1790,179 @@ function updateBoss(dt){
       floatText(b.x,b.y-30,'THE CANOPY FALLS','#ffd27a',true);
       tip('thorn2','The crown gives way — the whole canopy is coming down. Watch the marks.');
     }
+  }
+  if(b.type==='horn'){
+    const st=HORN_STANDS[b.stand];
+    const G=600;
+    b.face=player.x>b.x?1:-1;
+    // ---- fleeing between stands ----
+    if(b.mode==='flee'){
+      const tx=(st.kind==='ridge')?st.x0+260:(st.kind==='bog'?7050:(st.kind==='spire'?9470:(st.kind==='crown'?st.x0+700:st.x0+600)));
+      const spd=560;
+      b.x+=Math.sign(tx-b.x)*Math.min(spd*dt,Math.abs(tx-b.x)); b.walkT+=dt*16;
+      // it takes the ground's shape while it runs (and leaps the gap like it's nothing)
+      const gy=groundYAt(b.x,b.y-20);
+      if(st.kind==='ridge') b.y=lerp(b.y,380-b.h,1-Math.pow(.01,dt));
+      else if(st.kind==='bog') b.y=lerp(b.y,(Math.abs(b.x-7050)<80?556:G)-b.h,1-Math.pow(.01,dt));
+      else if(st.kind==='crown') b.y=lerp(b.y,-1200-b.h,1-Math.pow(.02,dt));
+      else b.y=lerp(b.y,(gy<900?gy:G)-b.h,1-Math.pow(.01,dt));
+      if(Math.random()<.7) spawnPart(b.x-b.face*30,b.y+b.h-4,rand(-40,40),rand(-60,-10),.3,3,'rgb(205,195,170)',300,true);
+      if(Math.abs(b.x-tx)<4){ hornStandStart(b.stand); }
+      return;
+    }
+    // ---- pursuit: if you dawdle, it catches its breath ----
+    if(!b.breath&&b.stand>0&&player.x<st.x0-240&&gameTime-b.arrived>10){
+      b.breath=true; b.hp=Math.min(b.max,b.hp+b.max*.05);
+      floatText(b.x,b.y-30,'IT CATCHES ITS BREATH  +5%','#9fd4ff',true); SFX.chime();
+    }
+    if(player.x<st.x0-260&&st.kind!=='causeway'){ b.walkT+=dt*2; return; }   // it waits for you at the stand
+    // ---- stand budget: it runs when it has bled a fifth ----
+    const budget=b.max*.2;
+    if(b.stand<4&&b.standHp0-b.hp>=budget){ hornFlee(); return; }
+    // ---- the horn ----
+    b.callT-=dt*cold;
+    if(b.callT<=0&&b.st!=='winded'){ b.callT=(b.phase2?4.5:6.5)*DIFF().eCad; hornCall(b); }
+    b.stT-=dt*cold;
+    if(st.kind==='causeway'){
+      // charges the causeway end to end; tires when it hits the turn
+      if(b.st==='idle'){ if(b.stT<=0){b.st='chargePrep'; b.stT=.7*enraged;} }
+      else if(b.st==='chargePrep'){ if(b.stT<=0){b.st='charge'; b.vx=b.face*780*DIFF().eSpd; SFX.roar();} }
+      else if(b.st==='charge'){
+        b.x+=b.vx*cold*dt; b.walkT+=dt*18;
+        if(Math.random()<.6) spawnPart(b.x-b.face*30,b.y+b.h-4,rand(-40,40),rand(-60,-10),.3,3,'rgb(205,195,170)',300,true);
+        if(b.x<st.x0||b.x>st.x1){ b.x=clamp(b.x,st.x0,st.x1); b.st='winded'; b.stT=1.6*enraged; SFX.clang(); shake(10); }
+      }
+      else if(b.st==='winded'){ if(b.stT<=0){b.st='idle'; b.stT=rand(.6,1.1)*enraged;} }
+    }else if(st.kind==='ridge'){
+      // rides the upper road between the three key boughs, raining javelins
+      const keys=solids.filter(s2=>s2.keyBough&&!s2.dead);
+      if(!b.broken&&keys.length===0){ b.broken=true; b.st='winded'; b.stT=2.6; b.y=G-b.h; SFX.slam(); shake(12); hitstop(.08); floatText(b.x,b.y-30,'THE ROAD IS GONE','#ffd27a',true); }
+      if(!b.broken){
+        b.y=380-b.h;
+        const tgt=keys.length?keys[Math.floor((gameTime*.35)%keys.length)].x+90:st.x0+600;
+        b.x+=Math.sign(tgt-b.x)*Math.min(220*cold*dt,Math.abs(tgt-b.x)); if(Math.abs(tgt-b.x)>4) b.walkT+=dt*10;
+        if(b.st==='idle'){ if(b.stT<=0){b.st='volleyPrep'; b.stT=.6*enraged;} }
+        else if(b.st==='volleyPrep'){ if(b.stT<=0){b.st='volley'; b.throwN=2; b.throwT=.1;} }
+        else if(b.st==='volley'){
+          b.throwT-=dt*cold;
+          if(b.throwT<=0&&b.throwN>0){ b.throwN--; b.throwT=.3;
+            const tx2=player.x+player.vx*.3, dx=tx2-b.x, dy=(player.y+8)-(b.y+20), T=clamp(Math.abs(dx)/520,.5,1.1), g=760;
+            eshots.push({x:b.x,y:b.y+20,vx:dx/T,vy:dy/T-.5*g*T,g,r:6,life:2.6,jav:true}); SFX.javelin(); }
+          if(b.throwN<=0&&b.throwT<=0){b.st='idle'; b.stT=rand(1.2,1.8)*enraged;}
+        }
+      }else{
+        // dismounted on the ground: Warden-lite
+        b.y=G-b.h;
+        if(b.st==='winded'){ if(b.stT<=0){b.st='idle'; b.stT=.8;} }
+        else if(b.st==='idle'){ const adx=Math.abs(player.x-b.x); if(adx>200){b.x+=b.face*150*cold*dt; b.walkT+=dt*9;} if(b.stT<=0){b.st='chargePrep'; b.stT=.7*enraged;} }
+        else if(b.st==='chargePrep'){ if(b.stT<=0){b.st='charge'; b.vx=b.face*720*DIFF().eSpd; b.stT=.6; SFX.roar();} }
+        else if(b.st==='charge'){ b.x+=b.vx*cold*dt; b.walkT+=dt*18; if(b.stT<=0||b.x<st.x0-100||b.x>st.x1+100){b.x=clamp(b.x,st.x0-100,st.x1+100); b.st='winded'; b.stT=1.2*enraged; SFX.clang();} }
+      }
+    }else if(st.kind==='bog'){
+      const pool=SAPS.find(sp=>sp.stand);
+      if(!b.broken&&pool&&pool.broken){ b.broken=true; b.st='winded'; b.stT=2.4; SFX.slam(); shake(10); hitstop(.08); floatText(b.x,b.y-30,'DUMPED','#ffd27a',true); burst(b.x,b.y+b.h,20,'rgb(255,190,90)'); }
+      if(!b.broken){
+        b.x=7050; b.y=556-b.h;
+        if(b.st==='idle'){ if(b.stT<=0){b.st='volleyPrep'; b.stT=.6*enraged;} }
+        else if(b.st==='volleyPrep'){ if(b.stT<=0){b.st='volley'; b.throwN=3; b.throwT=.1;} }
+        else if(b.st==='volley'){
+          b.throwT-=dt*cold;
+          if(b.throwT<=0&&b.throwN>0){ b.throwN--; b.throwT=.26;
+            const dx=player.x-b.x, dy=(player.y+8)-(b.y+20), T=clamp(Math.abs(dx)/520,.5,1.1), g=760;
+            eshots.push({x:b.x,y:b.y+20,vx:dx/T,vy:dy/T-.5*g*T,g,r:6,life:2.6,jav:true}); SFX.javelin(); }
+          if(b.throwN<=0&&b.throwT<=0){b.st='idle'; b.stT=rand(1.4,2)*enraged;}
+        }
+      }else{
+        // on the bank, shaking sap off: slow, angry, and hittable
+        const bankX=player.x<7050?6700:7400;
+        b.y=G-b.h;
+        if(b.st==='winded'){ b.x+=Math.sign(bankX-b.x)*Math.min(200*dt,Math.abs(bankX-b.x)); if(b.stT<=0){b.st='idle'; b.stT=.8;} }
+        else if(b.st==='idle'){ const adx=Math.abs(player.x-b.x); if(adx>180&&!(sapAt(b.x+b.face*40,G))){b.x+=b.face*140*cold*dt; b.walkT+=dt*9;} if(b.stT<=0){b.st='chargePrep'; b.stT=.7*enraged;} }
+        else if(b.st==='chargePrep'){ if(b.stT<=0){b.st='charge'; b.vx=b.face*700*DIFF().eSpd; b.stT=.5; SFX.roar();} }
+        else if(b.st==='charge'){ b.x+=b.vx*cold*dt; b.walkT+=dt*18; if(b.stT<=0||b.x<st.x0||b.x>st.x1){b.x=clamp(b.x,st.x0,st.x1); b.st='winded'; b.stT=1.3*enraged; SFX.clang();} }
+      }
+    }else if(st.kind==='spire'){
+      // climbs the dead oak a bough ahead of you, kicking rot down
+      const boughs=solids.filter(s2=>s2.bough&&!s2.dead&&s2.x>9300&&s2.x<9900).sort((a2,b2)=>b2.y-a2.y);
+      const top=boughs.length-1;
+      if(b.st==='idle'){
+        if(b.stT<=0){
+          // climb when you are within two boughs of it; the top bough is the end of its road
+          const myI=b.climbI, onB=boughs[myI];
+          const playerAbove=player.y<b.y-30;
+          if(myI<top&&(player.y<(onB?onB.y:G)+330||playerAbove)){ b.climbI++; b.st='leap'; b.stT=.42; b.leapFrom={x:b.x,y:b.y}; SFX.grunt('hound'); }
+          else { b.st='kickPrep'; b.stT=.6*enraged; }
+        }
+        const onB=boughs[b.climbI]; if(onB){ b.x=lerp(b.x,onB.x+onB.w/2,1-Math.pow(.02,dt)); b.y=onB.y-b.h; }
+      }else if(b.st==='leap'){
+        const onB=boughs[b.climbI]; const q=1-clamp(b.stT/.42,0,1);
+        if(onB){ b.x=lerp(b.leapFrom.x,onB.x+onB.w/2,q); b.y=lerp(b.leapFrom.y,onB.y-b.h,q)-Math.sin(q*Math.PI)*60; }
+        if(b.stT<=0){ b.st='idle'; b.stT=rand(1.2,2.2)*enraged; }
+      }else if(b.st==='kickPrep'){
+        if(b.stT<=0){ b.st='idle'; b.stT=rand(1.4,2.2)*enraged;
+          for(const ox of [-80,80]) eshots.push({x:clamp(player.x+ox,9340,9900),y:b.y-40,vx:0,vy:80,g:560,r:9,life:4,boulder:true,cold:true,wood:true});
+          SFX.breath(); shake(4); }
+      }
+      if(b.climbI>=top&&b.standHp0-b.hp<budget*.5&&!b.topWarned){ b.topWarned=true; tip('spiretop','It has nowhere higher to go. Get above it — the crown bough is yours.'); }
+    }else{ // crown: on foot, the Warden's tricks and one more
+      b.mounted=false;
+      const adx=Math.abs(player.x-b.x);
+      b.y=-1200-b.h;
+      if(b.hp<=b.max*.08&&!b.hornThrown){
+        b.hornThrown=true; b.st='winded'; b.stT=1.2;
+        hornProp={x:b.x-b.face*120,y:-1200-22,vy:-300,t:0};
+        floatText(b.x,b.y-30,'IT DROPS THE HORN','#ffd27a',true); SFX.clang(); shake(8);
+        tip('hornpick','The horn! Touch it — and let everything it ever called answer you instead.');
+      }
+      if(b.st==='idle'){
+        const want=adx>440?1:(adx<280?-1:0); b.x+=b.face*want*170*cold*dt; if(want) b.walkT+=dt*9;
+        if(b.stT<=0){ const r=Math.random();
+          if(r<.3){b.st='hornPrep'; b.stT=.9*enraged;} else if(r<.6){b.st='volleyPrep'; b.stT=.6*enraged;} else {b.st='chargePrep'; b.stT=.8*enraged;} }
+      }else if(b.st==='hornPrep'){
+        if(b.stT<=0){ b.st='hornBlast'; b.stT=.45; SFX.roar(); tone('sawtooth',110,130,.5,.14); shake(12); }
+      }else if(b.st==='hornBlast'){
+        // a cone of sound: in front of it, within 360, you are hit
+        const dx=player.x-b.x, dy=(player.y+28)-(b.y+20);
+        if(Math.sign(dx)===b.face&&Math.abs(dx)<360&&Math.abs(dy)<Math.abs(dx)*.5+40&&!player.dead) hitPlayer();
+        if(Math.random()<.9) spawnPart(b.x+b.face*rand(30,340),b.y+20+rand(-60,60),b.face*120,0,.2,3,'rgb(235,225,200)',0,true);
+        if(b.stT<=0){ b.st='winded'; b.stT=1.4*enraged; }
+      }else if(b.st==='volleyPrep'){ if(b.stT<=0){b.st='volley'; b.throwN=3; b.throwT=.1;} }
+      else if(b.st==='volley'){
+        b.throwT-=dt*cold;
+        if(b.throwT<=0&&b.throwN>0){ b.throwN--; b.throwT=.24;
+          const dx=player.x+player.vx*.3-b.x, dy=(player.y+8)-(b.y+20), T=clamp(Math.abs(dx)/520,.5,1.1), g=760;
+          eshots.push({x:b.x+b.face*20,y:b.y+20,vx:dx/T,vy:dy/T-.5*g*T,g,r:6,life:2.6,jav:true}); SFX.javelin(); }
+        if(b.throwN<=0&&b.throwT<=0){b.st='winded'; b.stT=1.0*enraged;}
+      }else if(b.st==='chargePrep'){ if(b.stT<=0){b.st='charge'; b.stT=.6; b.vx=b.face*820*DIFF().eSpd; SFX.roar();} }
+      else if(b.st==='charge'){
+        b.x+=b.vx*cold*dt; b.walkT+=dt*18;
+        if(b.x<st.x0+40||b.x>st.x1-40){ b.x=clamp(b.x,st.x0+40,st.x1-40); b.st='winded'; b.stT=1.5*enraged; SFX.clang(); shake(12); }
+        else if(b.stT<=0){b.st='winded'; b.stT=1.0*enraged;}
+      }else if(b.st==='winded'){ if(b.stT<=0){b.st='idle'; b.stT=rand(.8,1.3)*enraged;} }
+      b.x=clamp(b.x,st.x0+40,st.x1-40);
+    }
+    // the dropped horn, and what answers it
+    if(hornProp){
+      hornProp.vy+=1500*dt; hornProp.y+=hornProp.vy*dt; if(hornProp.y>-1200-22){hornProp.y=-1200-22; hornProp.vy=0;}
+      hornProp.t+=dt;
+      if(!player.dead&&Math.abs(player.x-hornProp.x)<30&&Math.abs(player.y+28-hornProp.y)<50){
+        hornProp=null; hitstop(.12); shake(14); SFX.roar(); SFX.chime();
+        tone('sawtooth',196,196,.8,.12); tone('sawtooth',294,294,.8,.1,.15); tone('sawtooth',392,392,1.1,.1,.3);
+        floatText(player.x,player.y-40,'THE DEAD ANSWER YOU','#ffd27a',true);
+        for(let k=0;k<12;k++) wisps.push({x:player.x+rand(-300,300),y:-1200+rand(-40,10),vx:0,vy:0,t:0,dmg:4});   // they soften it; the last blow is yours
+        b.st='winded'; b.stT=4.5;
+      }
+    }
+    for(const w of wisps){
+      w.t+=dt; const dx=b.x-w.x, dy=(b.y+30)-w.y, L=Math.hypot(dx,dy)||1;
+      w.vx=lerp(w.vx,dx/L*420,1-Math.pow(.01,dt)); w.vy=lerp(w.vy,dy/L*420-60,1-Math.pow(.01,dt));
+      w.x+=w.vx*dt; w.y+=w.vy*dt;
+      if(Math.random()<.6) spawnPart(w.x,w.y,rand(-20,20),rand(-20,20),.4,2.5,'rgb(235,225,200)',0,true);
+      if(L<30){ w.dead=true; damageBoss(w.dmg,w.x,w.y); spawnRing(w.x,w.y,'rgb(235,225,200)'); }
+    }
+    wisps=wisps.filter(w=>!w.dead&&w.t<6);
+    if(!player.dead&&rectsOverlap(b.x-b.w/2,b.y,b.w,b.h,player.x-player.w/2,player.y,player.w,player.h)) hitPlayer();
+    return;
   }
   if(b.type==='taproot'){
     const FLOOR=600;
@@ -2029,7 +2347,7 @@ function updateFire(dt){
   for(const o of flammables()){
     if(o.burn<=0) continue;
     o.burn-=dt; o.spreadT-=dt;
-    if(rainAmt>.2&&LVL===2&&o.x>5300&&o.x<6900){o.burn-=dt*1.3*rainAmt; o.spreadT+=dt*.6*rainAmt;}   // rain smothers
+    if(rainAmt>.2&&((LVL===2&&o.x>5300&&o.x<6900)||(LVL===4&&o.x>6400&&o.x<7700))){o.burn-=dt*1.3*rainAmt; o.spreadT+=dt*.6*rainAmt;}   // rain smothers
     const cx=o.x+o.w/2, cy=o.y+o.h/2;
     if(Math.random()<.4*pMul())    // calmer embers — fire shouldn't drown the scene
       spawnPart(o.x+rand(0,o.w), o.y+rand(0,o.h*.5), rand(-15,15), rand(-80,-25), rand(.35,.7), rand(2,3.5),'rgb(255,140,58)',0,true);
@@ -2140,7 +2458,8 @@ function killPlayer(){
   dmgFlashT=.7;
   burst(p.x,p.y+24,40,WPN('BOLT').color);
   burst(p.x,p.y+24,14,'rgb(255,230,180)');
-  if(boss&&!boss.dead){boss=null;bossIntroT=0;playMusic(LVL===3?'heart':'field');stopDrums();}
+  if(boss&&!boss.dead&&boss.type==='horn'){ boss.hp=Math.max(boss.hp,boss.standHp0||boss.hp); for(const e of enemies) if(e.horn) e.dead=true; wisps=[]; hornProp=null; boss.hornThrown=false; boss.pendingReset=true; }
+  else if(boss&&!boss.dead){boss=null;bossIntroT=0;playMusic(LVL===3?'heart':'field');stopDrums();}
   runLog.push({f:p.x/LEVEL,k:'death'});
   if(mboss&&!mboss.dead){mboss=null;mbIntroT=0;}
 }
@@ -2150,6 +2469,7 @@ function respawn(){
   player.slots=keepSlots; player.slot=keepSlot; player.weapon=keepSlots[keepSlot];
   player.y=((CP_Y&&CP_Y[cx]!==undefined)?CP_Y[cx]:groundYAt(cx))-56;
   eshots=[];
+  if(boss&&boss.pendingReset){ boss.pendingReset=false; if(boss.mode==='flee') boss.stand=Math.max(0,boss.stand); hornStandStart(boss.stand); for(const s2 of solids) if(s2.keyBough) s2.dead=false, s2.hp=s2.maxHp||7, s2.burn=0; const pl=SAPS.find(sp=>sp.stand); if(pl) pl.broken=false; }
   for(const e of enemies) if(Math.abs(e.x-cx)<520&&e.type!=='ball') e.dead=true;
 }
 function updatePlayer(dt){
@@ -2263,7 +2583,7 @@ function updatePlayer(dt){
       spawnPart(p.x+rand(-10,10),p.y+p.h-2,rand(-90,90),rand(-60,-10),rand(.25,.45),rand(2.5,4),'rgb(205,195,170)',300,true);
     shake(1.5);
   }
-  if(boss&&!boss.dead) p.x=clamp(p.x, ARENA+16, ARENA+W-16);
+  if(boss&&!boss.dead&&boss.type!=='horn') p.x=clamp(p.x, ARENA+16, ARENA+W-16);
   if(mboss&&!mboss.dead) p.x=clamp(p.x, MARENA.x0+16, MARENA.x1-16);
   p.x=clamp(p.x, 12, LEVEL-12);
   if(p.y>cam.y+H+140&&p.y>760) killPlayer();   // below the lowest ground, not merely below the camera
@@ -2893,7 +3213,7 @@ function shake(m){if(SET.shake) shakeMag=Math.min(24,shakeMag+m);}
 /* ---------------- camera ---------------- */
 function updateCam(dt){
   let target;
-  if(boss&&!boss.dead) target=ARENA-10;
+  if(boss&&!boss.dead&&boss.type!=='horn') target=ARENA-10;
   else if(mboss&&!mboss.dead) target=MARENA.cam;
   else target=player.x-W*.38;
   target=clamp(target,0,LEVEL-W);
@@ -3003,7 +3323,7 @@ function update(dt){
     if(s.sinkT>0){ s.sinkT-=dt; s.y+=55*dt; if(s.y>720){s.dead=true;} if(Math.random()<.3) spawnPart(s.x+rand(0,s.w),s.y,rand(-10,10),-rand(20,60),.5,2,'rgb(90,80,100)',0,false); }
   }
   // the marsh rains
-  const rainTarget=(LVL===2&&player.x>5400&&player.x<6800)?1:0;
+  const rainTarget=((LVL===2&&player.x>5400&&player.x<6800)||(LVL===4&&player.x>6400&&player.x<7700))?1:0;
   rainAmt=lerp(rainAmt,rainTarget,1-Math.pow(.3,dt));
   rainSfxT-=dt;
   if(rainAmt>.3&&rainSfxT<=0){rainSfxT=.5; hiss(.6,.028*rainAmt,3000);}
@@ -3058,6 +3378,8 @@ function update(dt){
     if(Math.abs(player.x-2080)<60&&player.y>300) tip('well','The Sapwell. Up, by bough and sap. Three gates are too tall to jump — use what you are.');
     if(Math.abs(player.x-3000)<70&&player.y<-2000) tip('grub','Things hang from the ceiling here. They let go when you are under them.');
     if(Math.abs(player.x-9500)<70) tip('black','Black water. It does not bear frost for long, and fire not at all.');
+  }else if(LVL===4){
+    if(Math.abs(player.x-2650)<60) tip('gap4','It leapt this. You dash it.');
   }
   if(bossIntroT>0){bossIntroT-=dt; if(bossIntroT<=0) musicFilter(18000,.5);}
   if(mbIntroT>0) mbIntroT-=dt;
@@ -3998,8 +4320,8 @@ function drawShotCores(){
 }
 function drawTerrain(t){
   // the Great Tree itself — the column every climb-branch grows from
-  if(LVL===2&&cam.x+W>12700&&cam.x<13400){
-    const tx0=12920, tw=190;
+  if((LVL===2&&cam.x+W>12700&&cam.x<13400)||(LVL===4&&cam.x+W>9300&&cam.x<9900)){
+    const tx0=LVL===4?9560:12920, tw=LVL===4?90:190;
     const grad=ctx.createLinearGradient(tx0,0,tx0+tw,0);
     grad.addColorStop(0,'#3e2e1c'); grad.addColorStop(.45,'#54402a'); grad.addColorStop(.8,'#66502f'); grad.addColorStop(1,'#46351f');
     ctx.fillStyle=grad;
@@ -4487,7 +4809,7 @@ function drawPickups(t){
   }
 }
 function drawArenaWall(t){
-  if(!boss||boss.dead||bossIntroT>0) return;
+  if(!boss||boss.dead||bossIntroT>0||boss.type==='horn') return;
   const fy=boss.type==='thorn'?-1400:WALLY;
   for(const wx of [ARENA+6, ARENA+W-6]){
     ctx.strokeStyle='rgba(255,90,60,.4)';
@@ -4774,6 +5096,63 @@ function drawBoss(t){
   const b=boss; if(!b) return;
   const {x,y,w,h}=b;
   if(!b.dead) drawShadowAt(x,y+h,w+28);
+  if(b.type==='horn'){
+    let falling=false;
+    if(b.dead){ const f=clamp(b.deadT/2,0,1); ctx.save(); ctx.translate(x,y+h); ctx.rotate(f*1.3*b.face); ctx.translate(-x,-(y+h)); ctx.globalAlpha=clamp(1-f*.8,0,1); falling=true; }
+    const F=b.face, tele=b.st==='chargePrep'||b.st==='volleyPrep'||b.st==='kickPrep'||b.st==='hornPrep', winded=b.st==='winded';
+    const stride=Math.sin(b.walkT||0)*7;
+    if(b.mounted){
+      // the war-beast: a hound the size of a horse
+      ctx.strokeStyle='#3a3028'; ctx.lineWidth=7;
+      ctx.beginPath();
+      ctx.moveTo(x-30,y+40); ctx.lineTo(x-34+stride,y+h); ctx.moveTo(x-16,y+40); ctx.lineTo(x-18-stride,y+h);
+      ctx.moveTo(x+16,y+40); ctx.lineTo(x+14+stride,y+h); ctx.moveTo(x+30,y+40); ctx.lineTo(x+34-stride,y+h);
+      ctx.stroke();
+      ctx.fillStyle='#54463a'; ctx.beginPath(); ctx.ellipse(x,y+34,46,20,0,0,TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+F*44,y+22,16,0,TAU); ctx.fill();
+      ctx.fillStyle='#3a3028'; ctx.fillRect(x+F*52,y+18,F*16,8);
+      ctx.beginPath(); ctx.moveTo(x+F*36,y+8); ctx.lineTo(x+F*42,y-6); ctx.lineTo(x+F*48,y+8); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='#54463a'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(x-F*44,y+28); ctx.lineTo(x-F*62,y+14+Math.sin(t*.02)*3); ctx.stroke();
+      ctx.fillStyle=tele?'#ffffff':'#c93c2a'; ctx.fillRect(x+F*48,y+16,4,4);
+      // bone barding
+      ctx.fillStyle='#e8e0cc'; for(let k=-2;k<=2;k++) ctx.fillRect(x+k*14-3,y+18,6,14);
+    }
+    // the rider: plate, a tattered red cloak, and the horn
+    const ry=b.mounted?y-44:y, rx=x-F*6;
+    ctx.fillStyle='#7a2418'; ctx.beginPath(); ctx.moveTo(rx-F*8,ry+18); ctx.quadraticCurveTo(rx-F*34,ry+40+Math.sin(t*.008)*4,rx-F*24,ry+66); ctx.lineTo(rx-F*4,ry+56); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#3a3028'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(rx-4,ry+48); ctx.lineTo(rx-6+(b.mounted?0:stride*.6),ry+(b.mounted?60:92)); ctx.moveTo(rx+4,ry+48); ctx.lineTo(rx+6-(b.mounted?0:stride*.6),ry+(b.mounted?60:92)); ctx.stroke();
+    ctx.fillStyle=tele?'#f2f4f6':'#8a8f98'; ctx.fillRect(rx-13,ry+16,26,34); if(!tele) tone2(rx-13,ry+16,26,34);
+    ctx.fillStyle=tele?'#f2f4f6':'#6f757f'; ctx.beginPath(); ctx.arc(rx-11,ry+20,7,0,TAU); ctx.arc(rx+11,ry+20,7,0,TAU); ctx.fill();
+    ctx.fillStyle=tele?'#f2f4f6':'#8a8f98'; ctx.beginPath(); ctx.arc(rx,ry+6,11,0,TAU); ctx.fill();
+    ctx.fillStyle='#2a2018'; ctx.fillRect(rx+F*2,ry+3,7,4);
+    // antlers on the helm
+    ctx.strokeStyle='#e8e0cc'; ctx.lineWidth=2.5; ctx.beginPath();
+    ctx.moveTo(rx-6,ry-2); ctx.lineTo(rx-14,ry-18); ctx.moveTo(rx-11,ry-11); ctx.lineTo(rx-18,ry-14);
+    ctx.moveTo(rx+6,ry-2); ctx.lineTo(rx+14,ry-18); ctx.moveTo(rx+11,ry-11); ctx.lineTo(rx+18,ry-14); ctx.stroke();
+    // the horn of bone — raised when it calls or blasts
+    const hornUp=b.callT<.6||b.st==='hornPrep'||b.st==='hornBlast';
+    if(!b.hornThrown){
+      ctx.strokeStyle='#f0e8d8'; ctx.lineWidth=6; ctx.lineCap='round';
+      ctx.beginPath();
+      if(hornUp){ ctx.moveTo(rx+F*8,ry+14); ctx.quadraticCurveTo(rx+F*26,ry-4,rx+F*30,ry-22); }
+      else { ctx.moveTo(rx-F*6,ry+30); ctx.quadraticCurveTo(rx-F*22,ry+36,rx-F*28,ry+22); }
+      ctx.stroke(); ctx.lineCap='butt';
+      if(hornUp) drawGlow(rx+F*30,ry-22,26,'rgb(235,225,200)',.7);
+    }
+    // spear arm
+    ctx.strokeStyle=tele?'#ffffff':'#cdd4dc'; ctx.lineWidth=3.5;
+    const sa=b.st==='volley'||b.st==='volleyPrep'?-1.1:(b.st==='charge'?0:-.35);
+    ctx.beginPath(); ctx.moveTo(rx+F*8,ry+30); ctx.lineTo(rx+F*8+Math.cos(sa)*F*46,ry+30+Math.sin(sa)*46); ctx.stroke();
+    if(winded) drawGlow(rx,ry-6,30,'rgb(255,190,90)',.8);
+    if(b.mode==='flee'){ ctx.fillStyle='rgba(235,225,200,.15)'; ctx.fillRect(x-w/2-20,y-50,w+40,h+50); }
+    if(b.hurtT>0){ ctx.fillStyle='rgba(255,255,255,.45)'; ctx.fillRect(x-w/2-4,ry-20,w+8,y+h-ry+24); }
+    if(b.chillT>0){ ctx.fillStyle='rgba(140,205,255,.25)'; ctx.fillRect(x-w/2-4,ry-20,w+8,y+h-ry+24); }
+    if(falling){ctx.restore();ctx.globalAlpha=1;}
+    // the dropped horn and the answering dead
+    if(hornProp){ drawGlow(hornProp.x,hornProp.y,30+Math.sin(t*.01)*6,'rgb(235,225,200)',.8); ctx.strokeStyle='#f0e8d8'; ctx.lineWidth=6; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(hornProp.x-14,hornProp.y+6); ctx.quadraticCurveTo(hornProp.x,hornProp.y-14,hornProp.x+16,hornProp.y-8); ctx.stroke(); ctx.lineCap='butt'; }
+    for(const w2 of wisps){ drawGlow(w2.x,w2.y,18,'rgb(235,225,200)',.7); ctx.fillStyle='#fff6e0'; ctx.beginPath(); ctx.arc(w2.x,w2.y,4,0,TAU); ctx.fill(); }
+    return;
+  }
   if(b.type==='taproot'){
     let falling=false;
     if(b.dead){
@@ -5572,7 +5951,7 @@ function doWin(){
 /* ---------------- bestiary + character portraits ---------------- */
 /* entries are earned: a foe appears in the book only after you've fought it */
 const BST_KEYS={bc0:'foot',bc1:'arch',bc5:'shield',bc6:'bomb',bc2:'ball',bc4:'cm',bc3:'warden',
-  bc7:'hound',bc8:'weave',bc9:'hunt',bc10:'thorn',bc11:'grub',bc12:'root',bc13:'gall',bc14:'taproot'};
+  bc7:'hound',bc8:'weave',bc9:'hunt',bc10:'thorn',bc11:'grub',bc12:'root',bc13:'gall',bc14:'taproot',bc15:'horn'};
 let bstSeen={};
 try{bstSeen=JSON.parse(localStorage.getItem('arcanade-bestiary')||'{}');}catch(e){}
 function markSeen(k){
@@ -5828,6 +6207,16 @@ function drawPortraits(tt){
     g.fillStyle='#ffd27a'; g.beginPath(); g.arc(0,8,3+open*4,0,TAU); g.fill();
     g.fillStyle='rgba(8,6,14,.8)'; g.fillRect(-46,30,92,20);
   },tt);
+  P2('bc15',(g,t)=>{ // the Horn of Bone: the horn rises
+    const up=.5+.5*Math.sin(t*.0018);
+    g.strokeStyle='#3a3028'; g.lineWidth=5; g.beginPath(); g.moveTo(-22,22); g.lineTo(-24,36); g.moveTo(-8,22); g.lineTo(-9,36); g.moveTo(8,22); g.lineTo(7,36); g.moveTo(22,22); g.lineTo(24,36); g.stroke();
+    g.fillStyle='#54463a'; g.beginPath(); g.ellipse(0,16,30,12,0,0,TAU); g.fill(); g.beginPath(); g.arc(28,8,10,0,TAU); g.fill();
+    g.fillStyle='#e8e0cc'; for(let k=-2;k<=2;k++) g.fillRect(k*10-2,6,4,10);
+    g.fillStyle='#7a2418'; g.beginPath(); g.moveTo(-6,-14); g.quadraticCurveTo(-24,0,-18,18); g.lineTo(-4,12); g.closePath(); g.fill();
+    g.fillStyle='#8a8f98'; g.fillRect(-9,-18,18,22); g.beginPath(); g.arc(0,-26,8,0,TAU); g.fill();
+    g.strokeStyle='#e8e0cc'; g.lineWidth=2; g.beginPath(); g.moveTo(-5,-32); g.lineTo(-11,-44); g.moveTo(5,-32); g.lineTo(11,-44); g.stroke();
+    g.strokeStyle='#f0e8d8'; g.lineWidth=5; g.lineCap='round'; g.beginPath(); g.moveTo(8,-10+up*8); g.quadraticCurveTo(20,-26+up*10,26,-36-up*6); g.stroke(); g.lineCap='butt';
+  },tt);
   P2('bc3',(g,t)=>{ // the Warden: plume alive, spear restless
     const jab=Math.max(0,Math.sin(t*.0015))*6;
     const fl2=Math.sin(t*.005)*3;
@@ -6023,6 +6412,17 @@ function drawWorldMap(tt){
     g.beginPath();g.moveTo(744,296);g.lineTo(750,303);g.lineTo(762,287);g.stroke();
   }
   if(l3open){ g.strokeStyle='rgba(90,60,30,.5)'; g.lineWidth=2; g.setLineDash([4,6]); g.beginPath();g.moveTo(680,150);g.quadraticCurveTo(760,200,715,280);g.stroke(); g.setLineDash([]); }
+  /* the Horn: the road run backwards */
+  const l4open=!!campaign.l3Cleared;
+  node(515,75,l4open,l4open&&!campaign.l4Cleared);
+  g.strokeStyle=l4open?'#e8e0cc':'#9a9488'; g.lineWidth=5; g.lineCap='round';
+  g.beginPath(); g.moveTo(498,62); g.quadraticCurveTo(515,30,536,44); g.stroke(); g.lineCap='butt';
+  if(l4open){ g.fillStyle='rgba(235,225,200,'+(0.3+0.3*Math.sin(t*.004))+')'; g.beginPath(); g.arc(536,44,8,0,TAU); g.fill(); }
+  g.font="13px 'Cinzel',Georgia"; g.fillStyle=l4open?'#5a3c1a':'#8a8272';
+  g.fillText('IV · THE HORN OF BONE',515,108);
+  g.font='italic 10px Georgia'; g.fillStyle=l4open?'#8a6f4a':'#8a8272';
+  g.fillText(campaign.l4Cleared?'the horn is silent':(l4open?'one bar of health, the whole road':'cut the root first'),515,122);
+  if(campaign.l4Cleared){ g.strokeStyle='#4a7a3c'; g.lineWidth=3; g.beginPath();g.moveTo(544,66);g.lineTo(550,73);g.lineTo(562,57);g.stroke(); }
 }
 
 /* ---------------- the wagon's stock ---------------- */
@@ -6275,7 +6675,7 @@ function startGame(){
   const startSpell=(shop.start==='BOLT'||shop.owned['sp_'+shop.start])?shop.start:'BOLT';
   player.slots=[startSpell,null,null]; player.slot=0; player.weapon=startSpell;
   runEmbers=0; petPos={x:60,y:player.y+player.h};
-  streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums();
+  streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums(); wisps=[]; hornProp=null;
   startAmbience();
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
   playMusic('field');
@@ -6291,6 +6691,9 @@ const INTROS={
   3:['The crown fell, and the Great Tree did not die. It opened. A throat of bark, going down into amber dark.',
      'The warlords never held this forest. Something older let them in &mdash; and it has been feeding on what they brought it.',
      'Every root leads to one root. Climb the sap, cross the heartwood, and fall.<br><b>Cut the Taproot.</b>'],
+  4:['The root is cut. The forest is quiet. And on the old causeway, where this began, a rider waits with a horn of bone.',
+     'It is the horn that bought the Thornwood. Every soldier, every hound, every grub you have put down will answer it &mdash; and it will not stand and fight you. It will run the whole road.',
+     'Five grounds. One bar of health. Run it down.<br><b>Silence the horn.</b>'],
 };
 function runIntro(){
   state='intro'; introStep=0; show('intro');
@@ -6318,6 +6721,10 @@ document.getElementById('bWmL2').onclick=()=>{
 };
 document.getElementById('bWmL3').onclick=()=>{
   if(campaign.l2Cleared){SFX.chime();pendingLevel=3;campaign.l3Cleared?startGame():runIntro();}
+  else {SFX.clink();tipMapLocked();}
+};
+document.getElementById('bWmL4').onclick=()=>{
+  if(campaign.l3Cleared){SFX.chime();pendingLevel=4;campaign.l4Cleared?startGame():runIntro();}
   else {SFX.clink();tipMapLocked();}
 };
 document.getElementById('bWmBack').onclick=()=>{state='charsel';show('charsel');};
