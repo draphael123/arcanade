@@ -406,7 +406,7 @@ function applySet(){
 const pMul=()=>SET.particles==='full'?1:.45;
 
 /* ---------------- audio: synth sfx ---------------- */
-let AC=null, master=null, noiseBuf=null;
+let AC=null, master=null, noiseBuf=null, verbGain=null;
 const sampleBufs={};
 const SAMPLE_FAMS={
   punch:'impactPunch_medium', punchH:'impactPunch_heavy',
@@ -445,6 +445,11 @@ function initAudio(){
     comp.threshold.value=-18; comp.knee.value=24; comp.ratio.value=6;
     comp.attack.value=.004; comp.release.value=.18;
     master.connect(comp); comp.connect(AC.destination);
+    // a reverb send: silent in the open, opened up inside stone and heartwood
+    verbGain=AC.createGain(); verbGain.gain.value=0;
+    const dl=AC.createDelay(.5), fb=AC.createGain(), lp=AC.createBiquadFilter();
+    dl.delayTime.value=.11; fb.gain.value=.38; lp.type='lowpass'; lp.frequency.value=1800;
+    master.connect(verbGain); verbGain.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(comp);
     noiseBuf=AC.createBuffer(1, AC.sampleRate*1.2, AC.sampleRate);
     const d=noiseBuf.getChannelData(0);
     for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
@@ -500,6 +505,17 @@ const SFX={
   javelin(){hiss(.14,.09,3200); tone('triangle',500,240,.12,.07);},
   slam(){tone('sine',70,26,.5,.24); hiss(.3,.16,350); smp('soft',.7,.7);},
   clang(){smp('metalH',.65,.9); tone('square',820,400,.16,.08);},
+  grunt(type){
+    const r=.85+Math.random()*.3;
+    if(type==='hound'){tone('sawtooth',420*r,180*r,.16,.05); hiss(.08,.03,1400);}
+    else if(type==='weave'){tone('sine',240*r,340*r,.22,.04);}
+    else {tone('sawtooth',150*r,95*r,.13,.05); hiss(.05,.02,900);}
+  },
+  deathCry(type){
+    const r=.85+Math.random()*.3;
+    if(type==='hound'){tone('sawtooth',520*r,140*r,.28,.05);}
+    else {tone('sawtooth',200*r,60*r,.26,.05); tone('sine',160*r,50*r,.3,.03,.05);}
+  },
 };
 
 /* ---------------- music (CC BY 4.0 — Kevin MacLeod, incompetech.com) ---------------- */
@@ -519,6 +535,7 @@ function initMusic(){
 function playMusic(which){
   initMusic();
   if(MUSIC.dead) return;
+  if(which==='boss') routeBossMusic();
   const tr=MUSIC[which];
   if(!tr||MUSIC.cur===tr) return;
   const old=MUSIC.cur;
@@ -721,6 +738,48 @@ const ZONE_NAMES={
   1:[[0,'The Field'],[1400,'The Moat'],[1960,'Forest Road'],[4400,'The Ravine'],[6260,'Burned Village'],[8000,'The River'],[8720,'Siege Camp'],[10600,'The Quarry'],[12400,'The Approach'],[13080,'The Wall']],
   2:[[0,'Forest Gate'],[1200,'Hollow Way'],[3200,'Bramble Maze'],[4400,'The Glade'],[5400,'The Marsh'],[6800,'Deep Wood'],[8800,'The Scar'],[10400,'The Roots'],[12400,'The Great Tree']]};
 function floatText(x,y,txt,col,big){floaters.push({x,y,txt,col,t:1,big:!!big});}
+let setpiece={camp:0,campT:0,pack:0,packT:0};
+let relicSeen={};
+try{relicSeen=JSON.parse(localStorage.getItem('arcanade-relics')||'{}');}catch(e){}
+const BOSS_CARDS={
+  warden:['THE WARDEN OF VHAL','he has held this wall for forty years'],
+  thorn:['OLD THORNHEART','older than the road, and it remembers'],
+  hunt:['THE HUNTSMASTER','the packs answer no one else'],
+  cm:['THE CATAPULT MASTER','his machine is timber and tar']};
+function mixHex(a,b,t){
+  const pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16);
+  const r=Math.round(((pa>>16)&255)*(1-t)+((pb>>16)&255)*t);
+  const g=Math.round(((pa>>8)&255)*(1-t)+((pb>>8)&255)*t);
+  const bl=Math.round((pa&255)*(1-t)+(pb&255)*t);
+  return 'rgb('+r+','+g+','+bl+')';
+}
+function levelFrac(){return clamp((player?player.x:0)/LEVEL,0,1);}
+function markElites(){
+  // one veteran per zone: gold-trimmed, twice the health, a banner so you can pick him out
+  const zones=ZONE_NAMES[LVL]||[];
+  for(let i=0;i<zones.length;i++){
+    const x0=zones[i][0], x1=i+1<zones.length?zones[i+1][0]:LEVEL;
+    const cands=enemies.filter(e=>!e.dead&&!e.wave&&e.type!=='ball'&&e.x>=x0+200&&e.x<x1-100&&(e.type==='foot'||e.type==='shield'||e.type==='arch'||e.type==='weave'));
+    if(!cands.length) continue;
+    const e=cands[Math.floor(cands.length/2)];
+    e.elite=true; e.hp*=2; e.maxHp=e.hp;
+  }
+}
+function musicFilter(f,ramp){
+  if(!AC||!MUSIC.filt) return;
+  try{MUSIC.filt.frequency.cancelScheduledValues(AC.currentTime);
+      MUSIC.filt.frequency.setTargetAtTime(f,AC.currentTime,ramp||.3);}catch(e){}
+}
+function routeBossMusic(){
+  // the boss track runs through a lowpass so the intro can hear it through a wall
+  if(!AC||MUSIC.routed||!MUSIC.boss) return;
+  try{
+    const src=AC.createMediaElementSource(MUSIC.boss);
+    MUSIC.filt=AC.createBiquadFilter(); MUSIC.filt.type='lowpass'; MUSIC.filt.frequency.value=18000; MUSIC.filt.Q.value=.7;
+    src.connect(MUSIC.filt); MUSIC.filt.connect(AC.destination);
+    MUSIC.routed=true;
+  }catch(e){}
+}
 function dirBurst(x,y,nn,c,ang){
   nn=Math.round(nn*pMul());
   for(let i=0;i<nn;i++){
@@ -1170,6 +1229,7 @@ function updateEnemies(dt){
     if(boss&&!boss.dead&&e.type!=='ball'&&e.x>ARENA-10)
       e.x=clamp(e.x,ARENA+22,ARENA+W-22);
     const px=player.x, dx=px-e.x, adx=Math.abs(dx);
+    if(!e.aggroed&&e.emerge<=0&&adx<560&&e.type!=='ball'){e.aggroed=true; SFX.grunt(e.type);}
     if(e.type!=='ball'){
       e.vy+=2200*dt; e.y+=e.vy*dt;
       let grounded=false;
@@ -1299,14 +1359,14 @@ function startBoss(){
     boss={type:'thorn', x:ARENA+1080, y:-1400-150, w:96, h:150, hp:bhp, max:bhp, face:-1,
       st:'idle', stT:2, atkN:0, marks:null, markT:0, hurtT:0, chillT:0, deadT:0, dead:false};
     bossIntroT=2.6; SFX.roar(); SFX.slam();
-    playMusic('boss');
+    playMusic('boss'); musicFilter(380,.05);
     tip('thorn','The old tree wakes. Its heartwood glows when it tires — strike then.');
   }else{
     const bhp=Math.round(260*DIFF().bossHp);
     boss={type:'warden', x:ARENA+900, y:WALLY-92, w:44, h:92, hp:bhp, max:bhp, face:-1,
       st:'step', stT:1.2, vx:0, throwN:0, throwT:0, hurtT:0, chillT:0, deadT:0, dead:false};
     bossIntroT=2.4; SFX.roar();
-    playMusic('boss');
+    playMusic('boss'); musicFilter(380,.05);
     tip('warden','He tires after each assault — strike when the plume burns bright.');
   }
 }
@@ -1340,6 +1400,21 @@ function updateBoss(dt){
   const cold=b.chillT>0?0.6:1;
   const enraged=b.hp<b.max*.5?0.75:1;   // faster below half
   if(b.hp<b.max*.5) startDrums();
+  // second act: the fight changes shape, not just its tempo
+  if(b.hp<b.max*.5&&!b.phase2){
+    b.phase2=true; hitstop(.12); shake(14); SFX.roar(); SFX.clang();
+    if(b.type==='warden'){
+      dropDebris(b.x-b.face*34,b.y+40,'shield',-b.face);
+      b.st='winded'; b.stT=1.2;
+      floatText(b.x,b.y-30,'HE CASTS OFF THE SHIELD','#ffd27a',true);
+      tip('warden2','The shield is down — he is faster, and there is nothing at his back now.');
+    }else{
+      b.st='collapsePrep'; b.stT=1.1;
+      b.marks=[0,1,2,3,4].map(i=>ARENA+90+i*(W-180)/4);
+      floatText(b.x,b.y-30,'THE CANOPY FALLS','#ffd27a',true);
+      tip('thorn2','The crown gives way — the whole canopy is coming down. Watch the marks.');
+    }
+  }
   if(b.type==='thorn'){
     // Old Thornheart is rooted — the arena is his reach
     const FLOOR=-1400;
@@ -1354,7 +1429,8 @@ function updateBoss(dt){
           const r=Math.random();
           if(r<.38){b.st='slamPrep'; b.stT=.6*enraged;}
           else if(r<.72||minions>=2){b.st='branchPrep'; b.stT=.9*enraged;
-            b.marks=[player.x+player.vx*.4, player.x-170, player.x+170].map(v=>clamp(v,ARENA+60,ARENA+W-60));}
+            b.marks=(b.phase2?[player.x+player.vx*.4, player.x-170, player.x+170, player.x-340, player.x+340]
+                             :[player.x+player.vx*.4, player.x-170, player.x+170]).map(v=>clamp(v,ARENA+60,ARENA+W-60));}
           else{b.st='summonPrep'; b.stT=.7*enraged;}
         }
       }
@@ -1362,7 +1438,7 @@ function updateBoss(dt){
       if(b.stT<=0){
         b.st='idle'; b.stT=rand(1.4,2)*enraged;
         for(const dir of [-1,1])
-          eshots.push({x:b.x-b.face*40,y:FLOOR-16,vx:dir*400,vy:0,g:0,r:14,life:2.4,wave:true});
+          eshots.push({x:b.x-b.face*40,y:FLOOR-16,vx:dir*(b.phase2?520:400),vy:0,g:0,r:14,life:2.4,wave:true});
         SFX.slam(); shake(11);
         burst(b.x-b.face*40,FLOOR-4,16,'rgb(150,120,80)');
       }
@@ -1383,6 +1459,14 @@ function updateBoss(dt){
         burst(ARENA+140,FLOOR-20,10,'rgb(150,210,110)');
         burst(ARENA+W-160,FLOOR-20,10,'rgb(150,210,110)');
       }
+    }else if(b.st==='collapsePrep'){
+      if(b.stT<=0){
+        b.st='idle'; b.stT=1.6;
+        for(const mx of b.marks)
+          eshots.push({x:mx,y:FLOOR-600,vx:0,vy:120,g:620,r:11,life:4,boulder:true,cold:true,wood:true});
+        b.marks=null; SFX.slam(); shake(12);
+        for(let k=0;k<6;k++) dropDebris(ARENA+rand(60,W-60),FLOOR-300,'bow',Math.random()<.5?-1:1);
+      }
     }else if(b.st==='winded'){
       if(b.stT<=0){b.st='idle'; b.stT=1.2*enraged;}
     }
@@ -1397,14 +1481,28 @@ function updateBoss(dt){
   if(b.st==='step'){
     // keeps spear range: ~420
     const want=adx>460?1:(adx<300?-1:0);
-    b.x+=b.face*want*150*cold*dt;
+    b.x+=b.face*want*(b.phase2?190:150)*cold*dt;
     if(want) b.walkT=(b.walkT||0)+dt*9;
     if(b.stT<=0){
       const r=Math.random();
-      if(adx>560&&r<.5){b.st='chargePrep';b.stT=.8*enraged;}
+      if(b.phase2&&adx<520&&r<.4){b.st='sweepPrep';b.stT=.7;}
+      else if(adx>560&&r<.5){b.st='chargePrep';b.stT=.8*enraged;}
       else if(r<.45){b.st='volleyPrep';b.stT=.6*enraged;}
       else if(r<.75){b.st='slamPrep';b.stT=.5*enraged;}
       else {b.st='chargePrep';b.stT=.8*enraged;}
+    }
+  }else if(b.st==='sweepPrep'){
+    // two-handed: a short lunge, then a low fan of spears — the safe place is behind him
+    if(b.stT<=0){b.st='sweep';b.stT=.26;b.vx=b.face*900;SFX.roar();}
+  }else if(b.st==='sweep'){
+    b.x+=b.vx*cold*dt; b.walkT=(b.walkT||0)+dt*18;
+    if(b.stT<=0){
+      b.st='winded'; b.stT=1.5;
+      for(const a of [-.35,-.12,.1]){
+        const spd=620;
+        eshots.push({x:b.x+b.face*24,y:b.y+30,vx:Math.cos(a)*spd*b.face,vy:Math.sin(a)*spd,g:300,r:6,life:2,jav:true});
+      }
+      SFX.javelin(); SFX.slam(); shake(9);
     }
   }else if(b.st==='volleyPrep'){
     if(b.stT<=0){b.st='volley';b.throwN=3;b.throwT=.1;}
@@ -1840,6 +1938,18 @@ function updatePlayer(dt){
   const wp=WPN(p.weapon);
   const aimA=Math.atan2(wm.y-(p.y+22), wm.x-p.x);
   const tipX=p.x+Math.cos(aimA)*30, tipY=p.y+22+Math.sin(aimA)*30;
+  // overcharge: hold the bolt down and let go — the staff gives back what it was holding
+  if(p.weapon==='BOLT'&&(mouse.down||gp.fire)&&state==='play'&&!paused&&!p.keg){
+    p.holdT=(p.holdT||0)+dt;
+    if(p.holdT>1.2&&Math.random()<.5) spawnPart(tipX+rand(-6,6),tipY+rand(-6,6),rand(-20,20),rand(-40,-10),.25,2,wp.color,0,true);
+  }else{
+    if((p.holdT||0)>=1.2&&p.weapon==='BOLT'&&!p.dead&&state==='play'){
+      shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd*1.15,vy:Math.sin(aimA)*wp.spd*1.15,g:0,r:wp.r*1.7,life:1.1,dmg:wp.dmg*2.6,c:wp.color,pierce:4,hitSet:[]});
+      castSfx('HEAVY'); kick(aimA,7); spawnRing(tipX,tipY,wp.color); shake(3);
+      floatText(tipX,tipY-16,'OVERCHARGE',wp.color,false);
+    }
+    p.holdT=0;
+  }
   if((mouse.down||gp.fire)&&state==='play'&&!paused&&!p.keg){
     tut.flags.fired=true;
     if(p.weapon==='LANCE'){
@@ -1900,7 +2010,9 @@ function updatePlayer(dt){
       SFX.pickup(); burst(pk.x,pk.y,20,WPN(pk.type).color);
       spawnRing(pk.x,pk.y,WPN(pk.type).color);
       tone('sine',880,1760,.25,.05);
-      relicCard={name:WPN(pk.type).name,desc:SPELL_DESC[pk.type]||'',slot:p.slot+1,t:3.4};
+      const firstTime=!relicSeen[cls+':'+pk.type];
+      if(firstTime){relicSeen[cls+':'+pk.type]=true; try{localStorage.setItem('arcanade-relics',JSON.stringify(relicSeen));}catch(e){}}
+      relicCard={name:WPN(pk.type).name,desc:SPELL_DESC[pk.type]||'',slot:p.slot+1,t:firstTime?6:3.4,total:firstTime?6:3.4,first:firstTime};
       runLog.push({f:p.x/LEVEL,k:'relic'});
       if(relicsFound===1) tip('relic','A second mode! Press '+lbl('swap')+' or right-click to cycle. Relics also mend your ward.');
       else tip('relic2','Three slots ride with you — a new relic replaces the next in the cycle.');
@@ -2053,6 +2165,12 @@ function damageEnemy(e,dmg,x,y,silent,launch){
     if(streakT>0) streakN++; else streakN=1;
     streakT=1.5;
     hitstop(.045+Math.min(streakN,5)*.012);
+    if(streakN===5&&player.wards<DIFF().wards){
+      player.wards++; SFX.chime(); spawnRing(player.x,player.y+24,'rgb(140,200,255)');
+      floatText(player.x,player.y-30,'WARD MENDED','#9fd4ff',true);
+    }
+    if(e.elite){earnEmbers(10); floatText(e.x,e.y-40,'VETERAN FELLED  +10','#ffd27a',false);}
+    SFX.deathCry(e.type);
     if(streakN>=2){
       floatText(e.x,e.y-22,'\u00d7'+streakN,'#ffd27a',true);
       smp('soft',.22+.08*Math.min(streakN,5),.75);
@@ -2072,7 +2190,7 @@ function damageEnemy(e,dmg,x,y,silent,launch){
     e.corpseVy=-rand(160,340)*L*(big?1.8:1);
     e.spin=(Math.random()<.5?-1:1)*rand(5,10)*(big?1.5:1)*(SET.ragdoll?1:.3);
     e.spinA=0; e.settled=false; e.bounced=false;
-    e.deathT=big?1.5:1.05;
+    e.deathT=big?1.5:1.05; e.deathT0=e.deathT;
     burst(e.x,e.y+e.h/2,10,isFire()?'rgb(255,154,60)':'rgb(170,220,255)');
     spawnRing(e.x,e.y+e.h/2,'rgb(255,190,110)');
     shake(big?4:2);
@@ -2327,6 +2445,39 @@ function updateAmbushes(dt){
       }
     }
   }
+  // set pieces: one scripted beat in the middle of each level
+  if(LVL===1&&setpiece.camp===0&&player.x>9000&&!player.dead){
+    setpiece.camp=1; setpiece.campT=6.5; SFX.ambush(); SFX.roar(); shake(6);
+    tone('sawtooth',110,100,.9,.08); tone('sawtooth',82,70,.9,.06,.1);
+    floatText(player.x,player.y-40,'THE CAMP WAKES','#ffd27a',true);
+    tip('camp','Every engine in the camp has found your range. Keep moving.');
+  }
+  if(setpiece.camp===1){
+    setpiece.campT-=dt; setpiece.stoneT=(setpiece.stoneT||0)-dt;
+    if(setpiece.stoneT<=0){
+      setpiece.stoneT=.55*DIFF().eCad;
+      const tx=player.x+rand(-140,260)+player.vx*.5;
+      eshots.push({x:tx,y:player.y-620,vx:0,vy:90,g:560,r:10,life:4,boulder:true});
+      SFX.javelin();
+      for(const pr of props) if(pr.kind==='catapult'&&!pr.dead&&Math.abs(pr.x-player.x)<900) burst(pr.x+pr.w*.5,pr.y+10,5,'rgb(200,190,170)',.5);
+    }
+    if(setpiece.campT<=0||player.x>10600) setpiece.camp=2;
+  }
+  if(LVL===2&&setpiece.pack===0&&player.x>5460&&!player.dead&&mboss&&mboss.dead){
+    setpiece.pack=1; setpiece.packT=5.5; SFX.roar(); shake(5);
+    tone('sawtooth',330,220,.6,.07); tone('sawtooth',440,300,.6,.05,.12);   // a horn, far off
+    floatText(player.x,player.y-40,'THE PACK IS LOOSE','#ffd27a',true);
+    tip('pack','The whole kennel is behind you. Across the marsh — don\'t stop.');
+  }
+  if(setpiece.pack===1){
+    setpiece.packT-=dt; setpiece.houndT=(setpiece.houndT||0)-dt;
+    if(setpiece.houndT<=0){
+      setpiece.houndT=1.1*DIFF().eCad;
+      const hx=Math.max(cam.x-40,5400);
+      const e=spawnEnemy('hound',hx,600,.5); e.wave=true;
+    }
+    if(setpiece.packT<=0||player.x>6900) setpiece.pack=2;
+  }
   if(!mboss&&player.x>MARENA.trig) startMBoss();
   if(!boss&&(LVL===1?player.x>BOSS_TRIG:(player.x>12500&&player.y<-1250))) startBoss();
 }
@@ -2468,6 +2619,11 @@ function update(dt){
   rainAmt=lerp(rainAmt,rainTarget,1-Math.pow(.3,dt));
   rainSfxT-=dt;
   if(rainAmt>.3&&rainSfxT<=0){rainSfxT=.5; hiss(.6,.028*rainAmt,3000);}
+  // stone and heartwood give the sound back
+  if(verbGain&&AC){
+    const inside=(LVL===2&&player.y<-140&&player.x>12400)||(LVL===1&&player.x>10600&&player.x<12400)||(LVL===2&&player.x>3200&&player.x<4400);
+    verbGain.gain.value+=((inside?.42:0)-verbGain.gain.value)*Math.min(1,dt*2.5);
+  }
   // the heart, when little else is left
   const danger=lives<=1&&player.wards<=0&&!player.dead;
   heartT-=dt;
@@ -2510,7 +2666,7 @@ function update(dt){
     if(Math.abs(player.x-1420)<80) tip('canopy','Two roads: the floor, or the branches above. '+(isFire()?'Mind your sparks up there — the canopy is tinder.':'The high road is drier. And flammable.'));
     if(Math.abs(player.x-12440)<80) tip('climb','The only way is up. The old tree drops dead wood on climbers.');
   }
-  if(bossIntroT>0) bossIntroT-=dt;
+  if(bossIntroT>0){bossIntroT-=dt; if(bossIntroT<=0) musicFilter(18000,.5);}
   if(mbIntroT>0) mbIntroT-=dt;
 }
 
@@ -2772,22 +2928,24 @@ function drawBakedBackdrop(t){
 function render(t){
   ctx.clearRect(0,0,W,H);
   const sky=ctx.createLinearGradient(0,0,0,H);
+  // the day turns as you cross the level: Vhal from late morning to golden hour, the Thornwood from dusk to moonlight
+  const tod=(state==='play'||state==='win'||state==='over')&&!tutorialMode?levelFrac():0;
   if(LVL===2){
-    // dusk under the canopy
-    sky.addColorStop(0,'#39536b'); sky.addColorStop(.4,'#4e6a5e');
-    sky.addColorStop(.68,'#7a9058'); sky.addColorStop(.88,'#c9a05a'); sky.addColorStop(1,'#a97a3e');
+    sky.addColorStop(0,mixHex('#39536b','#161f36',tod)); sky.addColorStop(.4,mixHex('#4e6a5e','#22324a',tod));
+    sky.addColorStop(.68,mixHex('#7a9058','#3a4a5a',tod)); sky.addColorStop(.88,mixHex('#c9a05a','#5b5a6a',tod)); sky.addColorStop(1,mixHex('#a97a3e','#4a4050',tod));
   }else{
-    sky.addColorStop(0,'#4f7fb8'); sky.addColorStop(.42,'#8fb6d8');
-    sky.addColorStop(.66,'#e3d9a8'); sky.addColorStop(.86,'#f2b96e'); sky.addColorStop(1,'#e89a48');
+    sky.addColorStop(0,mixHex('#4f7fb8','#5f5f9a',tod)); sky.addColorStop(.42,mixHex('#8fb6d8','#b88fa8',tod));
+    sky.addColorStop(.66,mixHex('#e3d9a8','#f0b078',tod)); sky.addColorStop(.86,mixHex('#f2b96e','#f08a50',tod)); sky.addColorStop(1,mixHex('#e89a48','#c86a3a',tod));
   }
   ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
-  const sunX=W*.7-cam.x*.02;
-  drawGlow(sunX,170,LVL===2?110:150,'rgb(255,240,200)',LVL===2?.5:.8);
-  ctx.fillStyle=LVL===2?'#ffedc2':'#fff6dc';
-  ctx.beginPath(); ctx.arc(sunX,170,LVL===2?34:46,0,TAU); ctx.fill();
+  const sunX=W*.7-cam.x*.02, sunY=170+tod*(LVL===2?-40:90);
+  const moon=LVL===2&&tod>.5;
+  drawGlow(sunX,sunY,LVL===2?110:150,moon?'rgb(200,215,255)':'rgb(255,240,200)',moon?.35:(LVL===2?.5:.8));
+  ctx.fillStyle=moon?mixHex('#ffedc2','#e8eeff',(tod-.5)*2):(LVL===2?'#ffedc2':mixHex('#fff6dc','#ffd9a0',tod));
+  ctx.beginPath(); ctx.arc(sunX,sunY,LVL===2?34:46,0,TAU); ctx.fill();
   // god rays leaning across the afternoon
   ctx.save();
-  ctx.translate(sunX,170);
+  ctx.translate(sunX,sunY);
   for(let i=0;i<4;i++){
     ctx.save();
     ctx.rotate(1.95+i*.34+Math.sin(t*.0002+i)*.05);
@@ -2974,6 +3132,29 @@ function drawGrade(){
   ctx.globalCompositeOperation='source-over';
 }
 function drawForeground(t){
+  // the nearest layer: soft, out-of-focus fronds and branches sliding past fastest
+  {
+    const par=1.85, step=420, start=Math.floor((cam.x*par-200)/step);
+    ctx.save(); ctx.filter='blur(2.5px)';
+    ctx.fillStyle=LVL===2?'rgba(14,24,14,.82)':'rgba(20,34,16,.72)';
+    for(let b=start;b*step-cam.x*par<=W+200;b++){
+      const k=(b*2246822519)>>>5;
+      if(k%2===0) continue;
+      const x=b*step-cam.x*par+(k%90);
+      const sway=Math.sin(t*.0012+b)*5;
+      if(cam.y>-90){   // a big fern at the feet
+        ctx.beginPath(); ctx.moveTo(x-60,H+10);
+        ctx.quadraticCurveTo(x-30+sway,H-110-(k%40),x+10+sway,H-150-(k%60));
+        ctx.quadraticCurveTo(x+40+sway,H-90,x+70,H+10); ctx.closePath(); ctx.fill();
+      }
+      if(LVL===2&&k%3===0){   // a branch reaching down from above
+        ctx.beginPath(); ctx.moveTo(x-40,-10);
+        ctx.quadraticCurveTo(x+20+sway,60+(k%50),x+90+sway,120+(k%40));
+        ctx.quadraticCurveTo(x+30+sway,70,x+60,-10); ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
   if(cam.y<-90) return;   // no meadow grass halfway up a tree
   // dark grass drifting past in front of the action
   const par=1.3, step=56, start=Math.floor((cam.x*par-90)/step);
@@ -3837,6 +4018,9 @@ function drawEnemies(t){
       ctx.rotate(e.spinA||0);
       ctx.translate(-x,-(y+h/2));
       ctx.globalAlpha=clamp(e.deathT/.35,0,1);
+      const age=(e.deathT0||1)-e.deathT;
+      if(age<.07) ctx.filter='brightness(6) saturate(0)';          // a white pop
+      else if(age<.2) ctx.filter='brightness(0)';                   // then the cut-out
     }
     // even soldiers breathe while they wait
     ctx.save();
@@ -3844,6 +4028,16 @@ function drawEnemies(t){
     if(e.leanT>0&&!e.dead){   // struck: lean away from the blow
       ctx.translate(x,y+h); ctx.rotate((e.leanDir||1)*.07*(e.leanT/.09)); ctx.translate(-x,-(y+h));
       ctx.translate((e.leanDir||1)*3,0);
+    }
+    if(e.elite){   // the veteran: a head taller, a banner at his back
+      ctx.translate(x,y+h); ctx.scale(1.12,1.12); ctx.translate(-x,-(y+h));
+      if(!e.dead){
+        ctx.strokeStyle='#5a3c1a'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(x-e.face*8,y+30); ctx.lineTo(x-e.face*8,y-26); ctx.stroke();
+        ctx.fillStyle='#d9a441';
+        ctx.beginPath(); ctx.moveTo(x-e.face*8,y-26); ctx.lineTo(x-e.face*8-e.face*22,y-20); ctx.lineTo(x-e.face*8,y-10); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#7a2418'; ctx.fillRect(x-e.face*8-e.face*14-3,y-21,5,5);
+      }
     }
     const stride=e.mov?Math.sin(e.walkT||0)*6:0;
     if(e.type==='foot'){
@@ -4045,12 +4239,16 @@ function drawEnemies(t){
       ctx.fillStyle='rgba(140,205,255,.28)';
       ctx.fillRect(x-w/2-2,y-2,w+4,h+4);
     }
-    if(hurt){
-      ctx.fillStyle='rgba(255,255,255,.55)';
+    if(hurt){   // hit flash carries the element that did it
+      ctx.fillStyle=isFire()?'rgba(255,255,255,.55)':'rgba(190,225,255,.6)';
       ctx.fillRect(x-w/2-3,y-3,w+6,h+6);
     }
+    if(e.elite&&!e.dead){
+      ctx.strokeStyle='rgba(230,180,70,.85)'; ctx.lineWidth=1.5;
+      ctx.strokeRect(x-w/2-1.5,y+12,w+3,h-12);
+    }
     ctx.restore();
-    if(e.dead){ctx.restore();ctx.globalAlpha=1;}
+    if(e.dead){ctx.restore();ctx.globalAlpha=1;ctx.filter='none';}
   }
 }
 function drawBoss(t){
@@ -4148,11 +4346,13 @@ function drawBoss(t){
   // pauldrons
   ctx.fillStyle=tele?'#f2f4f6':'#9aa4b0';
   ctx.beginPath();ctx.arc(x-w/2+4,y+26,10,0,TAU);ctx.arc(x+w/2-4,y+26,10,0,TAU);ctx.fill();
-  // tower shield on the off arm
-  ctx.fillStyle='#6b4a2e';
-  ctx.fillRect(x-F*34-8,y+24,16,52);
-  ctx.strokeStyle='#9aa4b0'; ctx.lineWidth=2;
-  ctx.strokeRect(x-F*34-7.5,y+24.5,15,51);
+  // tower shield on the off arm — until he throws it down
+  if(!b.phase2){
+    ctx.fillStyle='#6b4a2e';
+    ctx.fillRect(x-F*34-8,y+24,16,52);
+    ctx.strokeStyle='#9aa4b0'; ctx.lineWidth=2;
+    ctx.strokeRect(x-F*34-7.5,y+24.5,15,51);
+  }
   // helm
   ctx.fillStyle=tele?'#f2f4f6':'#b9c0ca';
   ctx.beginPath();ctx.arc(x,y+12,13,0,TAU);ctx.fill();
@@ -4170,12 +4370,13 @@ function drawBoss(t){
   ctx.strokeStyle='#8a929e'; ctx.lineWidth=5;
   ctx.beginPath();
   ctx.moveTo(x+F*8,y+28); ctx.lineTo(x+F*8,y+36);
-  ctx.moveTo(x-F*10,y+30); ctx.lineTo(x-F*30,y+42);
+  if(b.phase2){ctx.moveTo(x-F*10,y+30); ctx.lineTo(x+F*16,y+40);}   // both hands on the spear
+  else {ctx.moveTo(x-F*10,y+30); ctx.lineTo(x-F*30,y+42);}
   ctx.stroke();
   // spear
   ctx.strokeStyle=tele?'#ffffff':'#cdd4dc';
   ctx.lineWidth=3.5;
-  const sa=b.st==='volley'||b.st==='volleyPrep'?-1.1:(b.st==='charge'?0:-.35);
+  const sa=b.st==='volley'||b.st==='volleyPrep'?-1.1:(b.st==='charge'||b.st==='sweep'?0:(b.st==='sweepPrep'?.5:-.35));
   ctx.beginPath();
   ctx.moveTo(x+F*8,y+36);
   ctx.lineTo(x+F*8+Math.cos(sa)*F*48, y+36+Math.sin(sa)*48);
@@ -4277,6 +4478,10 @@ function drawPlayer(t){
   ctx.moveTo(x-p.face*5,y+20);
   ctx.lineTo(x-p.face*8,y+31);
   ctx.stroke();
+  if(p.holdT>.5&&p.weapon==='BOLT'){                        // the overcharge gathering at the tip
+    const q=clamp((p.holdT-.5)/.7,0,1);
+    drawGlow(x+Math.cos(a)*30,y+22+Math.sin(a)*30,14+q*22,WPN('BOLT').color,.35+q*.5);
+  }
   if(casting&&p.weapon==='NOVA'){                           // arms flung wide
     ctx.lineWidth=4; ctx.strokeStyle=C(CL.robeShade);
     ctx.beginPath(); ctx.moveTo(x-6,y+20); ctx.lineTo(x-22,y+12); ctx.moveTo(x+6,y+20); ctx.lineTo(x+22,y+12); ctx.stroke();
@@ -4507,6 +4712,18 @@ function corners(x,y,w2,h2){
   }
   ctx.stroke();
 }
+function drawBossCard(type,rem,total){
+  const [name,sub]=BOSS_CARDS[type]||[type,''];
+  const age=total-rem, a=clamp(age*2.5,0,1)*clamp(rem*1.6,0,1);
+  const slide=(1-clamp(age*2.2,0,1))*40;
+  ctx.save(); ctx.globalAlpha=a;
+  ctx.fillStyle='rgba(10,5,14,.72)'; ctx.fillRect(0,H/2-108,W,86);
+  ctx.fillStyle='rgba(255,200,120,.55)'; ctx.fillRect(W/2-200,H/2-108,400,1); ctx.fillRect(W/2-200,H/2-22,400,1);
+  ctx.textAlign='center';
+  ctx.fillStyle='#ffe2b0'; ctx.font='30px '+UIF; ctx.fillText(name,W/2+slide,H/2-68);
+  ctx.fillStyle='#c9a887'; ctx.font='italic 14px Georgia'; ctx.fillText(sub,W/2-slide*.5,H/2-40);
+  ctx.restore();
+}
 function drawHUD(t){
   if(state!=='play') return;
   const maxW=Math.max(DIFF().wards,player.wards);
@@ -4690,12 +4907,7 @@ function drawHUD(t){
     ctx.fillStyle='rgba(40,20,10,.8)'; ctx.fillRect(W/2-1,53,2,16);   // the enrage line
     if(boss.st==='winded'){ctx.font='11px '+UIF; ctx.fillStyle='#8a5a1a'; ctx.fillText('WINDED \u2014 STRIKE', W/2, 80);}
     corners(W/2-224,52,448,18);
-    if(bossIntroT>0){
-      ctx.globalAlpha=clamp(bossIntroT,0,1);
-      ctx.fillStyle='#7a2418'; ctx.font='32px '+UIF;
-      ctx.fillText(boss.type==='thorn'?'THE FOREST WAKES':'THE WARDEN ANSWERS', W/2, H/2-60);
-      ctx.globalAlpha=1;
-    }
+    if(bossIntroT>0) drawBossCard(boss.type,bossIntroT,2.6);
   }
   if(mboss&&!mboss.dead){
     ctx.textAlign='center'; ctx.fillStyle='#4a3826'; ctx.font='13px '+UIF;
@@ -4705,15 +4917,10 @@ function drawHUD(t){
     ctx.fillStyle='rgba(40,20,10,.8)'; ctx.fillRect(W/2-1,53,2,14);
     if(mboss.st==='winded'){ctx.font='11px '+UIF; ctx.fillStyle='#8a5a1a'; ctx.fillText('WINDED \u2014 STRIKE', W/2, 78);}
     corners(W/2-174,52,348,16);
-    if(mbIntroT>0){
-      ctx.globalAlpha=clamp(mbIntroT,0,1);
-      ctx.fillStyle='#7a2418'; ctx.font='26px '+UIF;
-      ctx.fillText(mboss.type==='hunt'?'THE HORN SOUNDS':'THE CAMP BARS THE ROAD', W/2, H/2-60);
-      ctx.globalAlpha=1;
-    }
+    if(mbIntroT>0) drawBossCard(mboss.type,mbIntroT,2);
   }
   if(relicCard){
-    const ease=Math.min(1,(3.4-relicCard.t)/.3)*Math.min(1,relicCard.t/.4);
+    const ease=Math.min(1,((relicCard.total||3.4)-relicCard.t)/.3)*Math.min(1,relicCard.t/.4);
     const cw=250, cx0=W-24-cw*ease, cy0=100;
     ctx.fillStyle='rgba(233,220,188,.95)'; ctx.fillRect(cx0,cy0,cw,64);
     ctx.strokeStyle='#8a6f4a'; ctx.lineWidth=2; ctx.strokeRect(cx0+.5,cy0+.5,cw-1,63);
@@ -4722,6 +4929,10 @@ function drawHUD(t){
     ctx.font='14px '+UIF; ctx.fillStyle='#5a3c1a'; ctx.fillText(relicCard.name,cx0+16,cy0+26);
     ctx.font='italic 12px Georgia'; ctx.fillStyle='#8a6f4a'; ctx.fillText(relicCard.desc,cx0+16,cy0+44);
     ctx.font='10px '+UIF; ctx.fillStyle='#8a5a1a'; ctx.textAlign='right'; ctx.fillText('SLOT '+relicCard.slot,cx0+cw-14,cy0+58);
+    if(relicCard.first){   // a ribbon for the first time you've ever held it
+      ctx.fillStyle='#7a2418'; ctx.fillRect(cx0+cw-92,cy0-8,84,16);
+      ctx.fillStyle='#ffe2b0'; ctx.font='9px '+UIF; ctx.textAlign='center'; ctx.fillText('NEW SPELL',cx0+cw-50,cy0+4);
+    }
   }
   if(player.dead){
     ctx.fillStyle='rgba(10,3,8,'+clamp(1-player.respawnT/1.4,0,.75)+')';
@@ -4757,6 +4968,12 @@ function doWin(){
   let idx=deaths===0?3:(deaths===1?2:(deaths<=3?1:0));
   if(gameTime>1500) idx=Math.max(0,idx-1);
   const rank=CLASSES[cls].ranks[idx];
+  // the grade: deaths decide most of it; rescues, trials and haste nudge it
+  let pts=idx+(rescued>=3?1:0)+(trialsFound>=2?1:0)+(gameTime<600?1:0);
+  const grade=pts>=5?'S':(pts>=4?'A':(pts>=2?'B':'C'));
+  const gradeBonus={S:100,A:60,B:30,C:0}[grade];
+  if(!tutorialMode&&gradeBonus) earnEmbers(gradeBonus);
+  const gradeCol={S:'#ffd27a',A:'#ffb267',B:'#c9a887',C:'#8a7260'}[grade];
   let bestLine='';
   try{
     const key='arcanade-best-'+cls+'-'+diff;
@@ -4770,7 +4987,9 @@ function doWin(){
     }
   }catch(e){}
   document.getElementById('winStats').innerHTML=
-    '<span style="font-family:Cinzel,Georgia,serif;font-size:22px;letter-spacing:.2em;color:#ffe9c9">'+rank+'</span><br>'+
+    '<span style="display:inline-block;font-family:Cinzel,Georgia,serif;font-size:54px;line-height:1;color:'+gradeCol+';text-shadow:0 0 18px '+gradeCol+'66;margin-right:18px;vertical-align:middle">'+grade+'</span>'+
+    '<span style="font-family:Cinzel,Georgia,serif;font-size:22px;letter-spacing:.2em;color:#ffe9c9;vertical-align:middle">'+rank+'</span>'+
+    (gradeBonus?' <span style="color:#e8a84a;font-size:12px;vertical-align:middle">+'+gradeBonus+' grade embers</span>':'')+'<br>'+
     'time <b>'+m+':'+String(s).padStart(2,'0')+'</b> &nbsp;·&nbsp; deaths <b>'+deaths+
     '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; rescued <b>'+rescued+
     '</b> &nbsp;·&nbsp; trials <b>'+trialsFound+'</b>'+
@@ -5423,6 +5642,8 @@ function hideAll(){OVERLAYS.forEach(o=>ov(o).classList.add('hidden'));}
 let pendingLevel=1;
 function startGame(){
   loadLevel(pendingLevel);
+  markElites();
+  setpiece={camp:0,campT:0,pack:0,packT:0};
   gameTime=0; deaths=0; kills=0; relicsFound=0; checkpoint={x:60}; cpFlashT=0; ambushT=0;
   bridgeTorched=false;
   lives=DIFF().lives;
