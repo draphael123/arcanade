@@ -141,6 +141,55 @@
     text-shadow:0 0 24px rgba(255,140,58,.9),0 0 90px rgba(255,110,40,.5)}
   #win .stats{margin-top:20px;color:#c9a887;font-size:17px;line-height:2;letter-spacing:.1em}
   #win .stats b{color:#ffd9a8}
+  /* ===== the manuscript: every page lies on the same dark table ===== */
+  .overlay{transition:opacity .22s ease,transform .22s ease;transform:translateX(0)}
+  .overlay.hidden{transform:translateX(22px)}
+  #settings .panel,#pause .panel,#jukebox .panel{background:#e9dcbc;color:#3a2c1a;border:3px double #8a6f4a;
+    box-shadow:0 30px 90px rgba(0,0,0,.55);position:relative;transform:rotate(-.35deg);padding:38px 52px 30px}
+  #store .panel,#armory .panel,#chronicle .panel,#worldmap .panel,#bestiary .panel{position:relative;transform:rotate(.3deg)}
+  #settings .panel::before,#pause .panel::before,#jukebox .panel::before,#store .panel::before,#armory .panel::before,
+  #chronicle .panel::before,#bestiary .panel::before,#worldmap .panel::before,#win .page::before,#gameover .page::before{
+    content:'✦';position:absolute;top:10px;left:0;right:0;color:#8a6f4a;letter-spacing:.6em;font-size:11px;text-align:center;pointer-events:none}
+  .seal,#settings .panel::after,#pause .panel::after,#jukebox .panel::after,#win .page::after,#gameover .page::after,#chronicle .panel::after{
+    content:'';position:absolute;right:16px;top:12px;width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle at 40% 35%,#c4503a,#7a2418 70%);box-shadow:0 2px 5px rgba(0,0,0,.4),inset 0 0 0 3px rgba(255,200,150,.15)}
+  #settings h2,#pause h2,#jukebox h2{color:#5a3c1a;margin-bottom:6px}
+  #settings h2::first-letter,#pause h2::first-letter,#jukebox h2::first-letter,#bestiary h2::first-letter,#store h2::first-letter,
+  #armory h2::first-letter,#chronicle h2::first-letter,#worldmap h2::first-letter,#win h1::first-letter,#gameover h1::first-letter{
+    color:#8a2f1a;font-size:1.45em;background:rgba(201,162,39,.22);border:1px solid rgba(201,162,39,.7);padding:0 .12em;margin-right:.14em}
+  .rubric{color:#8a2f1a;font-style:italic;font-size:12px;letter-spacing:.1em;margin:0 0 18px}
+  .setrow label{color:#4a3826} .setnote{color:#8a6f4a}
+  .setrow input[type=range]{accent-color:#8a2f1a}
+  .toggle{width:26px;height:26px;border-radius:50%;border:1px solid #8a6f4a;background:rgba(90,60,30,.08);transition:all .15s}
+  .toggle::after{display:none}
+  .toggle.on{background:radial-gradient(circle at 40% 35%,#c4503a,#7a2418 70%);box-shadow:0 2px 4px rgba(0,0,0,.35),inset 0 0 0 3px rgba(255,200,150,.15);border-color:#5a1a10}
+  .seg{border-color:#8a6f4a} .seg span{color:#8a6f4a} .seg span.on{background:rgba(138,47,26,.18);color:#5a1a10}
+  #settings .btn,#pause .btn,#jukebox .btn,#win .btn,#gameover .btn,#charsel .btn{border-color:#8a6f4a;color:#5a3c1a;background:rgba(90,60,30,.06)}
+  #settings .btn:hover,#pause .btn:hover,#jukebox .btn:hover,#win .btn:hover,#gameover .btn:hover,#charsel .btn:hover,.btn.parch:hover{
+    background:rgba(90,60,30,.14);color:#3a2c1a;border-color:#5a3c1a;text-shadow:none;
+    box-shadow:0 0 0 5px rgba(90,60,30,.07),inset 0 0 16px rgba(90,60,30,.16)}   /* ink bleeds under the hand */
+  /* the two pages you see most */
+  #win .page,#gameover .page{background:#e9dcbc;color:#3a2c1a;border:3px double #8a6f4a;padding:36px 58px 28px;max-width:780px;
+    box-shadow:0 30px 90px rgba(0,0,0,.55);position:relative;transform:rotate(.4deg)}
+  #win h1,#gameover h1{color:#5a3c1a!important;text-shadow:none!important;font-size:clamp(34px,5.6vw,64px)!important}
+  #win .tagline,#gameover .tagline{color:#8a2f1a}
+  #win .stats,#gameover .stats{color:#4a3826!important} #win .stats b,#gameover .stats b{color:#8a2f1a}
+  #win .tagline::before,#gameover .tagline::before{content:'— '} #win .tagline::after,#gameover .tagline::after{content:' —'}
+  /* character select as a book: each card a page */
+  .card-ch{background:#e9dcbc;color:#3a2c1a;border:1px solid #8a6f4a;box-shadow:inset 0 0 40px rgba(90,60,30,.12),0 20px 60px rgba(0,0,0,.5);
+    position:relative;transform:rotate(-.3deg)} .card-ch:nth-child(even){transform:rotate(.3deg)}
+  .card-ch:hover{transform:translateY(-6px) rotate(0)}
+  .card-ch::before{content:'';position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(90deg,rgba(90,60,30,.28),transparent)}
+  .card-ch h3::first-letter{color:#8a2f1a;font-size:1.5em}
+  .card-ch.fire h3{color:#a83c30} .card-ch.frost h3{color:#33598a} .card-ch.storm h3{color:#55388a} .card-ch.paladin h3{color:#8a6416}
+  .card-ch p{color:#4a3826} .card-ch .cstats{color:#8a6f4a;border-top:1px dotted rgba(90,60,30,.4);padding-top:8px} .card-ch .cstats b{color:#8a2f1a}
+  .card-ch .lock{color:#8a2f1a}
+  .card-ch.locked{opacity:.75;filter:sepia(.35) grayscale(.45);border-style:dashed}
+  .card-ch.locked::after{content:'';position:absolute;inset:10px;border:1px dashed rgba(138,47,26,.35);pointer-events:none}
+  .card-ch.fire:hover{box-shadow:0 0 0 1px #a83c30,0 20px 60px rgba(0,0,0,.5)} .card-ch.frost:hover{box-shadow:0 0 0 1px #33598a,0 20px 60px rgba(0,0,0,.5)}
+  .card-ch.storm:hover{box-shadow:0 0 0 1px #55388a,0 20px 60px rgba(0,0,0,.5)} .card-ch.paladin:hover{box-shadow:0 0 0 1px #8a6416,0 20px 60px rgba(0,0,0,.5)}
+  .card-ch canvas{background:radial-gradient(circle at 50% 35%,#f7efd8,#d8c398);border-radius:50%;border:1px solid #8a6f4a}
+  #bestiary .bst h3::first-letter{color:#8a2f1a;font-size:1.4em}
 </style>
 </head>
 <body>
@@ -207,6 +256,7 @@
 </div>
 
 <div id="gameover" class="overlay hidden">
+  <div class="page">
   <h1 style="font-size:clamp(36px,6vw,72px);letter-spacing:.14em;font-weight:normal;color:#d8b8a0;
     text-shadow:0 0 24px rgba(180,60,40,.7)">THE SIEGE FAILS</h1>
   <div class="tagline">the Wall has taken another</div>
@@ -214,6 +264,7 @@
   <div class="btnrow">
     <button class="btn" id="bRetry">March Again</button>
     <button class="btn" id="bGoTitle">Return to Title</button>
+  </div>
   </div>
 </div>
 
@@ -293,6 +344,7 @@
 <div id="settings" class="overlay hidden">
   <div class="panel">
     <h2>SETTINGS</h2>
+    <div class="rubric">how the road will feel</div>
     <div class="setrow"><label>Sound volume</label><input type="range" id="sVol" min="0" max="100" value="60"></div>
     <div class="setrow"><label>Music volume</label><input type="range" id="sMus" min="0" max="100" value="50"></div>
     <div class="setrow"><label>Screen shake</label><div class="toggle on" id="sShake"></div></div>
@@ -407,6 +459,7 @@
 <div id="jukebox" class="overlay hidden">
   <div class="panel">
     <h2>SOUND TEST</h2>
+    <div class="rubric">every note, every blow</div>
     <div style="color:#8a7260;font-size:12px;font-style:italic;margin-bottom:14px">music by Kevin MacLeod (incompetech.com), CC BY 4.0 &middot; effects by Kenney, CC0</div>
     <div id="jukeList" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;text-align:left;max-width:640px;margin:0 auto 16px"></div>
     <div id="jukeSfx" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:640px;margin:0 auto 18px"></div>
@@ -417,6 +470,7 @@
 <div id="pause" class="overlay hidden">
   <div class="panel">
     <h2>PAUSED</h2>
+    <div class="rubric">the siege waits on you</div>
     <canvas id="pauseMap" width="640" height="90" style="display:block;width:100%;max-width:600px;margin:0 auto 10px"></canvas>
     <button class="btn small" id="bResume">Resume</button>
     <button class="btn small" id="bBestP">Bestiary</button>
@@ -428,11 +482,13 @@
 </div>
 
 <div id="win" class="overlay hidden">
+  <div class="page">
   <h1>THE WALL FALLS</h1>
   <div class="tagline">the lowlands are ash no longer</div>
   <div class="stats" id="winStats"></div>
   <canvas id="winTimeline" width="520" height="56" style="display:block;width:100%;max-width:520px;margin:10px auto 0"></canvas>
   <button class="btn" id="bAgain" style="margin-top:26px">Ride Again</button>
+  </div>
 </div>
 
 <script>
@@ -3794,7 +3850,7 @@ function setTutSteps(yard){
 }
 function tip(key,text){
   if(tut.done[key]||!SET.tut) return;
-  tut.done[key]=true; tut.tipText=text; tut.tipT=5;
+  tut.done[key]=true; tut.tipText=text; tut.tipT=5; tut.tipMax=tut.tipT; if(AC) hiss(.06,.02,3800);
 }
 function updateTut(dt){
   tut.tipT-=dt;
@@ -6352,6 +6408,40 @@ function drawVignette(t){
   }
 }
 const UIF="'Cinzel',Georgia,serif";
+function inkGauge(x,y,w,h,v,col,thresh){
+  // a gauge drawn with a quill: a wobbling outline, hatched fill, a rubric mark at the threshold
+  ctx.strokeStyle='rgba(74,56,38,.85)'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(x,y+.6); ctx.lineTo(x+w,y-.4); ctx.lineTo(x+w+.5,y+h); ctx.lineTo(x-.4,y+h+.5); ctx.closePath(); ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.rect(x,y,w*v,h); ctx.clip();
+  ctx.strokeStyle=col; ctx.lineWidth=1.4; ctx.beginPath();
+  for(let xx=x-h;xx<x+w;xx+=4){ ctx.moveTo(xx,y+h); ctx.lineTo(xx+h,y); }
+  ctx.stroke(); ctx.restore();
+  if(thresh!==null&&thresh!==undefined){ const tx=x+w*thresh; ctx.fillStyle='#8a2f1a'; ctx.beginPath(); ctx.moveTo(tx,y-4); ctx.lineTo(tx+3,y-1); ctx.lineTo(tx-3,y-1); ctx.closePath(); ctx.fill(); }
+}
+function goldText(txt,x,y,size){
+  ctx.font=size+'px '+UIF; ctx.textAlign='center';
+  const gr=ctx.createLinearGradient(0,y-size,0,y+2); gr.addColorStop(0,'#fff1c8'); gr.addColorStop(.5,'#c9a227'); gr.addColorStop(1,'#7a5a16');
+  ctx.strokeStyle='rgba(40,20,10,.6)'; ctx.lineWidth=3; ctx.strokeText(txt,x,y);
+  ctx.fillStyle=gr; ctx.fillText(txt,x,y);
+}
+function ornateBar(x,y,w,h,v,winded,initial){
+  // end-caps, a hatched fill, the enrage line, and a medallion bearing the boss's initial
+  ctx.fillStyle='rgba(20,10,25,.55)'; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=winded?'#ffe9b0':'#ff8c3a'; ctx.fillRect(x,y,w*v,h);
+  ctx.save(); ctx.beginPath(); ctx.rect(x,y,w*v,h); ctx.clip(); ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1; ctx.beginPath();
+  for(let xx=x-h;xx<x+w;xx+=6){ ctx.moveTo(xx,y+h); ctx.lineTo(xx+h,y); } ctx.stroke(); ctx.restore();
+  ctx.strokeStyle='rgba(201,162,39,.8)'; ctx.lineWidth=1.2; ctx.strokeRect(x-1.5,y-1.5,w+3,h+3);
+  ctx.fillStyle='#c9a227';
+  for(const ex of [x-9,x+w+9]){ ctx.beginPath(); ctx.moveTo(ex,y+h/2-6); ctx.lineTo(ex+5,y+h/2); ctx.lineTo(ex,y+h/2+6); ctx.lineTo(ex-5,y+h/2); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle='rgba(40,20,10,.85)'; ctx.fillRect(x+w/2-1,y-3,2,h+6);
+  // the medallion
+  const mx=x+w/2, my=y-14;
+  ctx.fillStyle='rgba(20,10,25,.5)'; ctx.beginPath(); ctx.arc(mx+1,my+2,13,0,TAU); ctx.fill();
+  ctx.fillStyle=winded?'#ffe9b0':'#e9dcbc'; ctx.beginPath(); ctx.arc(mx,my,13,0,TAU); ctx.fill();
+  ctx.strokeStyle='#c9a227'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(mx,my,13,0,TAU); ctx.stroke();
+  ctx.strokeStyle='rgba(138,47,26,.6)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(mx,my,9.5,0,TAU); ctx.stroke();
+  ctx.font='bold 14px '+UIF; ctx.fillStyle='#8a2f1a'; ctx.textAlign='center'; ctx.fillText(initial||'?',mx,my+5);
+}
 function corners(x,y,w2,h2){
   ctx.strokeStyle='rgba(210,170,100,.55)'; ctx.lineWidth=1.5;
   const L=7;
@@ -6390,6 +6480,14 @@ function drawHUD(t){
     ctx.restore();
   }
   ctx.font='13px Georgia'; ctx.fillStyle='#4a3826'; ctx.textAlign='left';
+  // the bracket that makes wards, lives and ability one object on the page
+  { const bw=30+Math.max(maxW,1)*24+70;
+    ctx.strokeStyle='rgba(201,162,39,.55)'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(16,20); ctx.lineTo(16,132); ctx.moveTo(16,52); ctx.lineTo(bw,52); ctx.stroke();
+    ctx.fillStyle='rgba(201,162,39,.8)';
+    for(let k=0;k<=3;k++){ const tx3=16+(bw-16)*k/3; ctx.fillRect(tx3-.5,49,1,6); }
+    ctx.beginPath(); ctx.moveTo(16,17); ctx.lineTo(19,20); ctx.lineTo(16,23); ctx.lineTo(13,20); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(16,129); ctx.lineTo(19,132); ctx.lineTo(16,135); ctx.lineTo(13,132); ctx.closePath(); ctx.fill(); }
   // the held ability: guard meter for the paladin, siphon pips for the mages
   {  // the held ability, with its key where you can't miss it
     const on=player.guarding||player.siphoning;
@@ -6400,8 +6498,7 @@ function drawHUD(t){
     ctx.font='11px '+UIF; ctx.fillStyle=on?'#ffe9b0':'#c9a887'; ctx.textAlign='left';
     ctx.fillText(isPaladin()?'HOLD — GUARD':'HOLD — SIPHON',kx+30,ky+13);
     if(isPaladin()){
-      ctx.fillStyle='rgba(20,10,25,.6)'; ctx.fillRect(kx+30,ky+22,80,5);
-      ctx.fillStyle=player.guarding?'#ffe9b0':'#c9a227'; ctx.fillRect(kx+30,ky+22,80*clamp(player.guardM,0,1),5);
+      inkGauge(kx+30,ky+21,80,7,clamp(player.guardM,0,1),player.guarding?'#c9822a':'#8a6f4a',null);
     }else{
       for(let i=0;i<3;i++){ ctx.fillStyle=i<player.siphon?'#9fd4ff':'rgba(20,10,25,.5)'; ctx.beginPath(); ctx.arc(kx+36+i*14,ky+25,4,0,TAU); ctx.fill(); }
       ctx.font='9px '+UIF; ctx.fillStyle='#8a7260'; ctx.fillText('3 bolts = 1 ward',kx+82,ky+28);
@@ -6411,11 +6508,8 @@ function drawHUD(t){
   if(!isPaladin()){
     const v=isFire()?player.heat:(isFrost()?player.rime:player.charge/5);
     const hot=isFire()?player.heat>=.8:(isFrost()?player.rime>=.6:player.charge>=5);
-    ctx.fillStyle='rgba(20,10,25,.6)'; ctx.fillRect(30,120,80,5);
-    ctx.fillStyle=player.ventT>0?'#8a8a90':(hot?'#fff2dd':WPN('BOLT').color); ctx.fillRect(30,120,80*clamp(v,0,1),5);
-    if(isFire()) {ctx.fillStyle='rgba(255,240,220,.7)'; ctx.fillRect(30+64-1,118,2,9);}
-    if(isFrost()) {ctx.fillStyle='rgba(255,240,220,.7)'; ctx.fillRect(30+48-1,118,2,9);}
-    ctx.font='9px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText(player.ventT>0?'VENTING':RES_NAME[cls],116,126);
+    inkGauge(30,118,80,8,clamp(v,0,1),player.ventT>0?'#8a8a90':(hot?'#8a2f1a':'#5a3c1a'),isFire()?.8:(isFrost()?.6:null));
+    ctx.font='9px '+UIF; ctx.fillStyle=hot?'#8a2f1a':'#8a6f4a'; ctx.textAlign='left'; ctx.fillText(player.ventT>0?'VENTING':RES_NAME[cls],116,126);
   }
   ctx.fillText(player.wards>0?'WARD'+(player.wards>1?' ×'+player.wards:''):(DIFF().wards===0?'NO WARD':'WARD DOWN'), 30+Math.max(maxW,1)*24, 38);
   // lives — wax-seal tokens
@@ -6434,29 +6528,33 @@ function drawHUD(t){
     ctx.moveTo(lx,ly-5);ctx.quadraticCurveTo(lx+4,ly,lx,ly+5);ctx.quadraticCurveTo(lx-4,ly,lx,ly-5);
     ctx.fill();
   }
-  // fire mode chips
+  // the spells as three cards on the table — the one in hand is lifted and lit
   let chipX=24;
   for(let i=0;i<3;i++){
     const wn=player.slots[i];
     const active=i===player.slot&&wn;
-    const label=wn?WPN(wn).name:'— empty —';
-    ctx.font=(active?'15px ':'12px ')+UIF;
-    const tw=ctx.measureText(label).width;
-    ctx.fillStyle=active?'rgba(42,28,16,.85)':'rgba(42,28,16,.5)';
-    ctx.fillRect(chipX-8,H-46,tw+16,30);
-    if(active){
-      ctx.strokeStyle=WPN(wn).color; ctx.lineWidth=1.5;
-      ctx.strokeRect(chipX-7.5,H-45.5,tw+15,29);
+    const label=wn?WPN(wn).name:'';
+    ctx.font=(active?'13px ':'11px ')+UIF;
+    const cw=Math.max(118,ctx.measureText(label).width+44), ch=34, cy=H-44-(active?5:0);
+    if(wn){
+      ctx.fillStyle='rgba(20,10,25,.35)'; ctx.fillRect(chipX+3,cy+4,cw,ch);                           // shadow on the table
+      ctx.fillStyle=active?'rgba(236,224,194,.97)':'rgba(220,206,176,.8)'; ctx.fillRect(chipX,cy,cw,ch);
+      ctx.strokeStyle=active?WPN(wn).color:'rgba(90,60,30,.6)'; ctx.lineWidth=active?2:1; ctx.strokeRect(chipX+.5,cy+.5,cw-1,ch-1);
+      if(active) corners(chipX+3,cy+3,cw-6,ch-6);
+      // the wax seal in the spell's colour
+      ctx.fillStyle=WPN(wn).color; ctx.beginPath(); ctx.arc(chipX+17,cy+ch/2,8,0,TAU); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.arc(chipX+15,cy+ch/2-2,3,0,TAU); ctx.fill();
+      ctx.textAlign='left'; ctx.fillStyle=active?'#3a2c1a':'rgba(74,56,38,.7)'; ctx.fillText(label,chipX+32,cy+ch/2+5);
+      ctx.font='9px Georgia'; ctx.fillStyle='rgba(138,111,74,.9)'; ctx.textAlign='right'; ctx.fillText(['I','II','III'][i],chipX+cw-6,cy+11);
+    }else{
+      ctx.setLineDash([4,4]); ctx.strokeStyle='rgba(233,220,188,.35)'; ctx.lineWidth=1; ctx.strokeRect(chipX+.5,cy+.5,cw-1,ch-1); ctx.setLineDash([]);
+      ctx.font='10px Georgia'; ctx.textAlign='center'; ctx.fillStyle='rgba(233,220,188,.35)'; ctx.fillText('a relic, unfound',chipX+cw/2,cy+ch/2+4);
     }
-    corners(chipX-8,H-46,tw+16,30);
-    ctx.textAlign='left';
-    ctx.fillStyle=wn?(active?WPN(wn).color:'rgba(220,200,170,.55)'):'rgba(220,200,170,.4)';
-    ctx.fillText(label, chipX, H-25);
-    chipX+=tw+28;
+    chipX+=cw+10;
   }
   if(player.slots[1]){
-    ctx.font='11px Georgia'; ctx.fillStyle='rgba(74,56,38,.85)';
-    ctx.fillText(lbl('swap')+' · cycle', chipX+2, H-27);
+    ctx.font='10px Georgia'; ctx.fillStyle='rgba(233,220,188,.6)'; ctx.textAlign='left';
+    ctx.fillText(lbl('swap')+' · cycle', chipX+2, H-25);
   }
   // the road so far — a thin thread across the bottom
   if(!tutorialMode){
@@ -6536,13 +6634,21 @@ function drawHUD(t){
   let msg=null;
   if(!tut.active&&tut.tipT>0) msg=tut.tipText;
   if(msg){
-    ctx.font='16px Georgia'; ctx.textAlign='center';
-    const mw=ctx.measureText(msg).width+48;
-    ctx.fillStyle='rgba(42,28,16,.85)';
-    ctx.fillRect(W/2-mw/2,112,mw,40);
-    corners(W/2-mw/2,112,mw,40);
-    ctx.fillStyle='#f2e2c2';
-    ctx.fillText(msg,W/2,137);
+    ctx.font='16px Georgia'; ctx.textAlign='left';
+    const full=ctx.measureText(msg).width+52;
+    const un=clamp(((tut.tipMax||5)-tut.tipT)/.16,0,1);               // the scroll unrolls
+    const mw=full*un, cx0=W/2-full/2, cy0=110, h2=40;
+    ctx.fillStyle='rgba(20,10,25,.35)'; ctx.fillRect(cx0+3,cy0+4,mw,h2);
+    ctx.fillStyle='rgba(236,224,194,.96)'; ctx.fillRect(cx0,cy0,mw,h2);
+    ctx.strokeStyle='#8a6f4a'; ctx.lineWidth=1.5; ctx.strokeRect(cx0+.5,cy0+.5,Math.max(1,mw-1),h2-1);
+    // the rolled ends
+    ctx.fillStyle='#d8c398'; ctx.fillRect(cx0-6,cy0-3,8,h2+6); ctx.fillRect(cx0+mw-2,cy0-3,8,h2+6);
+    ctx.strokeStyle='#8a6f4a'; ctx.strokeRect(cx0-5.5,cy0-2.5,7,h2+5); ctx.strokeRect(cx0+mw-1.5,cy0-2.5,7,h2+5);
+    if(un>.95){
+      const sp=msg.indexOf(' '); const first=sp>0?msg.slice(0,sp):msg, rest=sp>0?msg.slice(sp):'';
+      ctx.fillStyle='#8a2f1a'; ctx.fillText(first,cx0+26,cy0+26);
+      ctx.fillStyle='#3a2c1a'; ctx.fillText(rest,cx0+26+ctx.measureText(first).width,cy0+26);
+    }
   }
   if(tutDoneT>0){
     ctx.textAlign='center';
@@ -6577,22 +6683,16 @@ function drawHUD(t){
   }
   if(boss&&!boss.dead){
     ctx.textAlign='center'; ctx.fillStyle='#4a3826'; ctx.font='14px '+UIF;
-    ctx.fillText((BOSS_CARDS[boss.type]||[boss.type])[0], W/2, 46);
-    ctx.fillStyle='rgba(20,10,25,.8)'; ctx.fillRect(W/2-220,56,440,10);
-    ctx.fillStyle=boss.st==='winded'?'#ffe9b0':'#ff8c3a'; ctx.fillRect(W/2-220,56,440*clamp(boss.hp/boss.max,0,1),10);
-    ctx.fillStyle='rgba(40,20,10,.8)'; ctx.fillRect(W/2-1,53,2,16);   // the enrage line
-    if(boss.st==='winded'){ctx.font='11px '+UIF; ctx.fillStyle='#8a5a1a'; ctx.fillText('WINDED \u2014 STRIKE', W/2, 80);}
-    corners(W/2-224,52,448,18);
+    ctx.fillText((BOSS_CARDS[boss.type]||[boss.type])[0], W/2, 30);
+    ornateBar(W/2-220,56,440,10,clamp(boss.hp/boss.max,0,1),boss.st==='winded',(BOSS_CARDS[boss.type]||[boss.type])[0][0]);
+    if(boss.st==='winded'){ goldText('WINDED \u2014 STRIKE',W/2,82,12); }
     if(bossIntroT>0) drawBossCard(boss.type,bossIntroT,2.6);
   }
   if(mboss&&!mboss.dead){
     ctx.textAlign='center'; ctx.fillStyle='#4a3826'; ctx.font='13px '+UIF;
-    ctx.fillText((BOSS_CARDS[mboss.type]||[mboss.type])[0], W/2, 46);
-    ctx.fillStyle='rgba(20,10,25,.8)'; ctx.fillRect(W/2-170,56,340,8);
-    ctx.fillStyle=mboss.st==='winded'?'#ffe9b0':'#ffb267'; ctx.fillRect(W/2-170,56,340*clamp(mboss.hp/mboss.max,0,1),8);
-    ctx.fillStyle='rgba(40,20,10,.8)'; ctx.fillRect(W/2-1,53,2,14);
-    if(mboss.st==='winded'){ctx.font='11px '+UIF; ctx.fillStyle='#8a5a1a'; ctx.fillText('WINDED \u2014 STRIKE', W/2, 78);}
-    corners(W/2-174,52,348,16);
+    ctx.fillText((BOSS_CARDS[mboss.type]||[mboss.type])[0], W/2, 30);
+    ornateBar(W/2-170,56,340,8,clamp(mboss.hp/mboss.max,0,1),mboss.st==='winded',(BOSS_CARDS[mboss.type]||[mboss.type])[0][4]||'M');
+    if(mboss.st==='winded'){ goldText('WINDED \u2014 STRIKE',W/2,80,12); }
     if(mbIntroT>0) drawBossCard(mboss.type,mbIntroT,2);
   }
   if(relicCard){
@@ -6653,22 +6753,22 @@ function doWin(){
   const grade=(pts>=5?'S':(pts>=4?'A':(pts>=2?'B':'C')))+'\u2605'.repeat(curseCount());
   const gradeBonus={S:100,A:60,B:30,C:0}[grade];
   if(!tutorialMode&&gradeBonus) earnEmbers(gradeBonus);
-  const gradeCol={S:'#ffd27a',A:'#ffb267',B:'#c9a887',C:'#8a7260'}[grade];
+  const gradeCol={S:'#c9822a',A:'#a85a1a',B:'#8a6f4a',C:'#8a7260'}[grade[0]];
   let bestLine='';
   try{
     const key='arcanade-best-'+cls+'-'+diff;
     const prev=JSON.parse(localStorage.getItem(key)||'null');
     if(!prev||idx>prev.idx||(idx===prev.idx&&gameTime<prev.time)){
       localStorage.setItem(key,JSON.stringify({idx,time:Math.round(gameTime)}));
-      if(prev) bestLine='<br><span style="color:#ffb267">a new best for the chronicle</span>';
+      if(prev) bestLine='<br><span style="color:#8a2f1a">&#9758; a new best for the chronicle</span>';
     }else{
       const pm=Math.floor(prev.time/60), ps=prev.time%60;
-      bestLine='<br><span style="color:#8a7260">best: '+CLASSES[cls].ranks[prev.idx]+' · '+pm+':'+String(ps).padStart(2,'0')+'</span>';
+      bestLine='<br><span style="color:#8a6f4a">best: '+CLASSES[cls].ranks[prev.idx]+' · '+pm+':'+String(ps).padStart(2,'0')+'</span>';
     }
   }catch(e){}
   document.getElementById('winStats').innerHTML=
     '<span style="display:inline-block;font-family:Cinzel,Georgia,serif;font-size:54px;line-height:1;color:'+gradeCol+';text-shadow:0 0 18px '+gradeCol+'66;margin-right:18px;vertical-align:middle">'+grade+'</span>'+
-    '<span style="font-family:Cinzel,Georgia,serif;font-size:22px;letter-spacing:.2em;color:#ffe9c9;vertical-align:middle">'+rank+'</span>'+
+    '<span style="font-family:Cinzel,Georgia,serif;font-size:22px;letter-spacing:.2em;color:#5a3c1a;vertical-align:middle">'+rank+'</span>'+
     (gradeBonus?' <span style="color:#e8a84a;font-size:12px;vertical-align:middle">+'+gradeBonus+' grade embers</span>':'')+'<br>'+
     'time <b>'+m+':'+String(s).padStart(2,'0')+'</b> &nbsp;·&nbsp; deaths <b>'+deaths+
     '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; rescued <b>'+rescued+
@@ -7748,20 +7848,20 @@ function drawWinTimeline(){
   const c=document.getElementById('winTimeline'); if(!c) return;
   const g=c.getContext('2d'); g.clearRect(0,0,520,56);
   const px0=20, pw=480, py=30;
-  g.strokeStyle='rgba(255,215,150,.5)'; g.lineWidth=2;
+  g.strokeStyle='rgba(90,60,30,.55)'; g.lineWidth=2;
   g.beginPath();g.moveTo(px0,py);g.lineTo(px0+pw,py);g.stroke();
-  const col={death:'#d04a3a',relic:'#ffd27a',trial:'#7ab8ff',rescue:'#8fd28a'};
+  const col={death:'#8a2f1a',relic:'#c9822a',trial:'#33598a',rescue:'#4a7a3c'};
   for(const ev of runLog){
     const x=px0+clamp(ev.f,0,1)*pw;
     g.fillStyle=col[ev.k]||'#fff';
     if(ev.k==='death'){g.fillRect(x-1.5,py-12,3,24);}
     else {g.beginPath();g.arc(x,py+(ev.k==='relic'?-8:8),4,0,TAU);g.fill();}
   }
-  g.fillStyle='#ffd9a8'; g.beginPath();g.moveTo(px0+pw,py-10);g.lineTo(px0+pw+8,py-6);g.lineTo(px0+pw,py-2);g.closePath();g.fill();
+  g.fillStyle='#8a2f1a'; g.beginPath();g.moveTo(px0+pw,py-10);g.lineTo(px0+pw+8,py-6);g.lineTo(px0+pw,py-2);g.closePath();g.fill();
   g.font='9px Georgia'; g.textAlign='left';
   const leg=[['deaths',col.death],['relics',col.relic],['trials',col.trial],['rescues',col.rescue]];
   let lx=px0;
-  for(const [nm,cc] of leg){g.fillStyle='rgba(201,168,135,.8)';g.fillText(nm,lx,py+24);g.fillStyle=cc;g.fillRect(lx+g.measureText(nm).width+4,py+18,6,6);lx+=g.measureText(nm).width+22;}
+  for(const [nm,cc] of leg){g.fillStyle='#8a6f4a';g.fillText(nm,lx,py+24);g.fillStyle=cc;g.fillRect(lx+g.measureText(nm).width+4,py+18,6,6);lx+=g.measureText(nm).width+22;}
 }
 document.getElementById('sVol').oninput=e=>{SET.vol=e.target.value/100;saveSet();};
 document.getElementById('sMus').oninput=e=>{SET.music=e.target.value/100;saveSet();};
