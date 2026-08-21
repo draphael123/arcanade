@@ -270,6 +270,26 @@
       <p>Quartermaster of the siege camp, wed to his machine. He keeps his distance and drops burning sky on you. The engine is timber and tar &mdash; it burns beautifully.</p>
       <p class="tip">Watch where the boulder's shadow falls, and stand where it isn't. Fire turns his own machine against him.</p>
     </div></div>
+    <div class="bst"><canvas id="bc7" width="92" height="92"></canvas><div>
+      <h3>Warhound</h3>
+      <p>Bred for the hunt and starved for it. They run in twos and threes, low to the ground, and finish the last stretch in the air.</p>
+      <p class="tip">The lunge is committed the moment it leaves the ground. Dash through it &mdash; or greet it with a spell mid-flight.</p>
+    </div></div>
+    <div class="bst"><canvas id="bc8" width="92" height="92"></canvas><div>
+      <h3>Thornweaver</h3>
+      <p>A druid who took the warlords' coin. He does not attack you; he attacks your <em>choices</em> &mdash; walls of living thorn, grown behind your heels.</p>
+      <p class="tip">Kill the gardener, then the garden. Brambles burn, and shatter twice as fast when chilled.</p>
+    </div></div>
+    <div class="bst"><canvas id="bc9" width="92" height="92"></canvas><div>
+      <h3>The Huntsmaster</h3>
+      <p>Keeper of the packs, crowned in antler and bone. His crossbow is patient; his horn is not &mdash; every call brings more hounds.</p>
+      <p class="tip">Every third call leaves him breathless, horn glowing. That silence is yours to fill.</p>
+    </div></div>
+    <div class="bst"><canvas id="bc10" width="92" height="92"></canvas><div>
+      <h3>Old Thornheart</h3>
+      <p>The forest's warden since before the Wall was a quarry. Roots that split the ground, dead wood dropped from the crown, and saplings that fight for him.</p>
+      <p class="tip">He is rooted &mdash; the arena is his reach, learn its edges. When the heartwood blazes, he takes double.</p>
+    </div></div>
     <div class="bst"><canvas id="bc3" width="92" height="92"></canvas><div>
       <h3>The Warden of Vhal</h3>
       <p>The Wall's last oath-keeper, armored in a hundred years of victories. He fights at spear's length: javelin volleys, a ground-splitting slam, and a charge like a falling gate.</p>
@@ -304,11 +324,22 @@
    Contra-style run-and-gun. Pick your mage: fire spreads,
    frost slows and freezes water. The Warden waits on the wall.
    ============================================================= */
-const W=1280, H=720, LEVEL=17100, TAU=Math.PI*2;
-const WALLX=13080, WALLY=420;             // the wall top
-const ARENA=15780;                        // boss arena left edge
-const WATERS=[{x0:1390,x1:1970},{x0:8010,x1:8710}];   // moat, river (surface y≈672)
-const CHASMS=[[4400,6100],[11200,11440],[11840,12200]];
+const W=1280, H=720, TAU=Math.PI*2;
+const WALLY=420;
+/* per-level values — assigned by loadLevel() */
+let LVL=1;
+let LEVEL=17100;
+let WALLX=13080;
+let ARENA=15780;                          // boss arena left edge
+let BOSS_TRIG=15860;
+let WATERS=[{x0:1390,x1:1970},{x0:8010,x1:8710}];
+let CHASMS=[[4400,6100],[11200,11440],[11840,12200]];
+let CHECKPOINTS=[60,2060,4340,6300,8740,10650,12420,13140,15700];
+let MARENA={x0:9020, x1:10290, trig:9250, cam:9020};
+let ZONES=[[0,[96,140,80],.05],[4400,[120,140,165],.09],[6260,[150,110,85],.09],
+  [8000,[80,130,170],.08],[8720,[255,170,70],.08],[10600,[140,140,150],.09],
+  [12400,[190,70,50],.11],[17100,[190,70,50],.11]];
+let CAM_MIN_Y=0;                          // level 2 climbs; level 1 never leaves the ground
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 let viewScale=1;
 function fit(){
@@ -619,15 +650,13 @@ let state='title';        // title | charsel | intro | play | win
 let paused=false, settingsFrom=null;
 let solids=[], props=[], enemies=[], shots=[], eshots=[], parts=[], pickups=[], ambushes=[], decals=[];
 let boss=null, bossIntroT=0, mboss=null, mbIntroT=0;
-const MARENA={x0:9020, x1:10290, trig:9250, cam:9020};
 function addDecal(d){decals.push(d); if(decals.length>90) decals.shift();}
-let cam={x:0}, shakeMag=0, shakeX=0, shakeY=0;
+let cam={x:0,y:0}, shakeMag=0, shakeX=0, shakeY=0;
 let gameTime=0, deaths=0, kills=0, relicsFound=0, cpFlashT=0, ambushT=0, bridgeTorched=false;
 let hitstopT=0, dmgFlashT=0, tutorialMode=false, tutDoneT=0;
-let rescued=0, trialsFound=0, runners=[], sealFlashT=0, grabKey=false;
+let rescued=0, trialsFound=0, runners=[], sealFlashT=0, grabKey=false, branchT=0;
 function hitstop(s){hitstopT=Math.max(hitstopT,s);}
 let checkpoint={x:60};
-const CHECKPOINTS=[60,2060,4340,6300,8740,10650,12420,13140,15700];
 let player=null;
 
 function makePlayer(x){
@@ -642,6 +671,7 @@ function makePlayer(x){
 function S(x,y,w,h,o={}){const s={x,y,w,h,oneWay:false,flam:false,burn:0,spreadT:0,dead:false,...o};if(s.hp)s.maxHp=s.hp;solids.push(s);return s;}
 function damageSolid(s,dmg,x,y){
   if(!s.breakable||s.dead) return;
+  if(s.bram&&!isFire()) dmg*=1.8;      // frost makes bramble brittle
   s.hp-=dmg;
   if(dmg>=.5){
     burst(x,y,4,s.stoneWall?'rgb(185,185,175)':'rgb(200,150,90)',.5);
@@ -663,9 +693,131 @@ function damageSolid(s,dmg,x,y){
 }
 function P(x,y,w,h,kind){const p={x,y,w,h,kind,flam:true,burn:0,spreadT:0,dead:false,ash:false};props.push(p);return p;}
 
-function buildLevel(){
-  solids=[];props=[];enemies=[];shots=[];eshots=[];parts=[];pickups=[];ambushes=[];decals=[];
+function resetWorld(){
+  solids=[];props=[];enemies=[];shots=[];eshots=[];parts=[];pickups=[];ambushes=[];decals=[];runners=[];
   boss=null;mboss=null;bossIntroT=0;mbIntroT=0;
+}
+function loadLevel(n){
+  LVL=n;
+  if(n===1){
+    LEVEL=17100; WALLX=13080; ARENA=15780; BOSS_TRIG=15860; CAM_MIN_Y=0;
+    WATERS=[{x0:1390,x1:1970},{x0:8010,x1:8710}];
+    CHASMS=[[4400,6100],[11200,11440],[11840,12200]];
+    CHECKPOINTS=[60,2060,4340,6300,8740,10650,12420,13140,15700];
+    MARENA={x0:9020,x1:10290,trig:9250,cam:9020};
+    ZONES=[[0,[96,140,80],.05],[4400,[120,140,165],.09],[6260,[150,110,85],.09],
+      [8000,[80,130,170],.08],[8720,[255,170,70],.08],[10600,[140,140,150],.09],
+      [12400,[190,70,50],.11],[17100,[190,70,50],.11]];
+    buildLevel1();
+  }else{
+    LEVEL=14000; WALLX=1e9; ARENA=12520; BOSS_TRIG=1e9; CAM_MIN_Y=-1580;
+    WATERS=[{x0:5610,x1:5890},{x0:6210,x1:6490}];
+    CHASMS=[[5400,6800]];
+    CHECKPOINTS=[60,1900,3300,4390,5450,6900,8900,10500,12350];
+    MARENA={x0:4420,x1:5390,trig:4650,cam:4420};
+    ZONES=[[0,[60,115,70],.10],[3200,[80,95,50],.11],[4400,[210,180,90],.08],
+      [5400,[70,125,115],.10],[6800,[40,85,60],.13],[8800,[135,115,90],.09],
+      [10400,[115,95,60],.10],[12400,[235,175,95],.09],[14000,[235,175,95],.09]];
+    buildLevel2();
+  }
+}
+function buildLevel2(){
+  resetWorld();
+  /* ============ II · THE THORNWOOD — the road with two floors ============ */
+  /* --- floors --- */
+  S(-80,600,5480,240);                                   // gate → hollow way → brambles → glade
+  S(5400,600,210,240); S(5890,600,320,240); S(6490,600,310,240);  // marsh banks
+  S(5695,646,60,150,{stone:true,pier:true});             // stepping logs
+  S(6290,646,60,150,{stone:true,pier:true});
+  S(6800,600,5600,240);                                  // canopy run → scar → roots
+  S(12400,600,1600,240);                                 // beneath the Great Tree
+  /* --- canopy highway A: the hollow way 1200..3200 --- */
+  for(const [bx,by,bw] of [[1450,470,150],[1700,438,140],[1980,470,160],[2260,432,150],[2540,470,150],[2830,440,150],[3080,470,140]])
+    S(bx,by,bw,14,{oneWay:true,flam:true,plank:true});
+  /* --- the bramble maze 3200..4400 --- */
+  for(const bx of [3300,3480,3660,3980,4160])
+    S(bx,510,30,90,{bram:true,flam:true,breakable:true,hp:5});
+  S(3800,430,42,170,{flam:true,breakable:true,hp:12,pal:true});   // foresters' gate
+  /* --- canopy highway B: the deep wood 6800..8800 --- */
+  for(const [bx,by,bw] of [[6900,468,150],[7150,430,150],[7420,462,140],[7690,428,150],[7960,462,150],[8230,430,140],[8500,464,150],[8750,470,120]])
+    S(bx,by,bw,14,{oneWay:true,flam:true,plank:true});
+  for(const bx of [7000,7350,7700,8050,8400])
+    S(bx,510,30,90,{bram:true,flam:true,breakable:true,hp:5});
+  S(7660,338,150,14,{oneWay:true,flam:true,plank:true});          // trial ledge
+  S(7710,270,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});
+  /* --- the roots 10400..12400 --- */
+  S(10700,540,220,300,{stone:true,root:true});
+  S(11150,500,200,340,{stone:true,root:true});
+  S(11600,560,240,280,{stone:true,root:true});
+  S(12050,520,200,320,{stone:true,root:true});
+  S(11180,380,140,14,{oneWay:true,flam:true,plank:true});         // root-top trial
+  S(11230,312,40,68,{breakable:true,hp:8,seal:true,reward:'HEAVY'});
+  /* --- THE GREAT TREE 12400..14000: the climb --- */
+  {
+    const xs=[12550,12800,13050,12800,12550,12800,13050,13250,13000,12750,12950,13150,12900,12650,12850,13050];
+    let by=480;
+    for(const bx of xs){
+      S(bx,by,160,16,{oneWay:true,flam:true,plank:true});
+      by-=120;
+    }
+    S(12520,-1400,1260,40,{stone:true});                          // the crown
+  }
+  /* --- props --- */
+  const grassAt=[150,320,520,760,980,1250,1600,1950,2350,2700,3050,4450,4700,4950,5150,
+    5950,6050,6550,6850,7100,7500,7900,8300,8650,10450,10950,11450,11950,12250,12550,12900,13400];
+  for(const gx of grassAt) P(gx,600-16,34,16,'grass');
+  for(const bx of [420,1080,2450,4550,5050,6050,7550,8600,10550,11350,12500])
+    P(bx,groundYAt(bx)-26,52,26,'bush');
+  for(const fx of [220,900]) P(fx,570,92,30,'fence');
+  /* standing trees — the columns that hold the sky up (and carry fire to it) */
+  for(const tx of [1380,1830,2380,2900,5080,6980,7440,7990,8560,10750,11250,11900])
+    P(tx,380,44,220,'trunkS');
+  /* the scar: a logging camp gnawing at the forest */
+  P(9250,600-84,120,84,'tent'); P(9800,600-84,120,84,'tent');
+  const rr=P(9480,600-88,140,88,'ruin'); rr.flam=false;
+  for(const tx of [4000,9200,10100]){const b=P(tx,groundYAt(tx)-58,8,58,'banner'); b.flam=false;}
+  for(const kx of [3950,4150,9100,9600,10050]) P(kx,groundYAt(kx)-34,26,34,'keg');
+  for(const cx2 of [4060,7260,9320,9920,11710]){
+    const cg=P(cx2,groundYAt(cx2)-54,42,54,'cage'); cg.flam=false; cg.hp=2;
+  }
+  for(const cx of CHECKPOINTS){
+    const s=P(cx-14,groundYAt(cx)-64,28,64,'shrine');
+    s.flam=false; s.lit=(cx===60);
+  }
+  for(const bx2 of [12600,13640]){
+    const br=P(bx2,-1400-58,28,58,'brazier'); br.flam=false;      // the crown fights by firelight
+  }
+  /* --- pickups --- */
+  pickups=[
+    {x:1520,y:groundYAt(1520)-64,type:'SPREAD',t:0,got:false},
+    {x:2900,y:438-64,type:'LANCE',t:0,got:false},                 // on the canopy road
+    {x:5340,y:groundYAt(5340)-64,type:'HEAVY',t:0,got:false},
+    {x:8770,y:470-64,type:'BREATH',t:0,got:false},
+    {x:10480,y:groundYAt(10480)-64,type:'SPREAD',t:0,got:false},
+  ];
+  /* --- ambient enemies --- */
+  const amb=[['hound',700],['hound',770],['arch',1550],['hound',1900],['arch',2150],
+    ['weave',2800],['hound',2950],['hound',3020],
+    ['weave',3380],['hound',3550],['bomb',3960],['weave',3920],
+    ['hound',5960],['arch',6120],['hound',6600],
+    ['weave',7120],['hound',7320],['hound',7390],['arch',7560],['shield',7920],['hound',8120],['arch',8320],['weave',8620],
+    ['foot',9020],['bomb',9220],['hound',9460],['foot',9720],['arch',9880],['shield',10120],['hound',10320],
+    ['hound',10820],['arch',11120],['weave',11420],['hound',11820],['bomb',12120],
+    ['arch',13070,120],['hound',13130,-240],['arch',13060,-480],['arch',12950,-960]];
+  for(const [t,x,y] of amb) spawnEnemy(t,x,y);
+  /* --- ambushes: the forest hunts in packs --- */
+  ambushes=[
+    {x:1250,done:false,list:[['hound','L'],['hound','R'],['hound','R']]},
+    {x:2600,done:false,list:[['hound','L'],['hound','R'],['arch','R']]},
+    {x:3400,done:false,list:[['weave','R'],['hound','L'],['hound','R']]},
+    {x:6900,done:false,list:[['hound','L'],['hound','R'],['hound','R'],['arch','R']]},
+    {x:8850,done:false,list:[['foot','L'],['shield','R'],['bomb','L'],['hound','R']]},
+    {x:10520,done:false,list:[['hound','L'],['hound','R'],['arch','L'],['arch','R']]},
+    {x:12250,done:false,list:[['hound','L'],['hound','R'],['hound','R']]},
+  ];
+}
+function buildLevel1(){
+  resetWorld();
   /* ============ THE ROAD TO VHAL — ~17,000px ============ */
   /* --- field 0..1400 --- */
   S(-80,600,1480,240);
@@ -816,20 +968,26 @@ function startTutorialYard(){
   gameTime=0; deaths=0; kills=0; relicsFound=0; checkpoint={x:60};
   cpFlashT=0; ambushT=0; hitstopT=0; dmgFlashT=0; tutDoneT=0;
   bridgeTorched=true;                 // the defenders leave the drill yard alone
+  LVL=1; LEVEL=2700; CAM_MIN_Y=0; BOSS_TRIG=1e9;
+  WATERS=[{x0:1590,x1:1930}]; CHASMS=[];
+  MARENA={x0:0,x1:0,trig:1e9,cam:0};
+  CHECKPOINTS=[60,2060];
+  ZONES=[[0,[96,140,80],.05],[2700,[96,140,80],.05]];
   rescued=0; trialsFound=0; runners=[]; sealFlashT=0; grabKey=false;
   lives=DIFF().lives;
   tutorialMode=true; forceTut=false;
   setTutSteps(true);
   tut.active=true; tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   player=makePlayer(60); player.y=groundYAt(60)-56;
-  cam.x=0; state='play'; paused=false; hideAll();
+  cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
   playMusic('field');
 }
-function groundYAt(x){
+function groundYAt(x,below){
   let best=1e9;
+  const min=below===undefined?-1e9:below;
   for(const s of solids){
-    if(s.dead||s.oneWay||s.ice) continue;
-    if(x>=s.x&&x<=s.x+s.w&&s.y<best&&s.y>100) best=s.y;
+    if(s.dead||s.oneWay||s.ice||s.breakable) continue;
+    if(x>=s.x&&x<=s.x+s.w&&s.y<best&&s.y>=min) best=s.y;
   }
   return best===1e9?600:best;
 }
@@ -842,6 +1000,8 @@ function spawnEnemy(type,x,y,emerge){
   if(type==='arch'){e.hp=2*DIFF().eHp;e.w=22;}
   if(type==='shield'){e.hp=5*DIFF().eHp;e.w=30;}
   if(type==='bomb'){e.hp=2*DIFF().eHp;e.w=24;}
+  if(type==='hound'){e.hp=2*DIFF().eHp;e.w=36;e.h=26;}
+  if(type==='weave'){e.hp=4*DIFF().eHp;e.w=24;}
   if(type==='ball'){e.hp=8*DIFF().eHp;e.w=56;e.h=44;e.y=(y??groundYAt(x))-44;e.aim=0;}
   if(type!=='ball') e.y=(y??groundYAt(x))-e.h;
   enemies.push(e); return e;
@@ -937,6 +1097,27 @@ function updateEnemies(dt){
           else if(adx>560&&adx<900){e.x+=e.face*85*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*9;}
           if(adx<640&&e.t>2.8*DIFF().eCad){e.t=0;e.windup=.55;}
         }
+      }else if(e.type==='hound'&&e.emerge<=0){
+        // warhounds: fast, low, and airborne when it matters
+        if(e.lunge>0){e.lunge-=dt; e.x+=e.face*470*cold*dt;}
+        else if(e.windup>0){
+          e.windup-=dt*cold;
+          if(e.windup<=0){e.lunge=.4; e.vy=-430;}
+        }else{
+          e.face=dx>0?1:-1;
+          if(adx<(e.wave?1e5:900)&&adx>56&&grounded){e.x+=e.face*265*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*17;}
+          else if(adx<=180&&grounded&&e.t>1.2*DIFF().eCad){e.t=0;e.windup=.3;}
+        }
+      }else if(e.type==='weave'&&e.emerge<=0){
+        e.face=dx>0?1:-1;
+        if(e.windup>0){
+          e.windup-=dt*cold;
+          if(e.windup<=0) growBramble(e);
+        }else{
+          if(adx<240){e.x-=e.face*80*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*8;}
+          else if(adx>520&&adx<820){e.x+=e.face*70*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*8;}
+          if(adx<700&&e.t>3.4*DIFF().eCad){e.t=0;e.windup=.7;}
+        }
       }
     }else{
       e.aim=Math.atan2((player.y+20)-(e.y+14), px-(e.x));
@@ -961,6 +1142,17 @@ function fireArrow(e){
   eshots.push({x:e.x,y:e.y+10,vx:dx/T,vy:dy/T-.5*g*T,g,r:4,life:3,arrow:true});
   SFX.shoot();
 }
+function growBramble(e){
+  if(solids.filter(s=>s.bram&&!s.dead&&s.owner===e).length>=3) return;
+  const bx=player.x-(player.face||1)*85;         // behind you — cutting the retreat
+  const gy=groundYAt(bx,player.y-40);
+  if(gy>cam.y+H+100) return;
+  solids.push({x:bx-15,y:gy-90,w:30,h:90,bram:true,flam:true,breakable:true,hp:5,maxHp:5,
+    owner:e,grow:0,oneWay:false,burn:0,spreadT:0,dead:false});
+  SFX.ignite(); hiss(.2,.08,600);
+  burst(bx,gy-8,8,'rgb(110,150,80)',.5);
+  tip('bram','The Thornweaver walls you in. Brambles burn — and shatter when chilled.');
+}
 function lobBomb(e){
   const tx=player.x+player.vx*.3, ty=player.y+player.h;
   const dx=tx-e.x, dy=ty-(e.y+12);
@@ -974,12 +1166,21 @@ function rectsOverlap(ax,ay,aw,ah,bx,by,bw,bh){
 
 /* ---------------- boss: the Warden of Vhal ---------------- */
 function startBoss(){
-  const bhp=Math.round(260*DIFF().bossHp);
-  boss={x:ARENA+900, y:WALLY-92, w:44, h:92, hp:bhp, max:bhp, face:-1,
-    st:'step', stT:1.2, vx:0, throwN:0, throwT:0, hurtT:0, chillT:0, deadT:0, dead:false};
-  bossIntroT=2.4; SFX.roar();
-  playMusic('boss');
-  tip('warden','He tires after each assault — strike when the plume burns bright.');
+  if(LVL===2){
+    const bhp=Math.round(240*DIFF().bossHp);
+    boss={type:'thorn', x:ARENA+1080, y:-1400-150, w:96, h:150, hp:bhp, max:bhp, face:-1,
+      st:'idle', stT:2, atkN:0, marks:null, markT:0, hurtT:0, chillT:0, deadT:0, dead:false};
+    bossIntroT=2.6; SFX.roar(); SFX.slam();
+    playMusic('boss');
+    tip('thorn','The old tree wakes. Its heartwood glows when it tires — strike then.');
+  }else{
+    const bhp=Math.round(260*DIFF().bossHp);
+    boss={type:'warden', x:ARENA+900, y:WALLY-92, w:44, h:92, hp:bhp, max:bhp, face:-1,
+      st:'step', stT:1.2, vx:0, throwN:0, throwT:0, hurtT:0, chillT:0, deadT:0, dead:false};
+    bossIntroT=2.4; SFX.roar();
+    playMusic('boss');
+    tip('warden','He tires after each assault — strike when the plume burns bright.');
+  }
 }
 function damageBoss(dmg,x,y){
   const b=boss;
@@ -987,7 +1188,7 @@ function damageBoss(dmg,x,y){
   const mult=(b.st==='winded'?2:1)*(b.chillT>0?1.2:1);
   b.hp-=dmg*mult;
   b.hurtT=.09;
-  markSeen('warden');
+  markSeen(b.type==='thorn'?'thorn':'warden');
   if(dmg>=.5){SFX.bossHurt(); burst(x,y,4,mult>1?'rgb(255,240,180)':'rgb(255,179,71)',.5);}
   if(b.hp<=0){
     b.dead=true; b.deadT=0;
@@ -1009,6 +1210,56 @@ function updateBoss(dt){
   if(b.chillT>0) b.chillT-=dt;
   const cold=b.chillT>0?0.6:1;
   const enraged=b.hp<b.max*.5?0.75:1;   // faster below half
+  if(b.type==='thorn'){
+    // Old Thornheart is rooted — the arena is his reach
+    const FLOOR=-1400;
+    b.face=player.x>b.x?1:-1;
+    b.stT-=dt*cold;
+    if(b.st==='idle'){
+      if(b.stT<=0){
+        b.atkN++;
+        if(b.atkN%4===0){b.st='winded'; b.stT=1.7*enraged; SFX.clang();}
+        else{
+          const minions=enemies.filter(e=>!e.dead&&e.sapling).length;
+          const r=Math.random();
+          if(r<.38){b.st='slamPrep'; b.stT=.6*enraged;}
+          else if(r<.72||minions>=2){b.st='branchPrep'; b.stT=.9*enraged;
+            b.marks=[player.x+player.vx*.4, player.x-170, player.x+170].map(v=>clamp(v,ARENA+60,ARENA+W-60));}
+          else{b.st='summonPrep'; b.stT=.7*enraged;}
+        }
+      }
+    }else if(b.st==='slamPrep'){
+      if(b.stT<=0){
+        b.st='idle'; b.stT=rand(1.4,2)*enraged;
+        for(const dir of [-1,1])
+          eshots.push({x:b.x-b.face*40,y:FLOOR-16,vx:dir*400,vy:0,g:0,r:14,life:2.4,wave:true});
+        SFX.slam(); shake(11);
+        burst(b.x-b.face*40,FLOOR-4,16,'rgb(150,120,80)');
+      }
+    }else if(b.st==='branchPrep'){
+      if(b.stT<=0){
+        b.st='idle'; b.stT=rand(1.5,2.1)*enraged;
+        for(const mx of b.marks)
+          eshots.push({x:mx,y:FLOOR-560,vx:0,vy:80,g:560,r:9,life:4,boulder:true,cold:true,wood:true});
+        b.marks=null;
+        SFX.javelin(); shake(5);
+      }
+    }else if(b.st==='summonPrep'){
+      if(b.stT<=0){
+        b.st='idle'; b.stT=rand(1.6,2.2)*enraged;
+        SFX.roar();
+        const s1=spawnEnemy('hound',ARENA+120,FLOOR,.8); s1.wave=true; s1.sapling=true;
+        const s2=spawnEnemy('weave',ARENA+W-140,FLOOR,.8); s2.wave=true; s2.sapling=true;
+        burst(ARENA+140,FLOOR-20,10,'rgb(150,210,110)');
+        burst(ARENA+W-160,FLOOR-20,10,'rgb(150,210,110)');
+      }
+    }else if(b.st==='winded'){
+      if(b.stT<=0){b.st='idle'; b.stT=1.2*enraged;}
+    }
+    if(!player.dead&&rectsOverlap(b.x-b.w/2,b.y,b.w,b.h,player.x-player.w/2,player.y,player.w,player.h))
+      hitPlayer();
+    return;
+  }
   const px=player.x;
   b.face=px>b.x?1:-1;
   const adx=Math.abs(px-b.x);
@@ -1066,17 +1317,25 @@ function updateBoss(dt){
 
 /* ---------------- mini-boss: the Catapult Master ---------------- */
 function startMBoss(){
-  const hp=Math.round(128*DIFF().bossHp);
-  mboss={x:6600,y:600-74,w:130,h:74,hp,max:hp,face:-1,vx:0,wheel:0,
-    st:'roll',stT:1.2,lobT:1.8,burn:0,chillT:0,hurtT:0,dead:false,deadT:0,dropped:false};
-  mbIntroT=2; SFX.roar(); SFX.slam();
-  tip('cata','The Catapult Master bars the road — his machine is timber and tar.');
+  if(LVL===2){
+    const hp=Math.round(120*DIFF().bossHp);
+    mboss={type:'hunt',x:5150,y:600-78,w:36,h:78,hp,max:hp,face:-1,vx:0,
+      st:'stalk',stT:1.2,hornT:2.2,shotT:1.6,horns:0,burn:0,chillT:0,hurtT:0,dead:false,deadT:0,dropped:false,walkT:0};
+    mbIntroT=2; SFX.roar(); SFX.javelin();
+    tip('hunt','The Huntsmaster calls the packs. Silence the horn.');
+  }else{
+    const hp=Math.round(128*DIFF().bossHp);
+    mboss={type:'cm',x:6600,y:600-74,w:130,h:74,hp,max:hp,face:-1,vx:0,wheel:0,
+      st:'roll',stT:1.2,lobT:1.8,burn:0,chillT:0,hurtT:0,dead:false,deadT:0,dropped:false};
+    mbIntroT=2; SFX.roar(); SFX.slam();
+    tip('cata','The Catapult Master bars the road — his machine is timber and tar.');
+  }
 }
 function damageMBoss(dmg,x,y){
   const m=mboss;
   if(!m||m.dead) return;
-  m.hp-=dmg*(m.chillT>0?1.2:1); m.hurtT=.09;
-  markSeen('cm');
+  m.hp-=dmg*(m.chillT>0?1.2:1)*(m.st==='winded'?2:1); m.hurtT=.09;
+  markSeen(m.type==='hunt'?'hunt':'cm');
   if(dmg>=.5){SFX.bossHurt(); burst(x,y,4,'rgb(255,179,71)',.5);}
   if(isFire()&&dmg>=.5&&m.burn<=0&&Math.random()<.3){m.burn=4;SFX.ignite();}
   if(m.hp<=0&&!m.dead){
@@ -1102,6 +1361,43 @@ function updateMBoss(dt){
   if(m.hurtT>0) m.hurtT-=dt;
   if(m.chillT>0) m.chillT-=dt;
   const cold=m.chillT>0?0.55:1;
+  if(m.type==='hunt'){
+    // the Huntsmaster: distance, crossbow, and the horn that never stops
+    const px2=m===mboss?player.x:0, adx2=Math.abs(px2-m.x);
+    m.face=px2>m.x?1:-1;
+    if(m.st==='winded'){
+      m.stT-=dt;
+      if(m.stT<=0){m.st='stalk';m.stT=1;}
+    }else{
+      const want=adx2<300?-1:(adx2>520?1:0);
+      m.x+=m.face*want*140*cold*DIFF().eSpd*dt;
+      if(want) m.walkT+=dt*9;
+      m.x=clamp(m.x,MARENA.x0+60,MARENA.x1-60);
+      m.shotT-=dt*cold;
+      if(m.shotT<=0){
+        m.shotT=2.2*DIFF().eCad;
+        const a=Math.atan2((player.y+18)-(m.y+26),player.x-m.x);
+        eshots.push({x:m.x+m.face*16,y:m.y+26,vx:Math.cos(a)*640,vy:Math.sin(a)*640,g:0,r:5,life:2.4,bolt:true});
+        SFX.shoot();
+      }
+      m.hornT-=dt*cold;
+      if(m.hornT<=0){
+        m.hornT=4.6*DIFF().eCad; m.horns++;
+        SFX.roar(); SFX.chime(); shake(5);
+        spawnRing(m.x,m.y+10,'rgb(200,235,150)');
+        const mine=enemies.filter(e=>!e.dead&&e.type==='hound'&&e.pack).length;
+        for(let k=0;k<2&&mine+k<5;k++){
+          const hx=k?MARENA.x0+70:MARENA.x1-70;
+          const h2=spawnEnemy('hound',hx,undefined,.7);
+          h2.wave=true; h2.pack=true;
+        }
+        if(m.horns%3===0){m.st='winded'; m.stT=1.5; SFX.clang();}
+      }
+    }
+    if(!player.dead&&rectsOverlap(m.x-m.w/2,m.y,m.w,m.h,player.x-player.w/2,player.y,player.w,player.h))
+      hitPlayer();
+    return;
+  }
   if(m.burn>0){
     m.burn-=dt; m.hp-=3*dt;
     if(Math.random()<.5*pMul()) spawnPart(m.x+rand(-50,50),m.y+rand(0,m.h*.6),rand(-15,15),rand(-70,-25),rand(.3,.6),rand(2,3.5),'rgb(255,140,58)',0,true);
@@ -1176,11 +1472,23 @@ function updateFire(dt){
     if(Math.random()<.4*pMul())    // calmer embers — fire shouldn't drown the scene
       spawnPart(o.x+rand(0,o.w), o.y+rand(0,o.h*.5), rand(-15,15), rand(-80,-25), rand(.35,.7), rand(2,3.5),'rgb(255,140,58)',0,true);
     if(o.spreadT<=0){
-      o.spreadT=.45;
+      // the canopy is a tinderbox — fire runs twice as fast up there
+      const canopy=LVL===2&&o.y<520;
+      o.spreadT=canopy?.22:.45;
       for(const q of flammables()){
         if(q===o||q.burn>0) continue;
         const qx=q.x+q.w/2, qy=q.y+q.h/2;
         if(dist2(cx,cy,qx,qy)<115*115) ignite(q);
+      }
+      if(canopy){
+        // burning canopy rains embers on the floor below
+        spawnPart(cx+rand(-20,20),o.y+10,rand(-10,10),rand(60,120),rand(.8,1.4),3,'rgb(255,140,58)',200,true);
+        if(Math.random()<.3){
+          for(const q of flammables()){
+            if(q.burn>0||q.y<o.y+80) continue;
+            if(Math.abs(q.x+q.w/2-cx)<45){ignite(q);break;}
+          }
+        }
       }
     }
     for(const e of enemies){
@@ -1362,7 +1670,7 @@ function updatePlayer(dt){
   if(boss&&!boss.dead) p.x=clamp(p.x, ARENA+16, ARENA+W-16);
   if(mboss&&!mboss.dead) p.x=clamp(p.x, MARENA.x0+16, MARENA.x1-16);
   p.x=clamp(p.x, 12, LEVEL-12);
-  if(p.y>830) killPlayer();
+  if(p.y>cam.y+H+140) killPlayer();
   /* powder kegs: hoist, lug, hurl */
   if(grabKey){
     grabKey=false;
@@ -1708,10 +2016,10 @@ function updateShots(dt){
         if(s.boulder){
           SFX.explode(); shake(6);
           if(s.cold){
-            burst(s.x,s.y,16,'rgb(190,190,180)');
-            spawnRing(s.x,s.y,'rgb(220,220,210)');
-            // stone shot splinters the planks it lands on
-            for(const s2 of solids)
+            burst(s.x,s.y,16,s.wood?'rgb(150,120,80)':'rgb(190,190,180)');
+            spawnRing(s.x,s.y,s.wood?'rgb(190,160,110)':'rgb(220,220,210)');
+            // stone shot splinters the planks it lands on (dead wood just breaks apart)
+            if(!s.wood) for(const s2 of solids)
               if(s2.plank&&!s2.oneWay&&!s2.dead&&Math.abs(s2.x+40-s.x)<110){
                 s2.dead=true;
                 burst(s2.x+40,s2.y,10,'rgb(150,110,70)',.7);
@@ -1788,7 +2096,7 @@ function updateAmbushes(dt){
     }
   }
   if(!mboss&&player.x>MARENA.trig) startMBoss();
-  if(!boss&&player.x>15860) startBoss();
+  if(!boss&&(LVL===1?player.x>BOSS_TRIG:(player.x>12500&&player.y<-1250))) startBoss();
 }
 
 /* ---------------- particles ---------------- */
@@ -1812,7 +2120,12 @@ function updateParts(dt){
     p.x+=p.vx*dt; p.y+=p.vy*dt;
   }
   parts=parts.filter(p=>p.life>0);
-  if(Math.random()<.09*pMul())
+  if(LVL===2){
+    // fireflies wander the dusk
+    if(Math.random()<.12*pMul())
+      spawnPart(cam.x+rand(0,W+200), cam.y+rand(H*.3,H*.85), rand(-22,22), rand(-14,14), rand(3,6), rand(1.6,2.4),
+        'rgb(190,235,120)',0,true);
+  }else if(Math.random()<.09*pMul())
     spawnPart(cam.x+rand(0,W+200), rand(H*.35,H*.75), rand(-40,-12), rand(8,24), rand(2.5,4.5), rand(1.4,2.2),
       Math.random()<.6?'rgb(255,250,215)':'rgb(150,200,110)',0,true);
 }
@@ -1826,6 +2139,9 @@ function updateCam(dt){
   else target=player.x-W*.38;
   target=clamp(target,0,LEVEL-W);
   cam.x=lerp(cam.x,target,1-Math.pow(.002,dt));
+  // the climb: camera rises with you, never below ground level
+  const ty=clamp(player.y+player.h-H*.62,CAM_MIN_Y,0);
+  cam.y=lerp(cam.y,ty,1-Math.pow(.002,dt));
   shakeMag*=Math.pow(.001,dt);
   shakeX=rand(-shakeMag,shakeMag); shakeY=rand(-shakeMag,shakeMag);
 }
@@ -1885,6 +2201,17 @@ function update(dt){
   updateParts(dt);
   updateCam(dt);
   updateTut(dt);
+  // bramble walls take a moment to knit themselves
+  for(const s of solids) if(s.bram&&!s.dead&&s.grow<1) s.grow=Math.min(1,s.grow+dt*2.2);
+  // the Great Tree sheds dead wood on climbers
+  if(LVL===2&&player.y<-140&&player.x>12400&&!(boss&&!boss.dead)){
+    branchT=(branchT||0)-dt;
+    if(branchT<=0){
+      branchT=rand(2.2,3.4)*DIFF().eCad;
+      eshots.push({x:player.x+rand(-190,190),y:player.y-520,vx:rand(-15,15),vy:60,g:520,r:9,life:4,boulder:true,cold:true,wood:true});
+      SFX.breath();
+    }
+  }
   cpFlashT-=dt; dmgFlashT-=dt;
   if(tutDoneT>0){
     tutDoneT-=dt;
@@ -1893,7 +2220,7 @@ function update(dt){
     }
   }
   // the defenders answer the crossing — in your own element's opposite key
-  if(!bridgeTorched&&player.x>1470&&player.x<1900&&!player.dead){
+  if(LVL===1&&!bridgeTorched&&player.x>1470&&player.x<1900&&!player.dead){
     bridgeTorched=true;
     SFX.ambush(); shake(5);
     tut.done['bridge']=true;
@@ -1912,11 +2239,17 @@ function update(dt){
       tip('torch','They shell the bridge! Freeze the moat — the water will bear you.');
     }
   }
-  if(Math.abs(player.x-2850)<110) tip('force','Splintered wood burns. Cracked stone breaks. Cast at it.');
-  if(Math.abs(player.x-4440)<70) tip('gap','Too far to jump? Jump, then DASH in the air.');
-  if(Math.abs(player.x-8030)<70) tip('river', isFire()
-    ? 'The bridge is long gone. The stones remember one.'
-    : 'Still water ahead. You know what to do.');
+  if(LVL===1){
+    if(Math.abs(player.x-2850)<110) tip('force','Splintered wood burns. Cracked stone breaks. Cast at it.');
+    if(Math.abs(player.x-4440)<70) tip('gap','Too far to jump? Jump, then DASH in the air.');
+    if(Math.abs(player.x-8030)<70) tip('river', isFire()
+      ? 'The bridge is long gone. The stones remember one.'
+      : 'Still water ahead. You know what to do.');
+  }else{
+    if(Math.abs(player.x-640)<80) tip('hound','Warhounds run you down. Dash through the lunge, or meet it in the air.');
+    if(Math.abs(player.x-1420)<80) tip('canopy','Two roads: the floor, or the branches above. '+(isFire()?'Mind your sparks up there — the canopy is tinder.':'The high road is drier. And flammable.'));
+    if(Math.abs(player.x-12440)<80) tip('climb','The only way is up. The old tree drops dead wood on climbers.');
+  }
   if(bossIntroT>0) bossIntroT-=dt;
   if(mbIntroT>0) mbIntroT-=dt;
 }
@@ -1925,16 +2258,23 @@ function update(dt){
 function ridge(x,seed){
   return Math.sin(x*.0016+seed)*46+Math.sin(x*.0007+seed*2.7)*80+Math.sin(x*.004+seed*1.3)*18;
 }
+const vOff=p=>(-cam.y)*p*.5;   // parallax layers sink as you climb
 function render(t){
   ctx.clearRect(0,0,W,H);
   const sky=ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,'#4f7fb8'); sky.addColorStop(.42,'#8fb6d8');
-  sky.addColorStop(.66,'#e3d9a8'); sky.addColorStop(.86,'#f2b96e'); sky.addColorStop(1,'#e89a48');
+  if(LVL===2){
+    // dusk under the canopy
+    sky.addColorStop(0,'#39536b'); sky.addColorStop(.4,'#4e6a5e');
+    sky.addColorStop(.68,'#7a9058'); sky.addColorStop(.88,'#c9a05a'); sky.addColorStop(1,'#a97a3e');
+  }else{
+    sky.addColorStop(0,'#4f7fb8'); sky.addColorStop(.42,'#8fb6d8');
+    sky.addColorStop(.66,'#e3d9a8'); sky.addColorStop(.86,'#f2b96e'); sky.addColorStop(1,'#e89a48');
+  }
   ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
   const sunX=W*.7-cam.x*.02;
-  drawGlow(sunX,170,150,'rgb(255,240,200)',.8);
-  ctx.fillStyle='#fff6dc';
-  ctx.beginPath(); ctx.arc(sunX,170,46,0,TAU); ctx.fill();
+  drawGlow(sunX,170,LVL===2?110:150,'rgb(255,240,200)',LVL===2?.5:.8);
+  ctx.fillStyle=LVL===2?'#ffedc2':'#fff6dc';
+  ctx.beginPath(); ctx.arc(sunX,170,LVL===2?34:46,0,TAU); ctx.fill();
   // god rays leaning across the afternoon
   ctx.save();
   ctx.translate(sunX,170);
@@ -1972,16 +2312,26 @@ function render(t){
     ctx.quadraticCurveTo(bx+4,by-4-flap,bx+8,by);
     ctx.stroke();
   }
-  drawRidge(.12,'#a9c2b2',430,3.1);
-  drawCastles(t);
-  drawRidge(.32,'#7fae74',470,7.7);
-  drawForest(.32,470,7.7,'#639a5c');
-  drawVillage(t);
-  drawRidge(.55,'#4f8a4c',520,12.3);
-  drawForest(.55,520,12.3,'#3d7040');
-  drawTrees(t);
+  if(LVL===2){
+    drawRidge(.12,'#5a7a68',430,3.1);
+    drawForest(.12,430,3.1,'#4e6e58');
+    drawRidge(.32,'#42604a',470,7.7);
+    drawForest(.32,470,7.7,'#38543e');
+    drawRidge(.55,'#2c4432',520,12.3);
+    drawForest(.55,520,12.3,'#233828');
+    drawTrees(t);
+  }else{
+    drawRidge(.12,'#a9c2b2',430,3.1);
+    drawCastles(t);
+    drawRidge(.32,'#7fae74',470,7.7);
+    drawForest(.32,470,7.7,'#639a5c');
+    drawVillage(t);
+    drawRidge(.55,'#4f8a4c',520,12.3);
+    drawForest(.55,520,12.3,'#3d7040');
+    drawTrees(t);
+  }
   ctx.save();
-  ctx.translate(-cam.x+shakeX,shakeY);
+  ctx.translate(-cam.x+shakeX,-cam.y+shakeY);
   drawWater(t);
   drawChasm();
   drawTerrain(t);
@@ -2072,9 +2422,6 @@ function drawDecals(){
     }
   }
 }
-const ZONES=[[0,[96,140,80],.05],[4400,[120,140,165],.09],[6260,[150,110,85],.09],
-  [8000,[80,130,170],.08],[8720,[255,170,70],.08],[10600,[140,140,150],.09],
-  [12400,[190,70,50],.11],[17100,[190,70,50],.11]];
 function drawGrade(){
   const cx=cam.x+W/2;
   let i=0; while(i<ZONES.length-2&&cx>ZONES[i+1][0]) i++;
@@ -2088,6 +2435,7 @@ function drawGrade(){
   ctx.globalCompositeOperation='source-over';
 }
 function drawForeground(t){
+  if(cam.y<-90) return;   // no meadow grass halfway up a tree
   // dark grass drifting past in front of the action
   const par=1.3, step=56, start=Math.floor((cam.x*par-90)/step);
   ctx.fillStyle='#1e2d1a';
@@ -2108,6 +2456,53 @@ function drawMBoss(t){
   const m=mboss; if(!m) return;
   const {x,y,w,h}=m;
   if(!m.dead) drawShadowAt(x,y+h,w+10);
+  if(m.type==='hunt'){
+    let a0=1;
+    if(m.dead){a0=clamp(1-m.deadT/1.4,0,1); if(a0<=0) return; ctx.globalAlpha=a0;}
+    const F=m.face, winded=m.st==='winded';
+    const hst=Math.sin(m.walkT||0)*6;
+    ctx.strokeStyle='#4a3a2c'; ctx.lineWidth=6;              // legs
+    ctx.beginPath();
+    ctx.moveTo(x-5,y+48); ctx.lineTo(x-7+hst,y+h);
+    ctx.moveTo(x+5,y+48); ctx.lineTo(x+7-hst,y+h);
+    ctx.stroke();
+    ctx.fillStyle='#5f4a34';                                 // long leathers
+    ctx.fillRect(x-w/2,y+18,w,34);
+    ctx.strokeStyle='#2c1e12'; ctx.lineWidth=3;              // baldric
+    ctx.beginPath();ctx.moveTo(x-w/2,y+22);ctx.lineTo(x+w/2,y+40);ctx.stroke();
+    ctx.fillStyle='#e0b990';
+    ctx.beginPath();ctx.arc(x,y+12,10,0,TAU);ctx.fill();
+    ctx.fillStyle='#4a3a2c';                                 // antlered half-helm
+    ctx.beginPath();ctx.arc(x,y+10,11,Math.PI,0);ctx.fill();
+    ctx.strokeStyle='#8a7658'; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.moveTo(x-8,y+2);ctx.lineTo(x-15,y-10);ctx.lineTo(x-11,y-14);
+    ctx.moveTo(x-15,y-10);ctx.lineTo(x-20,y-13);
+    ctx.moveTo(x+8,y+2);ctx.lineTo(x+15,y-10);ctx.lineTo(x+11,y-14);
+    ctx.moveTo(x+15,y-10);ctx.lineTo(x+20,y-13);
+    ctx.stroke();
+    ctx.fillStyle='#2a2018';
+    ctx.fillRect(x+F*3,y+11,4,3);
+    // the horn of bone — glows when winded (your window)
+    if(winded) drawGlow(x-F*14,y+22,26,'rgb(220,240,170)',.9);
+    ctx.fillStyle=winded?'#e8e0b8':'#c9bfa0';
+    ctx.beginPath();
+    ctx.moveTo(x-F*8,y+24);
+    ctx.quadraticCurveTo(x-F*22,y+18,x-F*26,y+8);
+    ctx.lineTo(x-F*21,y+6);
+    ctx.quadraticCurveTo(x-F*18,y+16,x-F*6,y+20);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#8a929e'; ctx.lineWidth=4;              // crossbow arm
+    ctx.beginPath();ctx.moveTo(x+F*4,y+24);ctx.lineTo(x+F*17,y+27);ctx.stroke();
+    ctx.fillStyle='#6b4a2e';
+    ctx.fillRect(x+F*13-(F<0?16:0),y+24,16,5);
+    ctx.strokeStyle='#cdd4dc'; ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(x+F*13,y+21);ctx.lineTo(x+F*22,y+27);ctx.lineTo(x+F*13,y+33);ctx.stroke();
+    if(m.hurtT>0){ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillRect(x-w/2-4,y-16,w+8,h+18);}
+    if(m.chillT>0){ctx.fillStyle='rgba(140,205,255,.25)';ctx.fillRect(x-w/2-4,y-16,w+8,h+18);}
+    ctx.globalAlpha=1;
+    return;
+  }
   const aiming=m.st==='aim';
   let a0=1;
   if(m.dead){
@@ -2168,9 +2563,10 @@ function drawRidge(par,color,base,seed){
   ctx.fillStyle=color;
   ctx.beginPath();
   ctx.moveTo(0,H);
+  const yo=vOff(par);
   for(let x=0;x<=W;x+=16){
     const wx=x+cam.x*par;
-    ctx.lineTo(x, base+ridge(wx,seed));
+    ctx.lineTo(x, base+yo+ridge(wx,seed));
   }
   ctx.lineTo(W,H); ctx.closePath(); ctx.fill();
 }
@@ -2210,12 +2606,13 @@ function castle(x,by,s,t){
 }
 function drawForest(par,base,seed,color){
   ctx.fillStyle=color;
+  const yo=vOff(par);
   const step=42, start=Math.floor((cam.x*par-70)/step);
   ctx.beginPath();
   for(let b=start;b*step-cam.x*par<=W+70;b++){
     const x=b*step-cam.x*par;
     const h=((b*2654435761)>>>8)%20;
-    const y=base+ridge(b*step,seed)-4;
+    const y=base+yo+ridge(b*step,seed)-4;
     ctx.moveTo(x+22+h,y);
     ctx.arc(x,y,20+h,0,TAU);
   }
@@ -2225,7 +2622,7 @@ function drawForest(par,base,seed,color){
     const k=((b*40503)>>>4)%10;
     if(k<4) continue;
     const x=b*pstep-cam.x*par;
-    const y=base+ridge(b*pstep,seed)+4;
+    const y=base+yo+ridge(b*pstep,seed)+4;
     ctx.beginPath();
     ctx.moveTo(x-13,y);ctx.lineTo(x,y-44-k*3);ctx.lineTo(x+13,y);ctx.closePath();ctx.fill();
   }
@@ -2273,7 +2670,7 @@ function drawTrees(t){
   for(let i=0;i<9;i++){
     const lx=i*310+((i*73)%140);
     const x=((lx-cam.x*par)%span+span)%span-120;
-    const by=524+ridge(x+cam.x*par,12.3);
+    const by=524+vOff(par)+ridge(x+cam.x*par,12.3);
     const s=.7+((i*37)%10)/14;
     ctx.fillStyle='#2e5230';
     ctx.fillRect(x-3*s,by-26*s,6*s,26*s);
@@ -2312,8 +2709,8 @@ function drawChasm(){
   for(const [x0,x1] of CHASMS) ctx.fillRect(x0,660,x1-x0,180);
 }
 function drawShadowAt(x,feetY,w){
-  const sy=groundYAt(x);
-  if(sy>870) return;
+  const sy=groundYAt(x,feetY-8);
+  if(sy>cam.y+H+150) return;
   const gap=Math.max(0,sy-feetY);
   const a=clamp(1-gap/200,0,1)*.26;
   if(a<=0.02) return;
@@ -2382,7 +2779,30 @@ function drawTerrain(t){
       }
     }else if(s.breakable){
       const fr=clamp(s.hp/s.maxHp,0,1);
-      if(s.seal){
+      if(s.bram){
+        // a knot of living thorns, still knitting itself upward
+        const g2=s.grow===undefined?1:s.grow;
+        const bh=s.h*g2, ty=s.y+s.h-bh;
+        ctx.strokeStyle=s.burn>0?'#7a3a14':'#3f5230'; ctx.lineWidth=4;
+        ctx.beginPath();
+        for(let i=0;i<3;i++){
+          const bx4=s.x+6+i*9;
+          ctx.moveTo(bx4,s.y+s.h);
+          ctx.quadraticCurveTo(bx4+((i%2)?8:-8),ty+bh*.5,bx4+3,ty);
+        }
+        ctx.stroke();
+        ctx.strokeStyle=s.burn>0?'#9a4a1a':'#5a7040'; ctx.lineWidth=1.5;   // thorns
+        ctx.beginPath();
+        for(let yy=s.y+s.h-8;yy>ty+4;yy-=11){
+          ctx.moveTo(s.x+4,yy);ctx.lineTo(s.x-3,yy-5);
+          ctx.moveTo(s.x+s.w-4,yy-5);ctx.lineTo(s.x+s.w+3,yy-10);
+        }
+        ctx.stroke();
+        if(s.hp<s.maxHp){
+          ctx.strokeStyle='rgba(20,16,12,.7)'; ctx.lineWidth=2;
+          ctx.beginPath();ctx.moveTo(s.x+8,ty+14);ctx.lineTo(s.x+s.w/2,ty+34);ctx.stroke();
+        }
+      }else if(s.seal){
         // a trial stone, humming in your element's key
         const c=WPN('BOLT').color;
         drawGlow(s.x+s.w/2,s.y+s.h/2,34,c,.35+.15*Math.sin(t*.004+s.x));
@@ -2434,12 +2854,80 @@ function drawTerrain(t){
         ctx.stroke();
       }
     }else if(s.plank||s.barr){
-      ctx.fillStyle=s.burn>0?'#4a2410':'#5a4028';
-      ctx.fillRect(s.x,s.y,s.w,s.h);
-      ctx.fillStyle='rgba(30,18,12,.5)';
-      if(s.plank) for(let px=s.x+6;px<s.x+s.w-4;px+=22) ctx.fillRect(px,s.y+2,2,s.h-4);
-      if(s.barr) for(let py=s.y+8;py<s.y+s.h;py+=14) ctx.fillRect(s.x+4,py,s.w-8,2);
+      const wood=s.burn>0?'#4a2410':'#5a4028';
+      // platforms belong to the world: braces, supports, growth
+      if(s.oneWay){
+        if(LVL===2&&s.x>12400){
+          // a living branch of the Great Tree — thick at the trunk, tapering out
+          const trunkRight=s.x+s.w/2<12990;
+          const rootX=trunkRight?s.x+s.w:s.x;
+          const tipX=trunkRight?s.x:s.x+s.w;
+          ctx.fillStyle=s.burn>0?'#4a2410':'#54402a';
+          ctx.beginPath();
+          ctx.moveTo(rootX,s.y-6);
+          ctx.lineTo(tipX,s.y+2);
+          ctx.lineTo(tipX,s.y+s.h);
+          ctx.lineTo(rootX,s.y+s.h+10);
+          ctx.closePath();ctx.fill();
+          ctx.fillStyle='#33502e';                      // leaf sprays at the tip
+          ctx.beginPath();
+          ctx.arc(tipX,s.y-2,10,0,TAU);
+          ctx.arc(tipX+(trunkRight?14:-14),s.y+4,8,0,TAU);
+          ctx.fill();
+        }else{
+          ctx.fillStyle=wood;
+          ctx.fillRect(s.x,s.y,s.w,s.h);
+          ctx.strokeStyle=s.burn>0?'#3a1c0a':'#453222'; // braces holding it up
+          ctx.lineWidth=5;
+          ctx.beginPath();
+          ctx.moveTo(s.x+12,s.y+s.h); ctx.lineTo(s.x+30,s.y+s.h+34);
+          ctx.moveTo(s.x+s.w-12,s.y+s.h); ctx.lineTo(s.x+s.w-30,s.y+s.h+34);
+          ctx.stroke();
+          if(LVL===2){                                  // moss and hanging leaves
+            ctx.fillStyle='#3f6b3a';
+            ctx.fillRect(s.x,s.y-2,s.w,3);
+            ctx.beginPath();
+            ctx.arc(s.x+8,s.y+s.h+4,6,0,TAU);
+            ctx.arc(s.x+s.w-8,s.y+s.h+5,6,0,TAU);
+            ctx.fill();
+          }else{                                        // grass takes any foothold it can
+            ctx.strokeStyle='#5da04a'; ctx.lineWidth=2;
+            ctx.beginPath();
+            for(let gx=s.x+8;gx<s.x+s.w;gx+=26){
+              ctx.moveTo(gx,s.y);ctx.lineTo(gx+2,s.y-7);
+            }
+            ctx.stroke();
+          }
+        }
+        ctx.fillStyle='rgba(30,18,12,.5)';
+        for(let px=s.x+6;px<s.x+s.w-4;px+=22) ctx.fillRect(px,s.y+2,2,Math.max(2,s.h-4));
+      }else{
+        ctx.fillStyle=wood;
+        ctx.fillRect(s.x,s.y,s.w,s.h);
+        ctx.fillStyle='rgba(30,18,12,.5)';
+        if(s.plank) for(let px=s.x+6;px<s.x+s.w-4;px+=22) ctx.fillRect(px,s.y+2,2,s.h-4);
+        if(s.barr) for(let py=s.y+8;py<s.y+s.h;py+=14) ctx.fillRect(s.x+4,py,s.w-8,2);
+      }
     }else if(s.stone){
+      if(s.root){
+        // the old tree's knuckles, not masonry
+        ctx.fillStyle='#4a3a28';
+        ctx.fillRect(s.x,s.y+8,s.w,s.h-8);
+        ctx.beginPath();
+        ctx.moveTo(s.x,s.y+10);
+        ctx.quadraticCurveTo(s.x+s.w/2,s.y-10,s.x+s.w,s.y+10);
+        ctx.closePath();ctx.fill();
+        ctx.strokeStyle='rgba(28,20,12,.55)'; ctx.lineWidth=2;
+        for(let k=0;k<3;k++){
+          ctx.beginPath();
+          ctx.moveTo(s.x+10+k*(s.w/3),s.y+6);
+          ctx.quadraticCurveTo(s.x+16+k*(s.w/3),s.y+s.h*.5,s.x+8+k*(s.w/3),s.y+Math.min(s.h,220));
+          ctx.stroke();
+        }
+        ctx.fillStyle='#3f6b3a';
+        ctx.fillRect(s.x,s.y,s.w,4);
+        continue;
+      }
       ctx.fillStyle='#5b6472';
       ctx.fillRect(s.x,s.y,s.w,s.h);
       ctx.fillStyle='rgba(24,26,34,.28)';
@@ -2543,6 +3031,19 @@ function drawProps(t){
         ctx.fillStyle='#d86a8a';
         ctx.fillRect(x+12,y+6,3,3); ctx.fillRect(x+34,y+2,3,3); ctx.fillRect(x+44,y+10,3,3);
       }
+    }else if(p.kind==='trunkS'){
+      // a standing tree: column below, crown above — the fire's favourite ladder
+      ctx.fillStyle=burning?'#4a2410':'#4e3a26';
+      ctx.fillRect(x+14,y,16,h);
+      ctx.fillRect(x+8,y+h-30,28,30);
+      ctx.strokeStyle='rgba(30,20,12,.5)'; ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(x+18,y+10);ctx.lineTo(x+18,y+h-20);ctx.moveTo(x+25,y+16);ctx.lineTo(x+25,y+h-30);ctx.stroke();
+      ctx.fillStyle=burning?'#5a2c10':'#33502e';
+      ctx.beginPath();
+      ctx.arc(x+22,y-6,26,0,TAU);
+      ctx.arc(x+2,y+8,18,0,TAU);
+      ctx.arc(x+42,y+8,18,0,TAU);
+      ctx.fill();
     }else if(p.kind==='keg'){
       ctx.fillStyle=burning?'#4a2410':'#6b4a2e';
       ctx.beginPath();ctx.ellipse(x+13,y+17,13,17,0,0,TAU);ctx.fill();
@@ -2674,11 +3175,12 @@ function drawPickups(t){
 }
 function drawArenaWall(t){
   if(!boss||boss.dead||bossIntroT>0) return;
+  const fy=boss.type==='thorn'?-1400:WALLY;
   for(const wx of [ARENA+6, ARENA+W-6]){
     ctx.strokeStyle='rgba(255,90,60,.4)';
     ctx.lineWidth=3;
     ctx.beginPath();
-    for(let y=WALLY-260;y<WALLY;y+=8){
+    for(let y=fy-260;y<fy;y+=8){
       const off=Math.sin(t*.004+y*.11)*5;
       ctx.moveTo(wx+off,y); ctx.lineTo(wx+off,y+5);
     }
@@ -2819,6 +3321,48 @@ function drawEnemies(t){
         ctx.fillStyle=Math.random()<.5?'#ffe9a0':'#ff9a3c';
         ctx.fillRect(bx2+2,by2-9,2,4);
       }
+    }else if(e.type==='hound'){
+      // four legs scrabbling
+      const hst=e.mov?Math.sin(e.walkT||0)*5:0;
+      ctx.strokeStyle='#3a3028'; ctx.lineWidth=4;
+      ctx.beginPath();
+      ctx.moveTo(x-11,y+16); ctx.lineTo(x-13+hst,y+h);
+      ctx.moveTo(x-5,y+16);  ctx.lineTo(x-6-hst,y+h);
+      ctx.moveTo(x+5,y+16);  ctx.lineTo(x+4+hst,y+h);
+      ctx.moveTo(x+11,y+16); ctx.lineTo(x+13-hst,y+h);
+      ctx.stroke();
+      const crouch=flash?4:0;                               // coiling before the leap
+      ctx.fillStyle='#54463a';                              // body low and long
+      ctx.beginPath();ctx.ellipse(x,y+12+crouch,17+crouch,9-crouch*.6,0,0,TAU);ctx.fill();
+      ctx.beginPath();ctx.arc(x+e.face*15,y+8,7,0,TAU);ctx.fill();  // head
+      ctx.fillStyle='#3a3028';                              // muzzle + ear
+      ctx.fillRect(x+e.face*18,y+6,e.face*7,4);
+      ctx.beginPath();ctx.moveTo(x+e.face*11,y+2);ctx.lineTo(x+e.face*14,y-5);ctx.lineTo(x+e.face*17,y+2);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#54463a'; ctx.lineWidth=3;           // tail
+      ctx.beginPath();ctx.moveTo(x-e.face*16,y+9);ctx.lineTo(x-e.face*23,y+3+Math.sin(t*.02)*2);ctx.stroke();
+      ctx.fillStyle=flash?'#ffffff':'#c93c2a';              // the eyes give them away
+      ctx.fillRect(x+e.face*14,y+5,3,3);
+    }else if(e.type==='weave'){
+      ctx.strokeStyle='#3a4430'; ctx.lineWidth=5;
+      ctx.beginPath();
+      ctx.moveTo(x-4,y+37); ctx.lineTo(x-4+stride,y+h);
+      ctx.moveTo(x+4,y+37); ctx.lineTo(x+4-stride,y+h);
+      ctx.stroke();
+      ctx.fillStyle='#4e5e3a';                              // moss robe
+      ctx.fillRect(x-w/2,y+13,w,26);
+      ctx.fillStyle='#e0b990';
+      ctx.beginPath();ctx.arc(x,y+10,9,0,TAU);ctx.fill();
+      ctx.fillStyle='#3a4a2c';                              // deep hood
+      ctx.beginPath();ctx.arc(x,y+8,10,Math.PI*.85,Math.PI*2.15);ctx.fill();
+      ctx.fillStyle='#2a2018';
+      ctx.fillRect(x+e.face*3,y+9,3,3);
+      ctx.strokeStyle='#6a5638'; ctx.lineWidth=3;           // gnarled staff
+      ctx.beginPath();ctx.moveTo(x+e.face*10,y+38);ctx.lineTo(x+e.face*14,y-2);ctx.stroke();
+      if(flash){                                            // seed of thorns, about to be sown
+        drawGlow(x+e.face*14,y-6,18,'rgb(150,210,110)',.9);
+        ctx.fillStyle='#a8d878';
+        ctx.beginPath();ctx.arc(x+e.face*14,y-6,5,0,TAU);ctx.fill();
+      }
     }else if(e.type==='ball'){
       ctx.fillStyle='#6b4a2e';
       ctx.fillRect(x-28,y+26,56,18);
@@ -2833,6 +3377,23 @@ function drawEnemies(t){
       ctx.restore();
       ctx.fillStyle=flash?'#ffffff':'#ff8c3a';
       ctx.fillRect(x-3,y+12,6,4);
+    }
+    // every attack announces itself
+    if(flash){
+      const ps=1+Math.sin(t*.03)*.2;
+      ctx.font='bold '+Math.round(18*ps)+'px Georgia';
+      ctx.textAlign='center';
+      ctx.strokeStyle='rgba(255,245,230,.9)'; ctx.lineWidth=3;
+      ctx.strokeText('!',x,y-14);
+      ctx.fillStyle='#c9331e';
+      ctx.fillText('!',x,y-14);
+      if(e.type==='ball'){
+        ctx.strokeStyle='rgba(200,50,30,.35)'; ctx.lineWidth=2; ctx.setLineDash([4,8]);
+        ctx.beginPath();
+        ctx.moveTo(x,y+14);
+        ctx.lineTo(x+Math.cos(e.aim||0)*420,y+14+Math.sin(e.aim||0)*420);
+        ctx.stroke(); ctx.setLineDash([]);
+      }
     }
     if(e.chillT>0&&!e.dead){
       ctx.fillStyle='rgba(140,205,255,.28)';
@@ -2849,6 +3410,68 @@ function drawBoss(t){
   const b=boss; if(!b) return;
   const {x,y,w,h}=b;
   if(!b.dead) drawShadowAt(x,y+h,w+28);
+  if(b.type==='thorn'){
+    let falling=false;
+    if(b.dead){
+      const f=clamp(b.deadT/2,0,1);
+      ctx.save();
+      ctx.translate(x,y+h); ctx.rotate(f*1.2*b.face); ctx.translate(-x,-(y+h));
+      ctx.globalAlpha=clamp(1-f*.8,0,1);
+      falling=true;
+    }
+    const sway=Math.sin(t*.0012)*3;
+    const prep=b.st==='slamPrep'||b.st==='branchPrep'||b.st==='summonPrep';
+    const winded=b.st==='winded';
+    // root splay
+    ctx.fillStyle='#3e3020';
+    for(const [rx,rw] of [[-58,26],[-20,30],[22,28],[52,24]]){
+      ctx.beginPath();
+      ctx.moveTo(x+rx,y+h);ctx.lineTo(x+rx+rw/2,y+h-26);ctx.lineTo(x+rx+rw,y+h);
+      ctx.closePath();ctx.fill();
+    }
+    // trunk torso
+    ctx.fillStyle='#4e3a26';
+    ctx.fillRect(x-w/2,y+16,w,h-16);
+    ctx.strokeStyle='rgba(28,20,12,.6)'; ctx.lineWidth=2;   // bark
+    for(const bx5 of [-30,-12,8,26]){
+      ctx.beginPath();ctx.moveTo(x+bx5,y+24);ctx.lineTo(x+bx5+sway,y+h-14);ctx.stroke();
+    }
+    // limb arms — they rise when something is coming
+    ctx.strokeStyle=prep?'#8a7040':'#5a4430'; ctx.lineWidth=9;
+    const armY=prep?-.9:-.25;
+    ctx.beginPath();
+    ctx.moveTo(x-w/2+6,y+40);
+    ctx.lineTo(x-w/2-40,y+40+armY*60);
+    ctx.moveTo(x+w/2-6,y+40);
+    ctx.lineTo(x+w/2+40,y+40+armY*60);
+    ctx.stroke();
+    // leafy crown
+    ctx.fillStyle='#33502e';
+    ctx.beginPath();
+    ctx.arc(x,y+2,44,0,TAU);
+    ctx.arc(x-34,y+16,26,0,TAU);
+    ctx.arc(x+34,y+16,26,0,TAU);
+    ctx.fill();
+    // knot face
+    ctx.fillStyle='#2a2018';
+    ctx.beginPath();ctx.arc(x-12,y+34,4,0,TAU);ctx.arc(x+12,y+34,4,0,TAU);ctx.fill();
+    ctx.fillRect(x-8,y+48,16,3);
+    // the heartwood — his tell and your target
+    const hc=winded?'rgb(255,240,180)':'rgb(255,170,70)';
+    drawGlow(x,y+84,winded?42:26,hc,winded?.95:.55);
+    ctx.fillStyle=winded?'#ffe9b0':'#ffb267';
+    ctx.beginPath();ctx.arc(x,y+84,winded?11:8,0,TAU);ctx.fill();
+    if(b.hurtT>0){ctx.fillStyle='rgba(255,255,255,.45)';ctx.fillRect(x-w/2-6,y-4,w+12,h+8);}
+    if(b.chillT>0){ctx.fillStyle='rgba(140,205,255,.25)';ctx.fillRect(x-w/2-6,y-4,w+12,h+8);}
+    if(falling){ctx.restore();ctx.globalAlpha=1;}
+    // falling-branch target markers
+    if(b.marks) for(const mx of b.marks){
+      ctx.strokeStyle='rgba(200,60,40,'+(0.4+0.4*Math.sin(t*.02))+')';
+      ctx.lineWidth=2;
+      ctx.beginPath();ctx.ellipse(mx,-1400+4,26,6,0,0,TAU);ctx.stroke();
+    }
+    return;
+  }
   const tele=b.st==='volleyPrep'||b.st==='slamPrep'||b.st==='chargePrep';
   const winded=b.st==='winded';
   const F=b.face;
@@ -3006,11 +3629,23 @@ function drawShotsGlow(t){
   }
   for(const s of eshots){
     if(s.boulder){
-      drawGlow(s.x,s.y,30,'rgb(255,140,58)',.7);
-      ctx.fillStyle='#3a3230';
-      ctx.beginPath();ctx.arc(s.x,s.y,10,0,TAU);ctx.fill();
-      ctx.fillStyle='rgba(255,160,80,.85)';
-      ctx.beginPath();ctx.arc(s.x-3,s.y-3,4,0,TAU);ctx.fill();
+      if(s.wood){
+        ctx.save();
+        ctx.translate(s.x,s.y); ctx.rotate(s.y*.02);
+        ctx.fillStyle='#5a4128';
+        ctx.fillRect(-11,-5,22,10);
+        ctx.strokeStyle='#3a2a18'; ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.moveTo(-9,0);ctx.lineTo(9,0);ctx.stroke();
+        ctx.restore();
+      }else{
+        drawGlow(s.x,s.y,30,s.cold?'rgb(200,200,200)':'rgb(255,140,58)',s.cold?.3:.7);
+        ctx.fillStyle='#3a3230';
+        ctx.beginPath();ctx.arc(s.x,s.y,10,0,TAU);ctx.fill();
+        if(!s.cold){
+          ctx.fillStyle='rgba(255,160,80,.85)';
+          ctx.beginPath();ctx.arc(s.x-3,s.y-3,4,0,TAU);ctx.fill();
+        }
+      }
     }else if(s.bomb){
       drawGlow(s.x,s.y,14,'rgb(255,180,90)',.5);
       ctx.fillStyle='#26221f';
@@ -3268,27 +3903,27 @@ function drawHUD(t){
   }
   if(boss&&!boss.dead){
     ctx.textAlign='center'; ctx.fillStyle='#4a3826'; ctx.font='14px '+UIF;
-    ctx.fillText('THE WARDEN OF VHAL', W/2, 46);
+    ctx.fillText(boss.type==='thorn'?'OLD THORNHEART':'THE WARDEN OF VHAL', W/2, 46);
     ctx.fillStyle='rgba(20,10,25,.8)'; ctx.fillRect(W/2-220,56,440,10);
     ctx.fillStyle='#ff8c3a'; ctx.fillRect(W/2-220,56,440*clamp(boss.hp/boss.max,0,1),10);
     corners(W/2-224,52,448,18);
     if(bossIntroT>0){
       ctx.globalAlpha=clamp(bossIntroT,0,1);
       ctx.fillStyle='#7a2418'; ctx.font='32px '+UIF;
-      ctx.fillText('THE WARDEN ANSWERS', W/2, H/2-60);
+      ctx.fillText(boss.type==='thorn'?'THE FOREST WAKES':'THE WARDEN ANSWERS', W/2, H/2-60);
       ctx.globalAlpha=1;
     }
   }
   if(mboss&&!mboss.dead){
     ctx.textAlign='center'; ctx.fillStyle='#4a3826'; ctx.font='13px '+UIF;
-    ctx.fillText('THE CATAPULT MASTER', W/2, 46);
+    ctx.fillText(mboss.type==='hunt'?'THE HUNTSMASTER':'THE CATAPULT MASTER', W/2, 46);
     ctx.fillStyle='rgba(20,10,25,.8)'; ctx.fillRect(W/2-170,56,340,8);
     ctx.fillStyle='#ffb267'; ctx.fillRect(W/2-170,56,340*clamp(mboss.hp/mboss.max,0,1),8);
     corners(W/2-174,52,348,16);
     if(mbIntroT>0){
       ctx.globalAlpha=clamp(mbIntroT,0,1);
       ctx.fillStyle='#7a2418'; ctx.font='26px '+UIF;
-      ctx.fillText('THE CAMP BARS THE ROAD', W/2, H/2-60);
+      ctx.fillText(mboss.type==='hunt'?'THE HORN SOUNDS':'THE CAMP BARS THE ROAD', W/2, H/2-60);
       ctx.globalAlpha=1;
     }
   }
@@ -3317,7 +3952,7 @@ function gameOver(){
 function doWin(){
   state='win';
   stopMusic();
-  if(!tutorialMode){campaign.l1Cleared=true; saveCampaign();}
+  if(!tutorialMode){campaign['l'+LVL+'Cleared']=true; saveCampaign();}
   const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
   // rank: deaths decide the title, dawdling costs a step
   let idx=deaths===0?3:(deaths===1?2:(deaths<=3?1:0));
@@ -3346,7 +3981,8 @@ function doWin(){
 
 /* ---------------- bestiary + character portraits ---------------- */
 /* entries are earned: a foe appears in the book only after you've fought it */
-const BST_KEYS={bc0:'foot',bc1:'arch',bc5:'shield',bc6:'bomb',bc2:'ball',bc4:'cm',bc3:'warden'};
+const BST_KEYS={bc0:'foot',bc1:'arch',bc5:'shield',bc6:'bomb',bc2:'ball',bc4:'cm',bc3:'warden',
+  bc7:'hound',bc8:'weave',bc9:'hunt',bc10:'thorn'};
 let bstSeen={};
 try{bstSeen=JSON.parse(localStorage.getItem('arcanade-bestiary')||'{}');}catch(e){}
 function markSeen(k){
@@ -3482,6 +4118,94 @@ function drawPortraits(tt){
     g.fillStyle='#e0b990'; g.beginPath();g.arc(22,-11,6,0,TAU);g.fill();
     g.fillStyle='#3e3230'; g.beginPath();g.arc(22,-13,6.5,Math.PI,0);g.fill();
   },tt);
+  P2('bc7',(g,t)=>{ // warhound: coiled, then airborne
+    const ph=(t*.0012)%2;
+    const leap=ph>1.4?Math.sin((ph-1.4)/.6*Math.PI)*14:0;
+    g.translate(0,8-leap);
+    const hst=Math.sin(t*.02)*5;
+    g.strokeStyle='#3a3028'; g.lineWidth=4;
+    g.beginPath();
+    g.moveTo(-12,4);g.lineTo(-14+hst,20-leap*.3);
+    g.moveTo(-4,4);g.lineTo(-5-hst,20-leap*.3);
+    g.moveTo(6,4);g.lineTo(5+hst,20-leap*.3);
+    g.moveTo(13,4);g.lineTo(15-hst,20-leap*.3);
+    g.stroke();
+    g.fillStyle='#54463a';
+    g.beginPath();g.ellipse(0,-2,20,11,leap?-.2:0,0,TAU);g.fill();
+    g.beginPath();g.arc(18,-8,9,0,TAU);g.fill();
+    g.fillStyle='#3a3028';
+    g.fillRect(23,-10,9,5);
+    g.beginPath();g.moveTo(13,-15);g.lineTo(16,-23);g.lineTo(20,-15);g.closePath();g.fill();
+    g.strokeStyle='#54463a'; g.lineWidth=3;
+    g.beginPath();g.moveTo(-19,-5);g.lineTo(-27,-11+Math.sin(t*.02)*3);g.stroke();
+    g.fillStyle='#c93c2a'; g.fillRect(17,-11,3,3);
+  });
+  P2('bc8',(g,t)=>{ // thornweaver: the seed pulses
+    g.strokeStyle='#3a4430'; g.lineWidth=5;
+    g.beginPath();g.moveTo(-4,14);g.lineTo(-5,32);g.moveTo(4,14);g.lineTo(5,32);g.stroke();
+    g.fillStyle='#4e5e3a'; g.fillRect(-12,-10,24,26);
+    g.fillStyle='#e0b990'; g.beginPath();g.arc(0,-14,10,0,TAU);g.fill();
+    g.fillStyle='#3a4a2c'; g.beginPath();g.arc(0,-16,11,Math.PI*.85,Math.PI*2.15);g.fill();
+    g.fillStyle='#2a2018'; g.fillRect(3,-14,3,3);
+    g.strokeStyle='#6a5638'; g.lineWidth=3.5;
+    g.beginPath();g.moveTo(12,16);g.lineTo(17,-28);g.stroke();
+    const pulse=5+Math.sin(t*.005)*2.5;
+    const rg=g.createRadialGradient(17,-32,0,17,-32,pulse+7);
+    rg.addColorStop(0,'#a8d878'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=rg; g.beginPath();g.arc(17,-32,pulse+7,0,TAU);g.fill();
+    g.fillStyle='#d8f0a8'; g.beginPath();g.arc(17,-32,3.5,0,TAU);g.fill();
+  });
+  P2('bc9',(g,t)=>{ // the Huntsmaster: the horn keeps rising
+    const raise=Math.max(0,Math.sin(t*.0011))*10;
+    g.strokeStyle='#4a3a2c'; g.lineWidth=6;
+    g.beginPath();g.moveTo(-4,16);g.lineTo(-6,34);g.moveTo(5,16);g.lineTo(7,34);g.stroke();
+    g.fillStyle='#5f4a34'; g.fillRect(-13,-10,26,28);
+    g.strokeStyle='#2c1e12'; g.lineWidth=3;
+    g.beginPath();g.moveTo(-13,-6);g.lineTo(13,6);g.stroke();
+    g.fillStyle='#e0b990'; g.beginPath();g.arc(0,-16,10,0,TAU);g.fill();
+    g.fillStyle='#4a3a2c'; g.beginPath();g.arc(0,-18,11,Math.PI,0);g.fill();
+    g.strokeStyle='#8a7658'; g.lineWidth=2.5;
+    g.beginPath();
+    g.moveTo(-8,-24);g.lineTo(-15,-36);g.lineTo(-11,-40);
+    g.moveTo(-15,-36);g.lineTo(-21,-39);
+    g.moveTo(8,-24);g.lineTo(15,-36);g.lineTo(11,-40);
+    g.moveTo(15,-36);g.lineTo(21,-39);
+    g.stroke();
+    g.fillStyle='#2a2018'; g.fillRect(3,-16,3,3);
+    g.fillStyle='#c9bfa0';
+    g.beginPath();
+    g.moveTo(-8,2-raise);
+    g.quadraticCurveTo(-24,-4-raise,-28,-16-raise);
+    g.lineTo(-23,-18-raise);
+    g.quadraticCurveTo(-19,-6-raise,-6,-2-raise);
+    g.closePath();g.fill();
+  });
+  P2('bc10',(g,t)=>{ // Old Thornheart: the heartwood breathes
+    const sway=Math.sin(t*.0015)*2;
+    g.fillStyle='#3e3020';
+    for(const [rx,rw] of [[-24,12],[-6,14],[12,12]]){
+      g.beginPath();g.moveTo(rx,34);g.lineTo(rx+rw/2,22);g.lineTo(rx+rw,34);g.closePath();g.fill();
+    }
+    g.fillStyle='#4e3a26'; g.fillRect(-16,-14,32,48);
+    g.strokeStyle='rgba(28,20,12,.6)'; g.lineWidth=2;
+    g.beginPath();g.moveTo(-8,-6);g.lineTo(-8+sway,28);g.moveTo(6,-8);g.lineTo(6+sway,26);g.stroke();
+    g.strokeStyle='#5a4430'; g.lineWidth=6;
+    g.beginPath();
+    g.moveTo(-15,-2);g.lineTo(-30,-12+sway*2);
+    g.moveTo(15,-2);g.lineTo(30,-12-sway*2);
+    g.stroke();
+    g.fillStyle='#33502e';
+    g.beginPath();
+    g.arc(0,-22,20,0,TAU);g.arc(-16,-14,12,0,TAU);g.arc(16,-14,12,0,TAU);
+    g.fill();
+    g.fillStyle='#2a2018';
+    g.beginPath();g.arc(-5,-4,2.5,0,TAU);g.arc(5,-4,2.5,0,TAU);g.fill();
+    const pulse=6+Math.sin(t*.004)*2;
+    const rg=g.createRadialGradient(0,14,0,0,14,pulse+8);
+    rg.addColorStop(0,'#ffcf8a'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=rg; g.beginPath();g.arc(0,14,pulse+8,0,TAU);g.fill();
+    g.fillStyle='#ffb267'; g.beginPath();g.arc(0,14,4,0,TAU);g.fill();
+  });
   P2('bc3',(g,t)=>{ // the Warden: plume alive, spear restless
     const jab=Math.max(0,Math.sin(t*.0015))*6;
     const fl2=Math.sin(t*.005)*3;
@@ -3609,20 +4333,26 @@ function drawWorldMap(tt){
     g.strokeStyle='#4a7a3c'; g.lineWidth=3;
     g.beginPath();g.moveTo(424,196);g.lineTo(430,203);g.lineTo(442,187);g.stroke();
   }
-  /* the Thornwood — the road continues */
-  node(665,115,false,false);
-  g.fillStyle='#5f7350';
+  /* the Thornwood */
+  const l2open=!!campaign.l1Cleared;
+  node(665,115,l2open,l2open&&!campaign.l2Cleared);
+  g.fillStyle=l2open?'#3f6b3a':'#5f7350';
   for(const [px,ph] of [[634,26],[652,36],[672,30],[692,38],[708,24]]){
     g.beginPath();g.moveTo(px-9,96);g.lineTo(px,96-ph);g.lineTo(px+9,96);g.closePath();g.fill();
   }
-  g.font="13px 'Cinzel',Georgia"; g.fillStyle='#8a8272';
+  g.font="13px 'Cinzel',Georgia"; g.fillStyle=l2open?'#5a3c1a':'#8a8272';
   g.fillText('II · THE THORNWOOD',665,148);
-  g.font='italic 10px Georgia';
-  g.fillText('the road continues soon',665,162);
-  // rope across the locked path
-  g.strokeStyle='rgba(90,60,30,.55)'; g.lineWidth=2;
-  g.beginPath();g.moveTo(540,160);g.lineTo(580,130);g.stroke();
-  g.beginPath();g.moveTo(545,128);g.lineTo(578,162);g.stroke();
+  g.font='italic 10px Georgia'; g.fillStyle=l2open?'#8a6f4a':'#8a8272';
+  g.fillText(campaign.l2Cleared?'the crown has fallen':(l2open?'the trees have chosen a side':'the road continues soon'),665,162);
+  if(campaign.l2Cleared){
+    g.strokeStyle='#4a7a3c'; g.lineWidth=3;
+    g.beginPath();g.moveTo(694,106);g.lineTo(700,113);g.lineTo(712,97);g.stroke();
+  }
+  if(!l2open){
+    g.strokeStyle='rgba(90,60,30,.55)'; g.lineWidth=2;
+    g.beginPath();g.moveTo(540,160);g.lineTo(580,130);g.stroke();
+    g.beginPath();g.moveTo(545,128);g.lineTo(578,162);g.stroke();
+  }
 }
 
 /* ---------------- overlays / flow ---------------- */
@@ -3652,8 +4382,9 @@ function show(id){
   }
 }
 function hideAll(){OVERLAYS.forEach(o=>ov(o).classList.add('hidden'));}
+let pendingLevel=1;
 function startGame(){
-  buildLevel();
+  loadLevel(pendingLevel);
   gameTime=0; deaths=0; kills=0; relicsFound=0; checkpoint={x:60}; cpFlashT=0; ambushT=0;
   bridgeTorched=false;
   lives=DIFF().lives;
@@ -3663,12 +4394,22 @@ function startGame(){
   tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   setTutSteps(false);
   player=makePlayer(60); player.y=groundYAt(60)-56;
-  cam.x=0; state='play'; paused=false; hideAll();
+  cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
   playMusic('field');
 }
 let introStep=0;
+const INTROS={
+  1:['For a hundred years the Wall of Vhal has held. Behind it the warlords feast, while the green lowlands burn to feed them.',
+     'The colleges sent armies. Siege engines. Heroes. The Wall took them all, and grew taller on the bones.',
+     'Today they send one mage &mdash; and every relic they have left.<br><b>Bring it down.</b>'],
+  2:['Beyond the fallen wall the warlords fled into the Thornwood &mdash; the old forest that remembers when it owned these lands.',
+     'They bought its silence with prisoners, and its warden with a horn of bone. The trees have chosen a side.',
+     'The road runs under the canopy, and over it. Take either.<br><b>Take the crown.</b>'],
+};
 function runIntro(){
   state='intro'; introStep=0; show('intro');
+  const tx=INTROS[pendingLevel]||INTROS[1];
+  ov('i0').innerHTML=tx[0]; ov('i1').innerHTML=tx[1]; ov('i2').innerHTML=tx[2];
   ['i0','i1','i2','idiv'].forEach(id=>ov(id).classList.remove('show'));
   setTimeout(()=>ov('i0').classList.add('show'),200);
 }
@@ -3684,8 +4425,11 @@ document.getElementById('bTutorial').onclick=()=>{initAudio();SFX.chime();forceT
 document.getElementById('chFire').onclick=()=>{cls='fire';SFX.ignite();forceTut?startTutorialYard():(state='map',show('worldmap'));};
 document.getElementById('chFrost').onclick=()=>{cls='frost';SFX.freeze();forceTut?startTutorialYard():(state='map',show('worldmap'));};
 document.getElementById('bWmDrill').onclick=()=>{startTutorialYard();};
-document.getElementById('bWmL1').onclick=()=>{SFX.chime();runIntro();};
-document.getElementById('bWmL2').onclick=()=>{SFX.clink();tipMapLocked();};
+document.getElementById('bWmL1').onclick=()=>{SFX.chime();pendingLevel=1;campaign.l1Cleared?startGame():runIntro();};
+document.getElementById('bWmL2').onclick=()=>{
+  if(campaign.l1Cleared){SFX.chime();pendingLevel=2;campaign.l2Cleared?startGame():runIntro();}
+  else {SFX.clink();tipMapLocked();}
+};
 document.getElementById('bWmBack').onclick=()=>{state='charsel';show('charsel');};
 let mapLockT=0;
 function tipMapLocked(){mapLockT=Date.now();}
@@ -3811,7 +4555,7 @@ const ARC={god:false,
   step(dt){update(dt||.016);},
 };
 window.ARCANADE=ARC;
-buildLevel(); player=makePlayer(60); player.y=groundYAt(60)-56;
+loadLevel(1); player=makePlayer(60); player.y=groundYAt(60)-56;
 </script>
 </body>
 </html>
