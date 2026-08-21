@@ -198,6 +198,7 @@
       <button class="wmNode" id="bWmDrill" style="left:60px;top:280px;width:130px;height:90px"></button>
       <button class="wmNode" id="bWmL1" style="left:320px;top:150px;width:150px;height:110px"></button>
       <button class="wmNode" id="bWmL2" style="left:590px;top:60px;width:150px;height:110px"></button>
+      <button class="wmNode" id="bWmL3" style="left:640px;top:250px;width:150px;height:120px"></button>
       <button class="wmNode" id="bWmShop" style="left:190px;top:150px;width:120px;height:90px;display:none"></button>
       <button class="wmNode" id="bWmArm" style="left:480px;top:250px;width:120px;height:90px"></button>
     </div>
@@ -322,6 +323,26 @@
       <h3>The Warden of Vhal</h3>
       <p>The Wall's last oath-keeper, armored in a hundred years of victories. He fights at spear's length: javelin volleys, a ground-splitting slam, and a charge like a falling gate.</p>
       <p class="tip">Every assault leaves him winded &mdash; when the plume burns bright, he takes double. That is your window.</p>
+    </div></div>
+    <div class="bst"><canvas id="bc11" width="92" height="92"></canvas><div>
+      <h3>Gall-grub</h3>
+      <p>The tree's larvae, fat with sap, hanging from the heartwood ceiling. They wait &mdash; and let go when you are under them. Where they burst, the floor is amber.</p>
+      <p class="tip">Look up. Two bolts will drop one before you are beneath it.</p>
+    </div></div>
+    <div class="bst"><canvas id="bc12" width="92" height="92"></canvas><div>
+      <h3>Rootling</h3>
+      <p>A knot of living root that learned to walk. Slow, and it never hurries &mdash; because where it dies, a new root grows.</p>
+      <p class="tip">Kill it where you are <em>not</em> going. Frost makes the root it leaves brittle.</p>
+    </div></div>
+    <div class="bst"><canvas id="bc13" width="92" height="92"></canvas><div>
+      <h3>The Gall-Mother</h3>
+      <p>Grown into the heartwood wall, a queen of nothing but grubs. Her heart beats, and the walls close on the beat. She cannot move. She does not need to.</p>
+      <p class="tip">The light flares on the beat; the walls follow. Hold the centre, kill the brood, and strike when she tires after the third drop.</p>
+    </div></div>
+    <div class="bst"><canvas id="bc14" width="92" height="92"></canvas><div>
+      <h3>The Taproot</h3>
+      <p>The Great Tree's true body, a root-mouth in black water. The bark turns spells. Only the open mouth is flesh &mdash; and when it withers, the floor goes with it.</p>
+      <p class="tip">Jump the surge, read the marks, and pour everything into the gape. After half, the edges sink: live in the middle.</p>
     </div></div>
     <div style="text-align:center"><button class="btn small parch" id="bBestBack" style="margin-top:16px">Close</button></div>
   </div>
@@ -738,15 +759,73 @@ const SPELL_DESC={BOLT:'steady fire, no surprises',SPREAD:'a fan of shots for cr
   MORTAR:'a high lob that bursts into three',NOVA:'everything beside you, reminded'};
 const ZONE_NAMES={
   1:[[0,'The Field'],[1400,'The Moat'],[1960,'Forest Road'],[4400,'The Ravine'],[6260,'Burned Village'],[8000,'The River'],[8720,'Siege Camp'],[10600,'The Quarry'],[12400,'The Approach'],[13080,'The Wall']],
-  2:[[0,'Forest Gate'],[1200,'Hollow Way'],[3200,'Bramble Maze'],[4400,'The Glade'],[5400,'The Marsh'],[6800,'Deep Wood'],[8800,'The Scar'],[10400,'The Roots'],[12400,'The Great Tree']]};
+  2:[[0,'Forest Gate'],[1200,'Hollow Way'],[3200,'Bramble Maze'],[4400,'The Glade'],[5400,'The Marsh'],[6800,'Deep Wood'],[8800,'The Scar'],[10400,'The Roots'],[12400,'The Great Tree']],
+  3:[[0,'The Hollow'],[2000,'The Sapwell'],[2800,'The Heartwood'],[5400,'The Gall'],[7300,'The Descent'],[9400,'The Roots'],[12600,'The Taproot']]};
 function floatText(x,y,txt,col,big){floaters.push({x,y,txt,col,t:1,big:!!big});}
-let setpiece={camp:0,campT:0,pack:0,packT:0};
+let setpiece={camp:0,campT:0,pack:0,packT:0,fall:0,fallT:0};
+let SAPS=[], drafts=[], puddles=[], CP_Y=null, BOSS_MARK=15860;
+/* ---- sap: the Great Tree's blood. Frost makes it a crust you can stand on; fire makes it an updraft you can ride. ---- */
+function sapAt(x,y){for(const sp of SAPS) if(x>sp.x0&&x<sp.x1&&y>sp.y-6&&y<sp.y+sp.d+40) return sp; return null;}
+function trySap(x,y){
+  for(const sp of SAPS){
+    if(x<sp.x0-10||x>sp.x1+10||y<sp.y-40||y>sp.y+sp.d+10) continue;
+    if(isFire()){
+      const ex=drafts.find(d=>d.pool===sp);
+      if(ex) ex.t=7; else drafts.push({pool:sp,t:7});
+      SFX.ignite(); hiss(.3,.08,1400);
+      burst(x,sp.y,10,'rgb(255,190,90)',.6);
+      tip('draft','The sap catches — and the heat climbs. Stand in it and rise.');
+    }else{
+      const stack=solids.filter(c=>c.crust&&!c.dead&&c.pool===sp&&Math.abs(c.x+46-x)<70);
+      if(stack.length>=4) return true;
+      const top=stack.length?Math.min(...stack.map(c=>c.y)):null;
+      const ny=top===null?sp.y-10:top-95;
+      const cx=clamp(x,sp.x0+46,sp.x1-46);
+      solids.push({x:cx-46,y:ny,w:92,h:12,crust:true,pool:sp,melt:45,oneWay:false,flam:false,burn:0,spreadT:0,dead:false});
+      SFX.freeze(); burst(cx,ny+4,10,'rgb(255,225,170)',.5); spawnRing(cx,ny+4,'rgb(255,230,180)');
+      tip('crust','Frozen sap bears weight — and freezes again on top of itself. Build a stair.');
+    }
+    return true;
+  }
+  return false;
+}
+function spawnGrub(x,ceilY){
+  const e=spawnEnemy('grub',x,ceilY+22); e.ceil=true; e.y=ceilY; return e;
+}
+function drawSap(t){
+  for(const sp of SAPS){
+    if(sp.x1<cam.x-40||sp.x0>cam.x+W+40) continue;
+    const gr=ctx.createLinearGradient(0,sp.y,0,sp.y+sp.d);
+    gr.addColorStop(0,'rgba(255,196,92,.95)'); gr.addColorStop(1,'rgba(150,84,24,.98)');
+    ctx.fillStyle=gr; ctx.fillRect(sp.x0,sp.y,sp.x1-sp.x0,sp.d);
+    ctx.fillStyle='rgba(255,240,200,.35)';
+    for(let k=0;k<4;k++){const bx=sp.x0+((k*157+t*.02)%(sp.x1-sp.x0)); ctx.beginPath(); ctx.arc(bx,sp.y+6+Math.sin(t*.003+k)*2,2,0,TAU); ctx.fill();}
+    ctx.fillStyle='rgba(255,230,170,.5)'; ctx.fillRect(sp.x0,sp.y,sp.x1-sp.x0,2);
+    drawGlow((sp.x0+sp.x1)/2,sp.y+4,(sp.x1-sp.x0)*.5,'rgb(255,180,80)',.18);
+  }
+  for(const d of drafts){
+    const sp=d.pool, a=clamp(d.t/1.2,0,1)*.55;
+    ctx.globalCompositeOperation='lighter';
+    const gr=ctx.createLinearGradient(0,sp.y,0,sp.y-560);
+    gr.addColorStop(0,'rgba(255,150,60,'+a+')'); gr.addColorStop(1,'rgba(255,150,60,0)');
+    ctx.fillStyle=gr; ctx.fillRect(sp.x0,sp.y-560,sp.x1-sp.x0,560);
+    ctx.globalCompositeOperation='source-over';
+    if(Math.random()<.8*pMul()) spawnPart(rand(sp.x0,sp.x1),sp.y,rand(-10,10),-rand(260,420),rand(.5,1),rand(2,3.5),'rgb(255,170,70)',0,true);
+  }
+  for(const q of puddles){
+    ctx.fillStyle='rgba(230,160,60,'+clamp(q.t,0,1)*.85+')';
+    ctx.beginPath(); ctx.ellipse(q.x,q.y,q.w/2,7,0,0,TAU); ctx.fill();
+  }
+  if(LVL===3) for(const wtr of WATERS){ ctx.fillStyle='rgba(8,6,14,.78)'; ctx.fillRect(wtr.x0,668,wtr.x1-wtr.x0,130); }
+}
 let relicSeen={};
 try{relicSeen=JSON.parse(localStorage.getItem('arcanade-relics')||'{}');}catch(e){}
 const BOSS_CARDS={
   warden:['THE WARDEN OF VHAL','he has held this wall for forty years'],
   thorn:['OLD THORNHEART','older than the road, and it remembers'],
   hunt:['THE HUNTSMASTER','the packs answer no one else'],
+  gall:['THE GALL-MOTHER','she is what the tree grew to keep you'],
+  taproot:['THE TAPROOT','the tree was only ever the door'],
   cm:['THE CATAPULT MASTER','his machine is timber and tar']};
 function mixHex(a,b,t){
   const pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16);
@@ -755,13 +834,14 @@ function mixHex(a,b,t){
   const bl=Math.round((pa&255)*(1-t)+(pb&255)*t);
   return 'rgb('+r+','+g+','+bl+')';
 }
+function HW3(){return -2200;}
 function levelFrac(){return clamp((player?player.x:0)/LEVEL,0,1);}
 function markElites(){
   // one veteran per zone: gold-trimmed, twice the health, a banner so you can pick him out
   const zones=ZONE_NAMES[LVL]||[];
   for(let i=0;i<zones.length;i++){
     const x0=zones[i][0], x1=i+1<zones.length?zones[i+1][0]:LEVEL;
-    const cands=enemies.filter(e=>!e.dead&&!e.wave&&e.type!=='ball'&&e.x>=x0+200&&e.x<x1-100&&(e.type==='foot'||e.type==='shield'||e.type==='arch'||e.type==='weave'));
+    const cands=enemies.filter(e=>!e.dead&&!e.wave&&e.type!=='ball'&&e.x>=x0+200&&e.x<x1-100&&(e.type==='foot'||e.type==='shield'||e.type==='arch'||e.type==='weave'||e.type==='root'));
     if(!cands.length) continue;
     const e=cands[Math.floor(cands.length/2)];
     e.elite=true; e.hp*=2; e.maxHp=e.hp;
@@ -819,7 +899,10 @@ function startAmbience(){
     const iv=setInterval(()=>{
       if(state!=='play'||paused) return;
       wg.gain.setTargetAtTime(LVL===2?.016+Math.random()*.02:.024+Math.random()*.024,AC.currentTime,1.2);
-      if(LVL===2){
+      if(LVL===3){
+        if(Math.random()<.45){const f=1500+Math.random()*900; tone('sine',f,f*.45,.14,.03);}           // a drip
+        if(Math.random()<.06) tone('sine',48,44,1.2,.05);                                               // the tree, breathing
+      }else if(LVL===2){
         if(Math.random()<.7){tone('sine',4200,4300,.05,.012);tone('sine',4150,4250,.05,.01,.09);}
         if(Math.random()<.08) tone('sine',430,380,.45,.04);
       }else{
@@ -874,7 +957,7 @@ function resetWorld(){
   boss=null;mboss=null;bossIntroT=0;mbIntroT=0;
 }
 function loadLevel(n){
-  LVL=n;
+  LVL=n; SAPS=[]; drafts=[]; puddles=[]; CP_Y=null;
   if(n===1){
     LEVEL=17100; WALLX=13080; ARENA=15780; BOSS_TRIG=15860; CAM_MIN_Y=0;
     WATERS=[{x0:1390,x1:1970},{x0:8010,x1:8710}];
@@ -884,8 +967,8 @@ function loadLevel(n){
     ZONES=[[0,[96,140,80],.05],[4400,[120,140,165],.09],[6260,[150,110,85],.09],
       [8000,[80,130,170],.08],[8720,[255,170,70],.08],[10600,[140,140,150],.09],
       [12400,[190,70,50],.11],[17100,[190,70,50],.11]];
-    buildLevel1();
-  }else{
+    buildLevel1(); BOSS_MARK=BOSS_TRIG;
+  }else if(n===2){
     LEVEL=14000; WALLX=1e9; ARENA=12520; BOSS_TRIG=1e9; CAM_MIN_Y=-1580;
     WATERS=[{x0:5610,x1:5890},{x0:6210,x1:6490}];
     CHASMS=[[5400,6800]];
@@ -894,7 +977,16 @@ function loadLevel(n){
     ZONES=[[0,[60,115,70],.10],[3200,[80,95,50],.11],[4400,[210,180,90],.08],
       [5400,[70,125,115],.10],[6800,[40,85,60],.13],[8800,[135,115,90],.09],
       [10400,[115,95,60],.10],[12400,[235,175,95],.09],[14000,[235,175,95],.09]];
-    buildLevel2();
+    buildLevel2(); BOSS_MARK=12550;
+  }else{
+    LEVEL=14000; WALLX=1e9; ARENA=12600; BOSS_TRIG=12700; CAM_MIN_Y=-2200-Math.round(H*.62)-110;
+    WATERS=[{x0:9900,x1:10200},{x0:10700,x1:11000},{x0:12600,x1:13960}];
+    CHASMS=[];
+    CHECKPOINTS=[60,1900,2300,2620,3000,4400,5300,6500,7250,9450,10300,11600,12450];
+    MARENA={x0:5400,x1:6400,trig:5500,cam:5400};
+    ZONES=[[0,[120,80,40],.10],[2000,[160,110,50],.10],[2800,[110,70,40],.12],[5400,[150,90,60],.12],
+      [7300,[90,60,40],.13],[9400,[60,45,50],.12],[12600,[80,40,50],.14],[14000,[80,40,50],.14]];
+    buildLevel3(); BOSS_MARK=BOSS_TRIG;
   }
   bakeBackdrop();
   // bought spells join the relic pool — duplicates make way for your grimoire
@@ -1001,6 +1093,101 @@ function buildLevel2(){
     {x:8850,done:false,list:[['foot','L'],['shield','R'],['bomb','L'],['hound','R']]},
     {x:10520,done:false,list:[['hound','L'],['hound','R'],['arch','L'],['arch','R']]},
     {x:12250,done:false,list:[['hound','L'],['hound','R'],['hound','R']]},
+  ];
+}
+function buildLevel3(){
+  resetWorld();
+  /* ============ III · THE HEARTWOOD — inside the Great Tree ============ */
+  const HW=-2200;                         // the heartwood floor, high in the trunk
+  const CEIL=HW-560;                      // its ceiling, where the grubs hang (just inside the camera's top)
+  CP_Y={60:600,1900:600,2300:440,2620:-340,3000:HW,4400:HW,5300:HW,6500:HW,7250:HW,9450:600,10300:600,11600:600,12450:600};
+  /* --- I. the Hollow 0..2000: the tree's open throat --- */
+  S(-80,600,2140,240,{bark:true});
+  S(600,470,170,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+  S(900,340,170,16,{oneWay:true,plank:true,bough:true,rootRight:true});
+  S(1140,420,60,60,{bark:true});                                  // a knuckle of root
+  SAPS.push({x0:1450,x1:1870,y:572,d:28});                        // the first pool: slow, sticky, a lesson
+  S(1450,600,420,240,{bark:true});
+  /* --- II. the Sapwell 2000..2800: the shaft --- */
+  S(2060,600,740,240,{bark:true});
+  S(1960,-2400,60,2850,{bark:true});                              // left wall (open at the floor)
+  S(2800,HW,4500,2900,{bark:true});                               // right wall = the heartwood floor's block (ends where the rot begins)
+  const L=(y,w)=>S(2020,y,w||240,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+  const R=(y,w)=>S(2560,y,w||240,16,{oneWay:true,plank:true,bough:true,rootRight:true});
+  L(440); R(280);
+  S(2020,120,380,50,{bark:true}); SAPS.push({x0:2140,x1:2300,y:100,d:30});          // gate one — 300 up
+  R(-180); L(-340); R(-500);
+  S(2020,-660,380,50,{bark:true}); SAPS.push({x0:2140,x1:2300,y:-680,d:30});        // gate two
+  R(-960); L(-1120); R(-1280); L(-1440);
+  S(2420,-1600,380,50,{bark:true}); SAPS.push({x0:2500,x1:2660,y:-1620,d:30});      // gate three, on the right
+  L(-1900); R(-2050);
+  /* --- III. the Heartwood 2800..7300: the lungs of the tree --- */
+  S(2800,CEIL-100,4700,100,{bark:true});                          // ceiling
+  S(7300,HW,300,2900,{bark:true,trapFloor:true});                 // the floor that gives way
+  S(3600,HW-120,180,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+  S(4100,HW-200,180,16,{oneWay:true,plank:true,bough:true,rootRight:true});
+  S(4150,HW-268,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});                // trial on the high bough
+  SAPS.push({x0:3300,x1:3500,y:HW-28,d:28}); S(3300,HW-28,200,30,{bark:true});
+  SAPS.push({x0:4700,x1:4900,y:HW-28,d:28}); S(4700,HW-28,200,30,{bark:true});
+  S(5400,HW-420,70,420,{bark:true,crush:'L',bx:5400});            // the Gall's walls
+  S(6330,HW-420,70,420,{bark:true,crush:'R',bx:6330});
+  S(6800,HW-150,180,16,{oneWay:true,plank:true,bough:true,rootRight:true});
+  S(6840,HW-218,40,68,{breakable:true,hp:8,seal:true,reward:'SPREAD'});
+  /* --- IV. the Descent 7300..9400: down through the rotten core --- */
+  S(7240,-2100,60,2700,{bark:true});                              // no way back up
+  S(9380,CEIL-100,60,440-(CEIL-100),{bark:true});                 // far wall, open at the floor
+  S(7300,600,2100,240,{bark:true});
+  {
+    const steps=[[7420,-1900],[7700,-1720],[7460,-1540],[7760,-1360],[8060,-1200],[7800,-1040],[8100,-880],[8400,-720],[8140,-560],[8440,-400],[8740,-240],[8480,-80],[8780,80],[9080,240],[8820,400]];
+    for(const [bx,by] of steps) S(bx,by,170,16,{oneWay:true,plank:true,bough:true,crumble:true,rootRight:bx>8300});
+  }
+  SAPS.push({x0:8200,x1:8600,y:572,d:28}); S(8200,600,400,240,{bark:true});
+  /* --- V. the Roots 9400..14000: black water under the cathedral --- */
+  S(9400,600,500,240,{bark:true}); S(10200,600,500,240,{bark:true}); S(11000,600,1600,240,{bark:true});
+  S(10000,646,70,150,{stone:true,pier:true}); S(10800,646,70,150,{stone:true,pier:true});
+  S(11300,540,180,300,{stone:true,root:true}); S(11900,500,180,340,{stone:true,root:true}); S(12300,560,200,280,{stone:true,root:true});
+  S(11340,380,140,14,{oneWay:true,plank:true,bough:true,rootRight:false});
+  for(const [kx,kw,edge] of [[12620,180,true],[12880,180,false],[13180,180,false],[13480,180,false],[13740,180,true]])
+    S(kx,600,kw,120,{bark:true,knot:true,edge});
+  S(13960,-400,80,1100,{bark:true});                              // the end of the world
+  /* --- props --- */
+  for(const cx of CHECKPOINTS){
+    const s=P(cx-14,CP_Y[cx]-64,28,64,'shrine');
+    s.flam=false; s.lit=(cx===60);
+  }
+  for(const cx2 of [1300,4600,9700,11500]){
+    const cg=P(cx2,(cx2<2800||cx2>9000?600:HW)-54,42,54,'cage'); cg.flam=false; cg.hp=2;
+  }
+  for(const kx of [5100,6600,11200]) P(kx,(kx<9000?HW:600)-34,26,34,'keg');
+  for(const bx2 of [12680,13820]){
+    const br=P(bx2,600-58,28,58,'brazier'); br.flam=false;       // someone lit them long ago
+  }
+  /* --- pickups --- */
+  pickups=[
+    {x:1000,y:340-64,type:'SPREAD',t:0,got:false},
+    {x:2120,y:-1440-64,type:'LANCE',t:0,got:false},
+    {x:4200,y:HW-64,type:'BREATH',t:0,got:false},
+    {x:7000,y:HW-64,type:'HEAVY',t:0,got:false},
+    {x:9600,y:600-64,type:'SPREAD',t:0,got:false},
+    {x:12000,y:500-64,type:'LANCE',t:0,got:false},
+  ];
+  /* --- the tree's own --- */
+  const amb=[['root',700],['root',1250],['hound',1700],
+    ['root',2400,440],['weave',2620,-500],['hound',2200,-1120],['root',2640,-2050],
+    ['root',3200,HW],['weave',3900,HW],['root',4500,HW],['hound',4800,HW],['hound',4860,HW],['weave',5000,HW],
+    ['root',6700,HW],['weave',7000,HW],
+    ['root',7900,600],['root',8900,600],
+    ['hound',9700,600],['root',10400,600],['weave',10500,600],['hound',11200,600],['root',11700,600],['weave',12100,600],['root',12350,600]];
+  spawnAmbient(amb);
+  const gk=DIFF().eCount||1;
+  const grubX=[3100,3450,3800,4300,4650,4950,5200,6600,6950,7150];
+  grubX.forEach((gx,i)=>{ if(gk<1&&i%4===1) return; spawnGrub(gx,CEIL); if(gk>1&&i%3===0) spawnGrub(gx+90,CEIL); });
+  ambushes=[
+    {x:1500,done:false,list:[['hound','L'],['hound','R'],['root','R']]},
+    {x:3700,done:false,list:[['hound','L'],['hound','R'],['weave','R']]},
+    {x:6700,done:false,list:[['root','L'],['hound','R'],['hound','R']]},
+    {x:9500,done:false,list:[['hound','L'],['hound','R'],['hound','R'],['weave','R']]},
+    {x:11100,done:false,list:[['root','L'],['root','R'],['weave','R']]},
   ];
 }
 function buildLevel1(){
@@ -1156,7 +1343,7 @@ function startTutorialYard(){
   cpFlashT=0; ambushT=0; hitstopT=0; dmgFlashT=0; tutDoneT=0;
   bridgeTorched=true;                 // the defenders leave the drill yard alone
   LVL=1; LEVEL=2700; CAM_MIN_Y=0; BOSS_TRIG=1e9;
-  WATERS=[{x0:1590,x1:1930}]; CHASMS=[];
+  WATERS=[{x0:1590,x1:1930}]; CHASMS=[]; SAPS=[]; drafts=[]; puddles=[]; CP_Y=null; BOSS_MARK=1e9;
   MARENA={x0:0,x1:0,trig:1e9,cam:0};
   CHECKPOINTS=[60,2060];
   ZONES=[[0,[96,140,80],.05],[2700,[96,140,80],.05]];
@@ -1168,7 +1355,7 @@ function startTutorialYard(){
   tut.active=true; tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   player=makePlayer(60); player.y=groundYAt(60)-56;
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
-  playMusic('field');
+  playMusic(LVL===3?'title':'field');
 }
 function groundYAt(x,below){
   let best=1e9;
@@ -1200,6 +1387,8 @@ function spawnEnemy(type,x,y,emerge){
   if(type==='hound'){e.hp=2*DIFF().eHp;e.w=36;e.h=26;}
   if(type==='weave'){e.hp=4*DIFF().eHp;e.w=24;}
   if(type==='ball'){e.hp=8*DIFF().eHp;e.w=56;e.h=44;e.y=(y??groundYAt(x))-44;e.aim=0;}
+  if(type==='grub'){e.hp=2*DIFF().eHp;e.w=22;e.h=22;}
+  if(type==='root'){e.hp=4*DIFF().eHp;e.w=26;e.h=44;}
   if(type!=='ball') e.y=(y??groundYAt(x))-e.h;
   enemies.push(e); return e;
 }
@@ -1242,6 +1431,7 @@ function updateEnemies(dt){
     const px=player.x, dx=px-e.x, adx=Math.abs(dx);
     if(!e.aggroed&&e.emerge<=0&&adx<560&&e.type!=='ball'){e.aggroed=true; SFX.grunt(e.type);}
     if(e.type!=='ball'){
+      if(e.ceil){e.vy=0;}
       e.vy+=2200*dt; e.y+=e.vy*dt;
       let grounded=false;
       for(const s of solids){
@@ -1307,6 +1497,21 @@ function updateEnemies(dt){
           if(adx<(e.wave?1e5:900)&&adx>56&&grounded){e.x+=e.face*265*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*17;}
           else if(adx<=180&&grounded&&e.t>1.2*DIFF().eCad){e.t=0;e.windup=.3;}
         }
+      }else if(e.type==='grub'){
+        // gall-grubs hang from the ceiling and let go when you're under them
+        if(e.ceil){
+          if(adx<64&&player.y>e.y&&player.y-e.y<H&&!player.dead){e.ceil=false; e.vy=40; SFX.grunt('hound'); hiss(.08,.03,2400);}
+        }else if(grounded){
+          const gy=e.y+e.h;
+          puddles.push({x:e.x,y:gy,w:120,t:7});
+          burst(e.x,gy-6,12,'rgb(240,180,80)',.5); SFX.thud();
+          e.dead=true; e.deathT=.001; e.settled=true; e.corpseVx=0; e.corpseVy=0; e.spin=0; e.spinA=0; kills++;
+          markSeen('grub');
+        }
+      }else if(e.type==='root'&&e.emerge<=0){
+        // rootlings: slow, patient, and they leave something behind
+        e.face=dx>0?1:-1;
+        if(adx<640&&adx>30&&grounded){e.x+=e.face*58*cold*dt;e.mov=true;e.walkT=(e.walkT||0)+dt*5;}
       }else if(e.type==='weave'&&e.emerge<=0){
         e.face=dx>0?1:-1;
         if(e.windup>0){
@@ -1365,7 +1570,14 @@ function rectsOverlap(ax,ay,aw,ah,bx,by,bw,bh){
 
 /* ---------------- boss: the Warden of Vhal ---------------- */
 function startBoss(){
-  if(LVL===2){
+  if(LVL===3){
+    const bhp=Math.round(280*DIFF().bossHp);
+    boss={type:'taproot', x:ARENA+670, y:300, w:220, h:170, hp:bhp, max:bhp, face:-1,
+      st:'idle', stT:2.2, atkN:0, marks:null, hurtT:0, chillT:0, deadT:0, dead:false, mouth:0};
+    bossIntroT=2.6; SFX.roar(); SFX.slam();
+    playMusic('boss'); musicFilter(380,.05);
+    tip('taproot','The Taproot. Its bark turns spells — only the open mouth is flesh. Strike when it gapes.');
+  }else if(LVL===2){
     const bhp=Math.round(240*DIFF().bossHp);
     boss={type:'thorn', x:ARENA+1080, y:-1400-150, w:96, h:150, hp:bhp, max:bhp, face:-1,
       st:'idle', stT:2, atkN:0, marks:null, markT:0, hurtT:0, chillT:0, deadT:0, dead:false};
@@ -1384,10 +1596,11 @@ function startBoss(){
 function damageBoss(dmg,x,y){
   const b=boss;
   if(!b||b.dead) return;
-  const mult=(b.st==='winded'?2:1)*(b.chillT>0?1.2:1);
+  let mult=(b.st==='winded'?2:1)*(b.chillT>0?1.2:1);
+  if(b.type==='taproot'&&b.st!=='gape'&&b.st!=='winded'){mult*=.15; if(dmg>=.5&&Math.random()<.25) tip('shut','Its mouth is shut — the bark turns your spells. Wait for it to gape.');}
   b.hp-=dmg*mult;
   b.hurtT=.09;
-  markSeen(b.type==='thorn'?'thorn':'warden');
+  markSeen(b.type);
   if(dmg>=.5){SFX.bossHurt(); burst(x,y,4,mult>1?'rgb(255,240,180)':'rgb(255,179,71)',.5);}
   if(b.hp<=0){
     b.dead=true; b.deadT=0; stopDrums();
@@ -1419,12 +1632,63 @@ function updateBoss(dt){
       b.st='winded'; b.stT=1.2;
       floatText(b.x,b.y-30,'HE CASTS OFF THE SHIELD','#ffd27a',true);
       tip('warden2','The shield is down — he is faster, and there is nothing at his back now.');
+    }else if(b.type==='taproot'){
+      // Wither: the water drains from the edges, the outer knots sink, and the brood comes up the drain
+      for(const s of solids) if(s.knot&&s.edge&&!s.dead) s.sinkT=4;
+      b.st='winded'; b.stT=1.4;
+      floatText(b.x,b.y-40,'THE ROOT WITHERS','#ffd27a',true);
+      tip('wither','The edges are sinking. Hold the centre — and watch what comes up the drain.');
     }else{
       b.st='collapsePrep'; b.stT=1.1;
       b.marks=[0,1,2,3,4].map(i=>ARENA+90+i*(W-180)/4);
       floatText(b.x,b.y-30,'THE CANOPY FALLS','#ffd27a',true);
       tip('thorn2','The crown gives way — the whole canopy is coming down. Watch the marks.');
     }
+  }
+  if(b.type==='taproot'){
+    const FLOOR=600;
+    b.face=player.x>b.x?1:-1;
+    b.stT-=dt*cold;
+    b.mouth=lerp(b.mouth,(b.st==='gape'||b.st==='winded'||b.st==='spitPrep')?1:0,1-Math.pow(.02,dt));
+    if(b.st==='idle'){
+      if(b.stT<=0){
+        b.atkN++;
+        if(b.atkN%3===0){b.st='gape'; b.stT=2.0; SFX.roar(); b.spitN=2; b.spitT=.5;}
+        else if(Math.random()<.5){b.st='drinkPrep'; b.stT=.8*enraged; SFX.breath();}
+        else{b.st='lashPrep'; b.stT=.9*enraged;
+          b.marks=[player.x+player.vx*.4, player.x-200, player.x+200].map(v=>clamp(v,ARENA+40,ARENA+W-40));
+          if(b.phase2) b.marks.push(clamp(player.x-380,ARENA+40,ARENA+W-40),clamp(player.x+380,ARENA+40,ARENA+W-40));}
+      }
+    }else if(b.st==='drinkPrep'){
+      if(b.stT<=0){
+        b.st='idle'; b.stT=rand(1.4,2)*enraged;
+        for(const dir of [-1,1]) eshots.push({x:b.x,y:FLOOR-16,vx:dir*(b.phase2?500:390),vy:0,g:0,r:14,life:2.6,wave:true});
+        for(const s of solids) if(s.ice&&!s.dead){s.dead=true; burst(s.x+s.w/2,s.y,6,'rgb(200,230,245)',.4);}   // it drinks the floes
+        SFX.slam(); shake(10); burst(b.x,FLOOR-4,16,'rgb(60,50,80)');
+      }
+    }else if(b.st==='lashPrep'){
+      if(b.stT<=0){
+        b.st='idle'; b.stT=rand(1.5,2.1)*enraged;
+        for(const mx of b.marks) eshots.push({x:mx,y:FLOOR-620,vx:0,vy:90,g:580,r:9,life:4,boulder:true,cold:true,wood:true});
+        b.marks=null; SFX.javelin(); shake(5);
+      }
+    }else if(b.st==='gape'){
+      b.spitT-=dt*cold;
+      if(b.spitT<=0&&b.spitN>0){
+        b.spitN--; b.spitT=.7;
+        const dx=player.x-b.x, T=clamp(Math.abs(dx)/520,.5,1.1), g=700;
+        eshots.push({x:b.x,y:b.y+110,vx:dx/T,vy:((player.y+8)-(b.y+110))/T-.5*g*T,g,r:7,life:2.6,bolt:true});
+        SFX.breath();
+        if(b.phase2){const g2=spawnEnemy('grub',clamp(player.x+rand(-120,120),ARENA+60,ARENA+W-60),FLOOR-700); g2.ceil=false; g2.vy=0; g2.wave=true;}
+      }
+      if(b.stT<=0){b.st='winded'; b.stT=1.3*enraged;}
+    }else if(b.st==='winded'){
+      if(b.stT<=0){b.st='idle'; b.stT=1.2*enraged;}
+    }
+    const my=b.y+b.h*.55+b.mouth*40;
+    if(!player.dead&&rectsOverlap(b.x-b.w*.3,my,b.w*.6,60+b.mouth*40,player.x-player.w/2,player.y,player.w,player.h))
+      hitPlayer();
+    return;
   }
   if(b.type==='thorn'){
     // Old Thornheart is rooted — the arena is his reach
@@ -1556,7 +1820,13 @@ function updateBoss(dt){
 
 /* ---------------- mini-boss: the Catapult Master ---------------- */
 function startMBoss(){
-  if(LVL===2){
+  if(LVL===3){
+    const hp=Math.round(150*DIFF().bossHp);
+    mboss={type:'gall',x:MARENA.x1+36,y:HW3()-96,w:90,h:96,hp,max:hp,face:-1,vx:0,
+      st:'brood',stT:1.4,spitT:2,dropT:3.4,drops:0,pulse:0,burn:0,chillT:0,hurtT:0,dead:false,deadT:0,dropped:false,walkT:0};
+    mbIntroT=2; SFX.roar(); tone('sine',60,40,.6,.2);
+    tip('gall','The Gall-Mother is grown into the wall. Her heart beats; the walls answer it. Watch the light.');
+  }else if(LVL===2){
     const hp=Math.round(120*DIFF().bossHp);
     mboss={type:'hunt',x:5150,y:600-78,w:36,h:78,hp,max:hp,face:-1,vx:0,
       st:'stalk',stT:1.2,hornT:2.2,shotT:1.6,horns:0,burn:0,chillT:0,hurtT:0,dead:false,deadT:0,dropped:false,walkT:0};
@@ -1574,7 +1844,7 @@ function damageMBoss(dmg,x,y){
   const m=mboss;
   if(!m||m.dead) return;
   m.hp-=dmg*(m.chillT>0?1.2:1)*(m.st==='winded'?2:1); m.hurtT=.09;
-  markSeen(m.type==='hunt'?'hunt':'cm');
+  markSeen(m.type);
   if(dmg>=.5){SFX.bossHurt(); burst(x,y,4,'rgb(255,179,71)',.5);}
   if(isFire()&&dmg>=.5&&m.burn<=0&&Math.random()<.3){m.burn=4;SFX.ignite();}
   if(m.hp<=0&&!m.dead){
@@ -1601,6 +1871,56 @@ function updateMBoss(dt){
   if(m.hurtT>0) m.hurtT-=dt;
   if(m.chillT>0) m.chillT-=dt;
   const cold=m.chillT>0?0.55:1;
+  if(m.type==='gall'){
+    // the Gall-Mother: rooted. Her heartbeat drives the walls; her brood drives you into them.
+    const P=3.2*DIFF().eCad;
+    m.pulse+=dt*cold;
+    const ph=(m.pulse%P)/P;
+    if(ph<.5&&m.lastPh>=.5||m.lastPh===undefined){}                 // (edge bookkeeping below)
+    if(m.lastPh!==undefined&&ph<m.lastPh){ tone('sine',62,40,.22,.22); tone('sine',58,36,.18,.14,.13); }   // the beat
+    m.lastPh=ph;
+    // the walls come in on the beat and ease back
+    const k=ph<.18?Math.sin(ph/.18*Math.PI/2):Math.max(0,1-(ph-.18)/.55);
+    const reach=(m.st==='winded'?60:300)*k;
+    for(const s of solids){
+      if(!s.crush||s.dead) continue;
+      const nx=s.crush==='L'?s.bx+reach:s.bx-reach;
+      s.x=nx;
+      if(!player.dead&&rectsOverlap(s.x,s.y,s.w,s.h,player.x-player.w/2,player.y,player.w,player.h)){
+        player.x=s.crush==='L'?s.x+s.w+player.w/2+2:s.x-player.w/2-2;
+        hitPlayer();
+      }
+    }
+    m.face=player.x>m.x?1:-1;
+    if(m.st==='winded'){
+      m.stT-=dt; if(m.stT<=0){m.st='brood';m.stT=1;}
+    }else{
+      m.spitT-=dt*cold;
+      if(m.spitT<=0){
+        m.spitT=2.3*DIFF().eCad;
+        const dx=player.x-m.x, T=clamp(Math.abs(dx)/520,.5,1.1), g=700;
+        eshots.push({x:m.x-40,y:m.y+30,vx:dx/T,vy:((player.y+8)-(m.y+30))/T-.5*g*T,g,r:7,life:2.6,bolt:true});
+        SFX.breath(); hiss(.1,.05,900);
+      }
+      m.dropT-=dt*cold;
+      if(m.dropT<=0){
+        m.dropT=4.8*DIFF().eCad; m.drops++;
+        const mine=enemies.filter(e=>!e.dead&&e.type==='grub'&&e.brood).length;
+        const CEIL=HW3()-560;
+        for(let k2=0;k2<2&&mine+k2<4;k2++){
+          const gx=clamp(player.x+(k2?-160:160)+rand(-40,40),MARENA.x0+120,MARENA.x1-120);
+          const g2=spawnGrub(gx,CEIL); g2.brood=true; g2.wave=true;
+          burst(gx,CEIL+10,6,'rgb(240,190,100)',.4);
+        }
+        SFX.grunt('weave'); shake(3);
+        if(m.drops%3===0){m.st='winded'; m.stT=1.7; SFX.clang(); spawnRing(m.x,m.y+40,'rgb(255,230,180)');}
+      }
+    }
+    if(!player.dead&&rectsOverlap(m.x-m.w/2,m.y,m.w,m.h,player.x-player.w/2,player.y,player.w,player.h))
+      hitPlayer();
+    if(m.dead){ for(const s of solids) if(s.crush) s.x=s.bx; }
+    return;
+  }
   if(m.type==='hunt'){
     // the Huntsmaster: distance, crossbow, and the horn that never stops
     const px2=m===mboss?player.x:0, adx2=Math.abs(px2-m.x);
@@ -1747,7 +2067,7 @@ function updateFire(dt){
   }
   // ice floes melt
   for(const s of solids){
-    if(!s.ice||s.dead) continue;
+    if(!(s.ice||s.crust)||s.dead) continue;
     s.melt-=dt;
     if(s.melt<=0){
       s.dead=true;
@@ -1819,7 +2139,7 @@ function killPlayer(){
   dmgFlashT=.7;
   burst(p.x,p.y+24,40,WPN('BOLT').color);
   burst(p.x,p.y+24,14,'rgb(255,230,180)');
-  if(boss&&!boss.dead){boss=null;bossIntroT=0;playMusic('field');stopDrums();}
+  if(boss&&!boss.dead){boss=null;bossIntroT=0;playMusic(LVL===3?'title':'field');stopDrums();}
   runLog.push({f:p.x/LEVEL,k:'death'});
   if(mboss&&!mboss.dead){mboss=null;mbIntroT=0;}
 }
@@ -1827,7 +2147,7 @@ function respawn(){
   const cx=checkpoint.x, keepSlots=player.slots, keepSlot=player.slot;
   player=makePlayer(cx);
   player.slots=keepSlots; player.slot=keepSlot; player.weapon=keepSlots[keepSlot];
-  player.y=groundYAt(cx)-56;
+  player.y=((CP_Y&&CP_Y[cx]!==undefined)?CP_Y[cx]:groundYAt(cx))-56;
   eshots=[];
   for(const e of enemies) if(Math.abs(e.x-cx)<520&&e.type!=='ball') e.dead=true;
 }
@@ -1844,7 +2164,7 @@ function updatePlayer(dt){
   p.animT+=dt; p.invulnT-=dt; p.dashCd-=dt; p.flashT-=dt; p.dropT-=dt;
   p.coyoteT-=dt; p.jumpBufT-=dt;
   // checkpoints — the waystone brazier catches as you pass
-  for(const c of CHECKPOINTS) if(p.x>c&&c>checkpoint.x){
+  for(const c of CHECKPOINTS) if(p.x>c&&c>checkpoint.x&&(!CP_Y||CP_Y[c]===undefined||Math.abs(p.y+p.h-CP_Y[c])<170)){
     checkpoint.x=c; cpFlashT=2.2;
     tone('sawtooth',330,330,.22,.07); tone('sawtooth',440,440,.34,.07,.16);   // brass
     SFX.pickup(); shake(3);
@@ -1859,7 +2179,8 @@ function updatePlayer(dt){
     ? {x:p.x+gp.aimX*400, y:p.y+22+gp.aimY*400}   // right stick owns the aim while it moves
     : {x:mouse.x+cam.x, y:mouse.y};
   p.face=wm.x>=p.x?1:-1;
-  const sp=p.keg?320:380;   // the keg is heavy
+  const inSap=!!sapAt(p.x,p.y+p.h)||puddles.some(q=>Math.abs(q.x-p.x)<q.w/2&&Math.abs(q.y-(p.y+p.h))<22);
+  const sp=(p.keg?320:380)*(inSap?.32:1);   // the keg is heavy; the sap is heavier
   if(p.dashT>0){
     p.dashT-=dt; p.vx=p.dashDir*900; p.vy=0;
     if(Math.random()<.85){
@@ -1876,8 +2197,15 @@ function updatePlayer(dt){
     if(gp.move) mx=gp.move;
     p.vx=lerp(p.vx,mx*sp,1-Math.pow(.0001,dt));
     p.vy+=2200*dt;
+    for(const d of drafts){
+      const sp2=d.pool;
+      if(p.x>sp2.x0&&p.x<sp2.x1&&p.y+p.h<sp2.y+12&&p.y>sp2.y-560){
+        p.vy=Math.min(p.vy,-470); p.onGround=false; p.airJumps=0;
+        if(Math.random()<.4) spawnPart(p.x+rand(-10,10),p.y+p.h,rand(-20,20),-rand(60,140),.3,2.5,'rgb(255,190,90)',0,true);
+      }
+    }
     if(p.jumpBufT>0&&(p.onGround||p.coyoteT>0)){
-      p.vy=-810; p.onGround=false; p.coyoteT=0; p.jumpBufT=0;
+      p.vy=inSap?-420:-810; p.onGround=false; p.coyoteT=0; p.jumpBufT=0;
       hiss(.07,.04,2000);
     }else if(p.jumpBufT>0&&SET.doubleJump&&p.airJumps<1&&!p.onGround&&p.coyoteT<=0&&p.dashT<=0){
       // the second step: a sigil flares underfoot and the air takes the mage's weight
@@ -1909,6 +2237,7 @@ function updatePlayer(dt){
         if(s.oneWay&&p.dropT>0) continue;
         if(s.oneWay&&p.y+p.h-p.vy*dt>s.y+6) continue;
         p.y=s.y-p.h; p.vy=0; p.onGround=true; p.groundStone=!!(s.stone||s.ice); p.groundKind=(s.stone||s.ice)?'stone':(s.plank?'wood':'grass');
+        if(s.crumble&&!(s.crumbleT>0)){s.crumbleT=.55; SFX.woodTick();}
       }else if(!s.oneWay&&p.vy<0&&p.y<=s.y+s.h&&p.y>s.y+s.h-30){
         p.y=s.y+s.h; p.vy=0;
       }
@@ -1936,7 +2265,7 @@ function updatePlayer(dt){
   if(boss&&!boss.dead) p.x=clamp(p.x, ARENA+16, ARENA+W-16);
   if(mboss&&!mboss.dead) p.x=clamp(p.x, MARENA.x0+16, MARENA.x1-16);
   p.x=clamp(p.x, 12, LEVEL-12);
-  if(p.y>cam.y+H+140) killPlayer();
+  if(p.y>cam.y+H+140&&p.y>760) killPlayer();   // below the lowest ground, not merely below the camera
   /* powder kegs: hoist, lug, hurl */
   if(grabKey){
     grabKey=false;
@@ -2097,7 +2426,7 @@ function fireLance(x,y,a,dt){
     if(mboss&&!mboss.dead&&sx>mboss.x-mboss.w/2&&sx<mboss.x+mboss.w/2&&sy>mboss.y&&sy<mboss.y+mboss.h)
       damageMBoss(LW.dps*dt,sx,sy);
     if(isFire()) for(const o of flammables()) if(sx>o.x-4&&sx<o.x+o.w+4&&sy>o.y-4&&sy<o.y+o.h+4) ignite(o);
-    tryFreezeWater(sx,sy);
+    tryFreezeWater(sx,sy); if(trySap(sx,sy)){end=d;break;}
   }
   lanceEnd={x1:x,y1:y,x2:x+dx*end,y2:y+dy*end,t:.06};
   if(Math.random()<.7*pMul()) spawnPart(x+dx*end,y+dy*end,rand(-40,40),rand(-60,10),.25,3,WPN('LANCE').color,0,true);
@@ -2202,6 +2531,11 @@ function damageEnemy(e,dmg,x,y,silent,launch){
     else if(e.type==='foot') dropDebris(e.x+e.face*8,e.y+22,'sword',ddir);
     else if(e.type==='shield'){dropDebris(e.x+e.face*12,e.y+20,'shield',ddir); SFX.clang();}
     else if(e.type==='bomb') eshots.push({x:e.x,y:e.y+e.h-6,vx:0,vy:0,g:0,r:6,life:5,bomb:true,fuse:.7});
+    else if(e.type==='root'){   // where it dies, a root grows — kill it off your path
+      const gy=groundYAt(e.x,e.y-40);
+      if(gy<cam.y+H+100) solids.push({x:e.x-14,y:gy-80,w:28,h:80,bram:true,flam:false,breakable:true,hp:6,maxHp:6,grow:0,oneWay:false,burn:0,spreadT:0,dead:false});
+      tip('rootling','Where a rootling falls, a root grows. Kill them where you are not going.');
+    }
     // the last hit sends them tumbling — sometimes gloriously
     const dir=e.x>=player.x?1:-1;
     const L=(launch||1)*(SET.ragdoll?1:.25);
@@ -2236,6 +2570,7 @@ function updateShots(dt){
       const g2=groundYAt(s.x,s.y-95);
       if(g2>cam.y+H+220){s.dead=true; continue;}     // walked off the world
       s.y=g2-7;
+      if(trySap(s.x,s.y)){s.dead=true; continue;}
       if(tryFreezeWater(s.x,s.y+10)&&isFire()){s.dead=true; continue;}   // fire drowns; frost paves
       if(Math.random()<.7*pMul())
         spawnPart(s.x,s.y-2,rand(-25,25),rand(-60,-15),.25,3,s.c,0,true);
@@ -2332,6 +2667,7 @@ function updateShots(dt){
         if(s.x>o.x-4&&s.x<o.x+o.w+4&&s.y>o.y-4&&s.y<o.y+o.h+4){ignite(o);}
       }
     }
+    if(trySap(s.x,s.y)){s.dead=true;continue;}
     if(tryFreezeWater(s.x,s.y)){s.dead=true;continue;}
     for(const sol of solids){
       if(sol.dead) continue;
@@ -2498,8 +2834,23 @@ function updateAmbushes(dt){
     }
     if(setpiece.packT<=0||player.x>6900) setpiece.pack=2;
   }
+  if(LVL===3&&setpiece.fall===0&&player.x>7360&&player.y<HW3()+40&&!player.dead){
+    setpiece.fall=1; setpiece.fallT=.7; SFX.woodTick(); shake(5);
+    tip('fall','The floor is rotten here. Listen.');
+  }
+  if(setpiece.fall===1){
+    setpiece.fallT-=dt;
+    if(Math.random()<.6) for(const s of solids) if(s.trapFloor&&!s.dead) spawnPart(s.x+rand(0,s.w),s.y,rand(-10,10),rand(-30,0),.4,2,'rgb(120,90,50)',300,false);
+    if(setpiece.fallT<=0){
+      setpiece.fall=2;
+      for(const s of solids) if(s.trapFloor) s.dead=true;
+      SFX.woodCrack(); SFX.slam(); shake(16); hitstop(.08);
+      floatText(player.x,player.y-40,'THE FLOOR GIVES WAY','#ffd27a',true);
+      tip('descent','Down through the rotten core. The boughs will not hold you twice.');
+    }
+  }
   if(!mboss&&player.x>MARENA.trig) startMBoss();
-  if(!boss&&(LVL===1?player.x>BOSS_TRIG:(player.x>12500&&player.y<-1250))) startBoss();
+  if(!boss&&(LVL===2?(player.x>12500&&player.y<-1250):player.x>BOSS_TRIG)) startBoss();
 }
 
 /* ---------------- particles ---------------- */
@@ -2523,7 +2874,11 @@ function updateParts(dt){
     p.x+=p.vx*dt; p.y+=p.vy*dt;
   }
   parts=parts.filter(p=>p.life>0);
-  if(LVL===2){
+  if(LVL===3){
+    // motes of sap-light climb the dark
+    if(Math.random()<.16*pMul())
+      spawnPart(cam.x+rand(0,W+200), cam.y+rand(H*.2,H+40), rand(-8,8), -rand(10,28), rand(3,6), rand(1.4,2.4),'rgb(255,190,100)',0,true);
+  }else if(LVL===2){
     // fireflies wander the dusk
     if(Math.random()<.12*pMul())
       spawnPart(cam.x+rand(0,W+200), cam.y+rand(H*.3,H*.85), rand(-22,22), rand(-14,14), rand(3,6), rand(1.6,2.4),
@@ -2543,8 +2898,10 @@ function updateCam(dt){
   target=clamp(target,0,LEVEL-W);
   cam.x=lerp(cam.x,target,1-Math.pow(.002,dt));
   // the climb: camera rises with you, never below ground level
-  const ty=clamp(player.y+player.h-H*.62,CAM_MIN_Y,0);
-  cam.y=lerp(cam.y,ty,1-Math.pow(.002,dt));
+  // look ahead of a fast fall so the ground arrives on screen before you do
+  const lead=player.vy>700?clamp((player.vy-700)*.25,0,220):0;
+  const ty=clamp(player.y+player.h-H*.62+lead,CAM_MIN_Y,0);
+  cam.y=lerp(cam.y,ty,1-Math.pow(player.vy>700?.00002:.002,dt));
   shakeMag*=Math.pow(.001,dt);
   punchX*=Math.pow(.0004,dt); punchY*=Math.pow(.0004,dt);
   shakeX=rand(-shakeMag,shakeMag)+punchX; shakeY=rand(-shakeMag,shakeMag)+punchY;
@@ -2634,6 +2991,16 @@ function update(dt){
   }
   debris=debris.filter(d=>d.t>0);
   if(relicCard){relicCard.t-=dt; if(relicCard.t<=0) relicCard=null;}
+  for(const d of drafts) d.t-=dt; drafts=drafts.filter(d=>d.t>0);
+  for(const q of puddles) q.t-=dt; puddles=puddles.filter(q=>q.t>0);
+  for(const s of solids){
+    if(s.crumbleT>0){
+      s.crumbleT-=dt;
+      if(Math.random()<.5) spawnPart(s.x+rand(0,s.w),s.y+s.h,rand(-20,20),rand(20,80),.4,2.5,'rgb(120,90,50)',500,false);
+      if(s.crumbleT<=0){s.dead=true; SFX.woodCrack(); burst(s.x+s.w/2,s.y+8,10,'rgb(150,110,60)',.5); dropDebris(s.x+s.w/2,s.y,'bow',1);}
+    }
+    if(s.sinkT>0){ s.sinkT-=dt; s.y+=55*dt; if(s.y>720){s.dead=true;} if(Math.random()<.3) spawnPart(s.x+rand(0,s.w),s.y,rand(-10,10),-rand(20,60),.5,2,'rgb(90,80,100)',0,false); }
+  }
   // the marsh rains
   const rainTarget=(LVL===2&&player.x>5400&&player.x<6800)?1:0;
   rainAmt=lerp(rainAmt,rainTarget,1-Math.pow(.3,dt));
@@ -2641,7 +3008,7 @@ function update(dt){
   if(rainAmt>.3&&rainSfxT<=0){rainSfxT=.5; hiss(.6,.028*rainAmt,3000);}
   // stone and heartwood give the sound back
   if(verbGain&&AC){
-    const inside=(LVL===2&&player.y<-140&&player.x>12400)||(LVL===1&&player.x>10600&&player.x<12400)||(LVL===2&&player.x>3200&&player.x<4400);
+    const inside=LVL===3||(LVL===2&&player.y<-140&&player.x>12400)||(LVL===1&&player.x>10600&&player.x<12400)||(LVL===2&&player.x>3200&&player.x<4400);
     verbGain.gain.value+=((inside?.42:0)-verbGain.gain.value)*Math.min(1,dt*2.5);
   }
   // the heart, when little else is left
@@ -2681,10 +3048,15 @@ function update(dt){
     if(Math.abs(player.x-8030)<70) tip('river', isFire()
       ? 'The bridge is long gone. The stones remember one.'
       : 'Still water ahead. You know what to do.');
-  }else{
+  }else if(LVL===2){
     if(Math.abs(player.x-640)<80) tip('hound','Warhounds run you down. Dash through the lunge, or meet it in the air.');
     if(Math.abs(player.x-1420)<80) tip('canopy','Two roads: the floor, or the branches above. '+(isFire()?'Mind your sparks up there — the canopy is tinder.':'The high road is drier. And flammable.'));
     if(Math.abs(player.x-12440)<80) tip('climb','The only way is up. The old tree drops dead wood on climbers.');
+  }else if(LVL===3){
+    if(Math.abs(player.x-1380)<70) tip('sap','Sap. It will hold you like amber holds a fly. '+(isFire()?'Heat it, and it lifts.':'Chill it, and it bears you.'));
+    if(Math.abs(player.x-2080)<60&&player.y>300) tip('well','The Sapwell. Up, by bough and sap. Three gates are too tall to jump — use what you are.');
+    if(Math.abs(player.x-3000)<70&&player.y<-2000) tip('grub','Things hang from the ceiling here. They let go when you are under them.');
+    if(Math.abs(player.x-9500)<70) tip('black','Black water. It does not bear frost for long, and fire not at all.');
   }
   if(bossIntroT>0){bossIntroT-=dt; if(bossIntroT<=0) musicFilter(18000,.5);}
   if(mbIntroT>0) mbIntroT-=dt;
@@ -2743,7 +3115,53 @@ function bakeBackdrop(){
   };
   const hillY=(base,amp,seed2,x)=>base+Math.sin((x/WD)*TAU*2+seed2)*amp+Math.sin((x/WD)*TAU*5+seed2*2.7)*amp*.4;
 
-  if(LVL===2){
+  if(LVL===3){
+    /* ============ THE HEARTWOOD, PAINTED: the inside of a living thing ============ */
+    // FAR: the inner wall of the trunk — grain, and sap-veins glowing through it
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(31);
+      g.fillStyle='#2a1a10'; g.fillRect(0,0,WD,720);
+      for(let i=0;i<90;i++){                                   // grain
+        const x=r()*WD; g.strokeStyle='rgba(20,12,6,'+(0.25+r()*.35)+')'; g.lineWidth=2+r()*5;
+        g.beginPath(); g.moveTo(x,-10);
+        for(let yy=0;yy<=740;yy+=60) g.lineTo(x+Math.sin(yy*.01+i)*9,yy);
+        g.stroke();
+      }
+      for(let i=0;i<14;i++){                                   // veins of light
+        const x=r()*WD; g.strokeStyle='rgba(255,150,60,'+(0.10+r()*.16)+')'; g.lineWidth=3+r()*4;
+        g.beginPath(); g.moveTo(x,-10);
+        for(let yy=0;yy<=740;yy+=40) g.lineTo(x+Math.sin(yy*.02+i*3)*22,yy);
+        g.stroke();
+      }
+      for(let i=0;i<40;i++){const x=r()*WD,y=r()*720; g.fillStyle='rgba(255,200,110,'+(0.05+r()*.12)+')'; g.beginPath(); g.arc(x,y,6+r()*26,0,TAU); g.fill();}
+      BG.layers.push({c,par:.10,haze:.12,anchors:[],wrapY:true});
+    }
+    // MID: hanging roots and hollows
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(32);
+      for(let i=0;i<26;i++){                                   // roots reaching down
+        const x=r()*WD, len=120+r()*420; g.strokeStyle='rgba(44,28,16,'+(0.55+r()*.35)+')'; g.lineWidth=6+r()*14;
+        g.beginPath(); g.moveTo(x,-10); g.quadraticCurveTo(x+Math.sin(i)*50,len*.5,x+Math.cos(i)*40,len); g.stroke();
+      }
+      for(let i=0;i<12;i++){                                   // hollows, some lit
+        const x=r()*WD, y=r()*720, rw=30+r()*60, rh=50+r()*110;
+        g.fillStyle='#1a100a'; g.beginPath(); g.ellipse(x,y,rw,rh,0,0,TAU); g.fill();
+        if(r()<.5){g.fillStyle='rgba(255,170,80,.18)'; g.beginPath(); g.ellipse(x,y+rh*.3,rw*.6,rh*.4,0,0,TAU); g.fill();}
+      }
+      BG.layers.push({c,par:.28,haze:.07,anchors:[],wrapY:true});
+    }
+    // NEAR: ribs of heartwood
+    {
+      const c=mk(), g=c.getContext('2d'), r=sRand(33);
+      for(let i=0;i<9;i++){
+        const x=r()*WD, w2=40+r()*70;
+        const gr=g.createLinearGradient(x,0,x+w2,0); gr.addColorStop(0,'#1e130b'); gr.addColorStop(.5,'#3a2715'); gr.addColorStop(1,'#1a100a');
+        g.fillStyle=gr; g.fillRect(x,0,w2,720);
+        g.strokeStyle='rgba(255,150,60,.12)'; g.lineWidth=2; g.beginPath(); g.moveTo(x+w2*.5,0); g.lineTo(x+w2*.5+Math.sin(i)*10,720); g.stroke();
+      }
+      BG.layers.push({c,par:.5,haze:0,anchors:[],wrapY:true});
+    }
+  }else if(LVL===2){
     /* ============ THE THORNWOOD, PAINTED ============ */
     // FAR: mist-swallowed trunk rows
     {
@@ -2912,9 +3330,15 @@ function drawBakedBackdrop(t){
   const WD=BG.W;
   for(const L of BG.layers){
     const off=((cam.x*L.par)%WD+WD)%WD;
-    const y=vOff(L.par);
-    ctx.drawImage(L.c,-off,y);
-    ctx.drawImage(L.c,WD-off,y);
+    let y=vOff(L.par);
+    if(L.wrapY){
+      y=(((-cam.y*L.par*.5)%720)+720)%720-720;
+      ctx.drawImage(L.c,-off,y); ctx.drawImage(L.c,WD-off,y);
+      ctx.drawImage(L.c,-off,y+720); ctx.drawImage(L.c,WD-off,y+720);
+    }else{
+      ctx.drawImage(L.c,-off,y);
+      ctx.drawImage(L.c,WD-off,y);
+    }
     for(const A of L.anchors){
       for(const ox of [A.x-off, A.x-off+WD]){
         if(ox<-60||ox>W+60) continue;
@@ -2940,7 +3364,7 @@ function drawBakedBackdrop(t){
       }
     }
     if(L.haze){
-      ctx.fillStyle=LVL===2?'rgba(96,126,110,'+L.haze+')':'rgba(224,232,214,'+L.haze+')';
+      ctx.fillStyle=LVL===3?'rgba(70,38,18,'+L.haze+')':(LVL===2?'rgba(96,126,110,'+L.haze+')':'rgba(224,232,214,'+L.haze+')');
       ctx.fillRect(0,0,W,H);
     }
   }
@@ -2950,7 +3374,11 @@ function render(t){
   const sky=ctx.createLinearGradient(0,0,0,H);
   // the day turns as you cross the level: Vhal from late morning to golden hour, the Thornwood from dusk to moonlight
   const tod=(state==='play'||state==='win'||state==='over')&&!tutorialMode?levelFrac():0;
-  if(LVL===2){
+  if(LVL===3){
+    // inside the trunk: no sky, only the dark and the amber that leaks through the grain
+    sky.addColorStop(0,mixHex('#1a110c','#0e0a0c',tod)); sky.addColorStop(.5,mixHex('#2e1d12','#1c1214',tod));
+    sky.addColorStop(.85,mixHex('#4a2e18','#2a1a1c',tod)); sky.addColorStop(1,mixHex('#5a3a1e','#301c20',tod));
+  }else if(LVL===2){
     sky.addColorStop(0,mixHex('#39536b','#161f36',tod)); sky.addColorStop(.4,mixHex('#4e6a5e','#22324a',tod));
     sky.addColorStop(.68,mixHex('#7a9058','#3a4a5a',tod)); sky.addColorStop(.88,mixHex('#c9a05a','#5b5a6a',tod)); sky.addColorStop(1,mixHex('#a97a3e','#4a4050',tod));
   }else{
@@ -2959,6 +3387,10 @@ function render(t){
   }
   ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
   const sunX=W*.7-cam.x*.02, sunY=170+tod*(LVL===2?-40:90);
+  if(LVL===3){
+    drawGlow(W*.5-cam.x*.01,-60,300,'rgb(255,200,120)',.22);    // the light from the crown, far above
+    drawGlow(W*.5-cam.x*.01,H+80,260,'rgb(255,120,60)',.10);   // and the heart, far below
+  }else{
   const moon=LVL===2&&tod>.5;
   drawGlow(sunX,sunY,LVL===2?110:150,moon?'rgb(200,215,255)':'rgb(255,240,200)',moon?.35:(LVL===2?.5:.8));
   ctx.fillStyle=moon?mixHex('#ffedc2','#e8eeff',(tod-.5)*2):(LVL===2?'#ffedc2':mixHex('#fff6dc','#ffd9a0',tod));
@@ -2976,6 +3408,7 @@ function render(t){
     ctx.restore();
   }
   ctx.restore();
+  }
   for(let i=0;i<5;i++){
     const cw=150+i*36;
     const span=W+2*cw;
@@ -3040,6 +3473,7 @@ function render(t){
   ctx.save();
   ctx.translate(-cam.x+shakeX,-cam.y+shakeY);
   drawWater(t);
+  drawSap(t);
   drawChasm();
   drawTerrain(t);
   drawDecals();
@@ -3176,7 +3610,7 @@ function drawForeground(t){
     }
     ctx.restore();
   }
-  if(cam.y<-90) return;   // no meadow grass halfway up a tree
+  if(cam.y<-90||LVL===3) return;   // no meadow grass halfway up a tree, or inside one
   // dark grass drifting past in front of the action
   const par=1.3, step=56, start=Math.floor((cam.x*par-90)/step);
   ctx.fillStyle='#1e2d1a';
@@ -3197,6 +3631,29 @@ function drawMBoss(t){
   const m=mboss; if(!m) return;
   const {x,y,w,h}=m;
   if(!m.dead) drawShadowAt(x,y+h,w+10);
+  if(m.type==='gall'){
+    let a0=1;
+    if(m.dead){a0=clamp(1-m.deadT/1.6,0,1); if(a0<=0) return; ctx.globalAlpha=a0;}
+    const P=3.2*DIFF().eCad, ph=((m.pulse||0)%P)/P, beat=Math.max(0,1-ph*3), winded=m.st==='winded';
+    // bark grown over her
+    ctx.fillStyle='#4a3520'; ctx.fillRect(x-w/2-18,y-20,w+36,h+20);
+    ctx.fillStyle='#3a2816'; for(let k=0;k<5;k++) ctx.fillRect(x-w/2-14+k*24,y-16,6,h+16);
+    // the body: a swollen gall, veins alive with the beat
+    drawGlow(x,y+h*.5,70+beat*30,winded?'rgb(255,230,170)':'rgb(255,150,70)',.25+beat*.35);
+    ctx.fillStyle=winded?'#f0d8a8':'#c9925a';
+    ctx.beginPath(); ctx.ellipse(x,y+h*.55,w/2,h*.45,0,0,TAU); ctx.fill();
+    ctx.fillStyle='rgba(120,50,30,.5)';
+    for(let k=0;k<5;k++){ctx.beginPath(); ctx.ellipse(x+Math.cos(k*1.3)*20,y+h*.55+Math.sin(k*1.7)*18,8+beat*3,5,k,0,TAU); ctx.fill();}
+    ctx.strokeStyle='rgba(255,170,90,'+(0.35+beat*.5)+')'; ctx.lineWidth=2;        // veins to the walls
+    ctx.beginPath(); ctx.moveTo(x-w/2,y+40); ctx.quadraticCurveTo(x-160,y+10,x-300,y+60); ctx.moveTo(x-w/2,y+70); ctx.quadraticCurveTo(x-200,y+120,x-360,y+80); ctx.stroke();
+    // a face, almost
+    ctx.fillStyle='#2a1808'; ctx.beginPath(); ctx.arc(x-18,y+36,5,0,TAU); ctx.arc(x+4,y+32,5,0,TAU); ctx.fill();
+    ctx.fillStyle=winded?'#ffe9b0':'#ff9a50'; ctx.beginPath(); ctx.arc(x-18,y+36,2,0,TAU); ctx.arc(x+4,y+32,2,0,TAU); ctx.fill();
+    ctx.fillStyle='#3a2010'; ctx.beginPath(); ctx.ellipse(x-8,y+58,14,5+beat*4,0,0,TAU); ctx.fill();     // the mouth that spits
+    if(m.hurtT>0){ctx.fillStyle='rgba(255,255,255,.45)'; ctx.fillRect(x-w/2,y,w,h);}
+    ctx.globalAlpha=1;
+    return;
+  }
   if(m.type==='hunt'){
     let a0=1;
     if(m.dead){a0=clamp(1-m.deadT/1.4,0,1); if(a0<=0) return; ctx.globalAlpha=a0;}
@@ -3571,6 +4028,24 @@ function drawTerrain(t){
       ctx.fillRect(s.x,s.y,s.w,s.h);
       ctx.fillStyle='rgba(255,255,255,.5)';
       ctx.fillRect(s.x,s.y,s.w,3);
+    }else if(s.crust){
+      ctx.fillStyle='rgba(255,226,170,'+clamp(s.melt/3,0,1)*.95+')';
+      ctx.fillRect(s.x,s.y,s.w,s.h);
+      ctx.fillStyle='rgba(255,250,230,.6)'; ctx.fillRect(s.x,s.y,s.w,3);
+      ctx.fillStyle='rgba(180,110,40,.35)'; for(let k=0;k<4;k++) ctx.fillRect(s.x+10+k*22,s.y+5,3,5);
+    }else if(s.bark){
+      const gr=ctx.createLinearGradient(s.x,0,s.x+Math.min(s.w,300),0);
+      gr.addColorStop(0,'#3a2816'); gr.addColorStop(.5,'#4e3820'); gr.addColorStop(1,'#3a2816');
+      ctx.fillStyle=gr; ctx.fillRect(s.x,s.y,s.w,s.h);
+      ctx.fillStyle='rgba(255,170,90,.55)'; ctx.fillRect(s.x,s.y,s.w,2);            // the amber rim
+      ctx.strokeStyle='rgba(22,14,8,.45)'; ctx.lineWidth=2;
+      ctx.beginPath();
+      const step=s.w>s.h?0:1;
+      if(step){ for(let fx=s.x+12;fx<s.x+s.w-6;fx+=22){ ctx.moveTo(fx,s.y+4); for(let yy=s.y+4;yy<s.y+s.h;yy+=60) ctx.lineTo(fx+Math.sin(yy*.02+fx)*4,Math.min(yy+60,s.y+s.h)); } }
+      else { for(let fy=s.y+14;fy<s.y+s.h&&fy<s.y+90;fy+=18){ ctx.moveTo(s.x+4,fy); for(let xx=s.x+4;xx<s.x+s.w;xx+=80) ctx.lineTo(Math.min(xx+80,s.x+s.w),fy+Math.sin(xx*.03+fy)*3); } }
+      ctx.stroke();
+      if(s.knot){ ctx.fillStyle='rgba(255,180,90,.18)'; ctx.beginPath(); ctx.ellipse(s.x+s.w/2,s.y+12,s.w*.4,8,0,0,TAU); ctx.fill(); }
+      if(s.crush){ ctx.fillStyle='rgba(255,120,60,.25)'; for(let yy=s.y+20;yy<s.y+s.h;yy+=40) ctx.fillRect(s.x+8,yy,s.w-16,4); }
     }else if(s.barr){
       ctx.fillStyle=s.burn>0?'#4a2410':'#5a4028';
       ctx.fillRect(s.x,s.y,s.w,s.h);
@@ -3662,9 +4137,9 @@ function drawTerrain(t){
       const wood=s.burn>0?'#4a2410':'#5a4028';
       // platforms belong to the world: braces, supports, growth
       if(s.oneWay){
-        if(LVL===2&&s.x>12400){
+        if(s.bough){
           // a living branch of the Great Tree — thick at the trunk, tapering out
-          const trunkRight=s.x+s.w/2<12990;
+          const trunkRight=s.rootRight!==undefined?s.rootRight:(s.x+s.w/2<12990);
           const rootX=trunkRight?s.x+s.w:s.x;
           const tipX=trunkRight?s.x:s.x+s.w;
           ctx.fillStyle=s.burn>0?'#4a2410':'#54402a';
@@ -4224,6 +4699,27 @@ function drawEnemies(t){
         ctx.fillStyle='#a8d878';
         ctx.beginPath();ctx.arc(x+e.face*14,y-6,5,0,TAU);ctx.fill();
       }
+    }else if(e.type==='grub'){
+      if(e.ceil&&!e.dead){ctx.strokeStyle='rgba(240,200,120,.7)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(x,y-30); ctx.lineTo(x,y+2); ctx.stroke();}
+      const sway=e.ceil?Math.sin(t*.003+x*.1)*2:0;
+      ctx.fillStyle=flash?'#fff3dd':'#e8c078';
+      for(let k=0;k<3;k++){ctx.beginPath(); ctx.ellipse(x+sway*(k/2),y+5+k*6,9-k*1.2,5,0,0,TAU); ctx.fill();}
+      ctx.fillStyle='#c99a4c'; ctx.beginPath(); ctx.arc(x+sway,y+2,6,0,TAU); ctx.fill();
+      ctx.fillStyle='#3a2410'; ctx.fillRect(x-3+sway,y,2,2); ctx.fillRect(x+1+sway,y,2,2);
+      drawGlow(x,y+10,16,'rgb(255,200,110)',.25);
+    }else if(e.type==='root'){
+      ctx.strokeStyle='#5a4228'; ctx.lineWidth=5;
+      ctx.beginPath();
+      ctx.moveTo(x-5,y+30); ctx.lineTo(x-8+stride,y+h);
+      ctx.moveTo(x+5,y+30); ctx.lineTo(x+8-stride,y+h);
+      ctx.moveTo(x-9,y+14); ctx.lineTo(x-18-e.face*4,y+26+Math.sin(t*.004)*2);
+      ctx.moveTo(x+9,y+14); ctx.lineTo(x+18-e.face*4,y+26+Math.cos(t*.004)*2);
+      ctx.stroke();
+      ctx.fillStyle='#6b4f2e'; ctx.fillRect(x-w/2,y+6,w,26); tone2(x-w/2,y+6,w,26);
+      ctx.fillStyle='#8a6a3c'; ctx.beginPath(); ctx.arc(x,y+4,9,0,TAU); ctx.fill();
+      ctx.strokeStyle='#3a5a2c'; ctx.lineWidth=2;          // a sprig on the head
+      ctx.beginPath(); ctx.moveTo(x,y-4); ctx.quadraticCurveTo(x+e.face*6,y-12,x+e.face*10,y-9); ctx.stroke();
+      ctx.fillStyle=flash?'#ffffff':'#ffd27a'; ctx.fillRect(x+e.face*3,y+2,3,3);
     }else if(e.type==='ball'){
       ctx.fillStyle='#6b4a2e';
       ctx.fillRect(x-28,y+26,56,18);
@@ -4276,6 +4772,42 @@ function drawBoss(t){
   const b=boss; if(!b) return;
   const {x,y,w,h}=b;
   if(!b.dead) drawShadowAt(x,y+h,w+28);
+  if(b.type==='taproot'){
+    let falling=false;
+    if(b.dead){
+      const f=clamp(b.deadT/2,0,1);
+      ctx.save(); ctx.translate(x,y+h); ctx.translate(0,f*260); ctx.globalAlpha=clamp(1-f*.9,0,1); ctx.translate(-x,-(y+h));
+      falling=true;
+    }
+    const open=b.mouth||0, winded=b.st==='winded', prep=b.st==='drinkPrep'||b.st==='lashPrep';
+    // the root body, rising out of the black water
+    ctx.fillStyle='#2e2218';
+    ctx.beginPath();
+    ctx.moveTo(x-w/2-70,720); ctx.quadraticCurveTo(x-w/2-20,y+h*.2,x-w/2+10,y+10);
+    ctx.quadraticCurveTo(x,y-40-Math.sin(t*.0015)*6,x+w/2-10,y+10);
+    ctx.quadraticCurveTo(x+w/2+20,y+h*.2,x+w/2+70,720); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#3d2d1e';
+    for(let k=0;k<5;k++){ctx.beginPath(); ctx.moveTo(x-w/2+20+k*44,y+20); ctx.quadraticCurveTo(x-w/2+10+k*44+Math.sin(t*.001+k)*6,y+h*.6,x-w/2+30+k*44,720); ctx.lineTo(x-w/2+44+k*44,720); ctx.quadraticCurveTo(x-w/2+34+k*44,y+h*.6,x-w/2+34+k*44,y+20); ctx.closePath(); ctx.fill();}
+    // the mouth: a split in the root that gapes; heartwood pale inside
+    const my=y+h*.55, mh=16+open*70;
+    if(open>.1) drawGlow(x,my+mh/2,90*open,winded?'rgb(255,240,200)':'rgb(255,170,90)',.35*open+(winded?.35:0));
+    ctx.fillStyle=winded?'#ffe6b8':(prep?'#f2f4f6':'#d9b086');
+    ctx.beginPath(); ctx.ellipse(x,my+mh/2,w*.3,mh/2,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#1a1008';
+    ctx.beginPath(); ctx.ellipse(x,my+mh/2,w*.3-8,Math.max(1,mh/2-7),0,0,TAU); ctx.fill();
+    ctx.fillStyle=winded?'#ffd27a':'#c9925a';                                     // the heart, down the throat
+    ctx.beginPath(); ctx.arc(x,my+mh/2,6+open*8+Math.sin(t*.006)*2,0,TAU); ctx.fill();
+    ctx.strokeStyle='#e8d8b8'; ctx.lineWidth=2;                                    // bark teeth
+    ctx.beginPath(); for(let k=-3;k<=3;k++){const tx2=x+k*16; ctx.moveTo(tx2,my); ctx.lineTo(tx2+4,my+8+open*10);} ctx.stroke();
+    // tendrils feeling along the water
+    ctx.strokeStyle='#3d2d1e'; ctx.lineWidth=7;
+    for(let k=0;k<4;k++){const sgn=k<2?-1:1, ox=sgn*(w/2+40+k%2*120), ph2=t*.0012+k;
+      ctx.beginPath(); ctx.moveTo(x+sgn*w/2,700); ctx.quadraticCurveTo(x+ox*.6,660+Math.sin(ph2)*20,x+ox,640+Math.cos(ph2)*10); ctx.stroke();}
+    if(b.hurtT>0){ctx.fillStyle='rgba(255,255,255,.35)'; ctx.fillRect(x-w/2,y,w,h);}
+    if(b.chillT>0){ctx.fillStyle='rgba(140,205,255,.22)'; ctx.fillRect(x-w/2,y,w,h);}
+    if(falling){ctx.restore();ctx.globalAlpha=1;}
+    return;
+  }
   if(b.type==='thorn'){
     let falling=false;
     if(b.dead){
@@ -4834,7 +5366,7 @@ function drawHUD(t){
       ctx.save();ctx.translate(mx2,py0);ctx.rotate(Math.PI/4);
       ctx.fillRect(-3.5,-3.5,7,7);ctx.restore();
     }
-    const bx6=px0+((LVL===1?BOSS_TRIG:12550)/LEVEL)*pw; // and the boss at road's end
+    const bx6=px0+(BOSS_MARK/LEVEL)*pw; // and the boss at road's end
     ctx.fillStyle=(boss&&boss.dead)?'rgba(74,56,38,.5)':'#7a2418';
     ctx.beginPath();
     ctx.moveTo(bx6,py0-7);ctx.lineTo(bx6+6,py0-4);ctx.lineTo(bx6,py0-1);
@@ -4937,7 +5469,7 @@ function drawHUD(t){
   }
   if(boss&&!boss.dead){
     ctx.textAlign='center'; ctx.fillStyle='#4a3826'; ctx.font='14px '+UIF;
-    ctx.fillText(boss.type==='thorn'?'OLD THORNHEART':'THE WARDEN OF VHAL', W/2, 46);
+    ctx.fillText((BOSS_CARDS[boss.type]||[boss.type])[0], W/2, 46);
     ctx.fillStyle='rgba(20,10,25,.8)'; ctx.fillRect(W/2-220,56,440,10);
     ctx.fillStyle=boss.st==='winded'?'#ffe9b0':'#ff8c3a'; ctx.fillRect(W/2-220,56,440*clamp(boss.hp/boss.max,0,1),10);
     ctx.fillStyle='rgba(40,20,10,.8)'; ctx.fillRect(W/2-1,53,2,16);   // the enrage line
@@ -4947,7 +5479,7 @@ function drawHUD(t){
   }
   if(mboss&&!mboss.dead){
     ctx.textAlign='center'; ctx.fillStyle='#4a3826'; ctx.font='13px '+UIF;
-    ctx.fillText(mboss.type==='hunt'?'THE HUNTSMASTER':'THE CATAPULT MASTER', W/2, 46);
+    ctx.fillText((BOSS_CARDS[mboss.type]||[mboss.type])[0], W/2, 46);
     ctx.fillStyle='rgba(20,10,25,.8)'; ctx.fillRect(W/2-170,56,340,8);
     ctx.fillStyle=mboss.st==='winded'?'#ffe9b0':'#ffb267'; ctx.fillRect(W/2-170,56,340*clamp(mboss.hp/mboss.max,0,1),8);
     ctx.fillStyle='rgba(40,20,10,.8)'; ctx.fillRect(W/2-1,53,2,14);
@@ -5038,7 +5570,7 @@ function doWin(){
 /* ---------------- bestiary + character portraits ---------------- */
 /* entries are earned: a foe appears in the book only after you've fought it */
 const BST_KEYS={bc0:'foot',bc1:'arch',bc5:'shield',bc6:'bomb',bc2:'ball',bc4:'cm',bc3:'warden',
-  bc7:'hound',bc8:'weave',bc9:'hunt',bc10:'thorn'};
+  bc7:'hound',bc8:'weave',bc9:'hunt',bc10:'thorn',bc11:'grub',bc12:'root',bc13:'gall',bc14:'taproot'};
 let bstSeen={};
 try{bstSeen=JSON.parse(localStorage.getItem('arcanade-bestiary')||'{}');}catch(e){}
 function markSeen(k){
@@ -5262,6 +5794,38 @@ function drawPortraits(tt){
     g.fillStyle=rg; g.beginPath();g.arc(0,14,pulse+8,0,TAU);g.fill();
     g.fillStyle='#ffb267'; g.beginPath();g.arc(0,14,4,0,TAU);g.fill();
   });
+  P2('bc11',(g,t)=>{ // gall-grub: swinging on its thread
+    const sw=Math.sin(t*.002)*6;
+    g.strokeStyle='rgba(240,200,120,.7)'; g.lineWidth=1.5; g.beginPath(); g.moveTo(0,-42); g.lineTo(sw,-10); g.stroke();
+    g.fillStyle='#e8c078'; for(let k=0;k<3;k++){g.beginPath(); g.ellipse(sw*(1+k*.1),-6+k*9,12-k*1.5,7,0,0,TAU); g.fill();}
+    g.fillStyle='#c99a4c'; g.beginPath(); g.arc(sw,-12,8,0,TAU); g.fill();
+    g.fillStyle='#3a2410'; g.fillRect(sw-4,-14,2,2); g.fillRect(sw+2,-14,2,2);
+  },tt);
+  P2('bc12',(g,t)=>{ // rootling: a slow step, a sprig nodding
+    const st=Math.sin(t*.003)*4;
+    g.strokeStyle='#5a4228'; g.lineWidth=5; g.beginPath(); g.moveTo(-5,12); g.lineTo(-8+st,32); g.moveTo(5,12); g.lineTo(8-st,32); g.moveTo(-9,-4); g.lineTo(-20,8); g.moveTo(9,-4); g.lineTo(20,8); g.stroke();
+    g.fillStyle='#6b4f2e'; g.fillRect(-13,-12,26,26);
+    g.fillStyle='#8a6a3c'; g.beginPath(); g.arc(0,-16,9,0,TAU); g.fill();
+    g.strokeStyle='#3a5a2c'; g.lineWidth=2; g.beginPath(); g.moveTo(0,-24); g.quadraticCurveTo(6,-32+st*.5,10,-29); g.stroke();
+    g.fillStyle='#ffd27a'; g.fillRect(3,-18,3,3);
+  },tt);
+  P2('bc13',(g,t)=>{ // the Gall-Mother: the heartbeat
+    const ph=(t*.001)%1, beat=Math.max(0,1-ph*3);
+    g.fillStyle='#4a3520'; g.fillRect(-40,-30,80,70);
+    g.fillStyle='#3a2816'; for(let k=0;k<4;k++) g.fillRect(-36+k*20,-30,5,70);
+    g.fillStyle='rgba(255,150,70,'+(0.15+beat*.4)+')'; g.beginPath(); g.arc(0,5,34+beat*6,0,TAU); g.fill();
+    g.fillStyle='#c9925a'; g.beginPath(); g.ellipse(0,5,26,20,0,0,TAU); g.fill();
+    g.fillStyle='#2a1808'; g.beginPath(); g.arc(-8,0,3,0,TAU); g.arc(6,-2,3,0,TAU); g.fill();
+    g.fillStyle='#3a2010'; g.beginPath(); g.ellipse(-2,12,9,3+beat*3,0,0,TAU); g.fill();
+  },tt);
+  P2('bc14',(g,t)=>{ // the Taproot: the mouth opens
+    const open=.5+.5*Math.sin(t*.0015);
+    g.fillStyle='#2e2218'; g.beginPath(); g.moveTo(-44,46); g.quadraticCurveTo(-30,-20,0,-30); g.quadraticCurveTo(30,-20,44,46); g.closePath(); g.fill();
+    g.fillStyle='#d9b086'; g.beginPath(); g.ellipse(0,8,22,6+open*14,0,0,TAU); g.fill();
+    g.fillStyle='#1a1008'; g.beginPath(); g.ellipse(0,8,16,Math.max(1,open*12),0,0,TAU); g.fill();
+    g.fillStyle='#ffd27a'; g.beginPath(); g.arc(0,8,3+open*4,0,TAU); g.fill();
+    g.fillStyle='rgba(8,6,14,.8)'; g.fillRect(-46,30,92,20);
+  },tt);
   P2('bc3',(g,t)=>{ // the Warden: plume alive, spear restless
     const jab=Math.max(0,Math.sin(t*.0015))*6;
     const fl2=Math.sin(t*.005)*3;
@@ -5440,6 +6004,23 @@ function drawWorldMap(tt){
     g.beginPath();g.moveTo(540,160);g.lineTo(580,130);g.stroke();
     g.beginPath();g.moveTo(545,128);g.lineTo(578,162);g.stroke();
   }
+  /* the Heartwood: inside the tree */
+  const l3open=!!campaign.l2Cleared;
+  node(715,305,l3open,l3open&&!campaign.l3Cleared);
+  g.fillStyle=l3open?'#4a3520':'#6a6050';
+  g.fillRect(700,250,30,50);
+  g.fillStyle=l3open?'#3a2816':'#5a5040';
+  g.beginPath();g.moveTo(690,300);g.lineTo(700,262);g.lineTo(730,262);g.lineTo(740,300);g.closePath();g.fill();
+  if(l3open){const pulse=.5+.5*Math.sin(t*.003); g.fillStyle='rgba(255,170,80,'+(0.35+pulse*.45)+')'; g.beginPath();g.ellipse(715,282,5,9,0,0,TAU);g.fill();}
+  g.font="13px 'Cinzel',Georgia"; g.fillStyle=l3open?'#5a3c1a':'#8a8272';
+  g.fillText('III · THE HEARTWOOD',715,338);
+  g.font='italic 10px Georgia'; g.fillStyle=l3open?'#8a6f4a':'#8a8272';
+  g.fillText(campaign.l3Cleared?'the root is cut':(l3open?'the tree was only ever the door':'the crown must fall first'),715,352);
+  if(campaign.l3Cleared){
+    g.strokeStyle='#4a7a3c'; g.lineWidth=3;
+    g.beginPath();g.moveTo(744,296);g.lineTo(750,303);g.lineTo(762,287);g.stroke();
+  }
+  if(l3open){ g.strokeStyle='rgba(90,60,30,.5)'; g.lineWidth=2; g.setLineDash([4,6]); g.beginPath();g.moveTo(680,150);g.quadraticCurveTo(760,200,715,280);g.stroke(); g.setLineDash([]); }
 }
 
 /* ---------------- the wagon's stock ---------------- */
@@ -5679,7 +6260,7 @@ let pendingLevel=1;
 function startGame(){
   loadLevel(pendingLevel);
   markElites();
-  setpiece={camp:0,campT:0,pack:0,packT:0};
+  setpiece={camp:0,campT:0,pack:0,packT:0,fall:0,fallT:0};
   gameTime=0; deaths=0; kills=0; relicsFound=0; checkpoint={x:60}; cpFlashT=0; ambushT=0;
   bridgeTorched=false;
   lives=DIFF().lives;
@@ -5705,6 +6286,9 @@ const INTROS={
   2:['Beyond the fallen wall the warlords fled into the Thornwood &mdash; the old forest that remembers when it owned these lands.',
      'They bought its silence with prisoners, and its warden with a horn of bone. The trees have chosen a side.',
      'The road runs under the canopy, and over it. Take either.<br><b>Take the crown.</b>'],
+  3:['The crown fell, and the Great Tree did not die. It opened. A throat of bark, going down into amber dark.',
+     'The warlords never held this forest. Something older let them in &mdash; and it has been feeding on what they brought it.',
+     'Every root leads to one root. Climb the sap, cross the heartwood, and fall.<br><b>Cut the Taproot.</b>'],
 };
 function runIntro(){
   state='intro'; introStep=0; show('intro');
@@ -5728,6 +6312,10 @@ document.getElementById('bWmDrill').onclick=()=>{startTutorialYard();};
 document.getElementById('bWmL1').onclick=()=>{SFX.chime();pendingLevel=1;campaign.l1Cleared?startGame():runIntro();};
 document.getElementById('bWmL2').onclick=()=>{
   if(campaign.l1Cleared){SFX.chime();pendingLevel=2;campaign.l2Cleared?startGame():runIntro();}
+  else {SFX.clink();tipMapLocked();}
+};
+document.getElementById('bWmL3').onclick=()=>{
+  if(campaign.l2Cleared){SFX.chime();pendingLevel=3;campaign.l3Cleared?startGame():runIntro();}
   else {SFX.clink();tipMapLocked();}
 };
 document.getElementById('bWmBack').onclick=()=>{state='charsel';show('charsel');};
@@ -5780,7 +6368,7 @@ function drawPauseMap(){
   });
   for(const cp of CHECKPOINTS){const tx=px0+(cp/LEVEL)*pw; g.fillStyle=cp<=checkpoint.x?'#ffb267':'rgba(255,215,150,.3)'; g.fillRect(tx-1.5,py-4,3,8);}
   if(MARENA.trig<LEVEL){const mx=px0+(MARENA.trig/LEVEL)*pw; g.fillStyle=(mboss&&mboss.dead)?'rgba(255,215,150,.3)':'#c9553a'; g.save();g.translate(mx,py);g.rotate(Math.PI/4);g.fillRect(-4,-4,8,8);g.restore();}
-  const bx=px0+((LVL===1?BOSS_TRIG:12550)/LEVEL)*pw;
+  const bx=px0+(BOSS_MARK/LEVEL)*pw;
   g.fillStyle=(boss&&boss.dead)?'rgba(255,215,150,.3)':'#c9553a';
   g.beginPath();g.moveTo(bx,py-9);g.lineTo(bx+7,py-5);g.lineTo(bx,py-1);g.closePath();g.fill();
   const dx=px0+clamp(player.x/LEVEL,0,1)*pw;
