@@ -258,9 +258,11 @@
    Contra-style run-and-gun. Pick your mage: fire spreads,
    frost slows and freezes water. The Warden waits on the wall.
    ============================================================= */
-const W=1280, H=720, LEVEL=9200, TAU=Math.PI*2;
-const WALLX=7420, WALLY=420;              // the wall top
-const ARENA=7780;                         // boss arena left edge
+const W=1280, H=720, LEVEL=17100, TAU=Math.PI*2;
+const WALLX=13080, WALLY=420;             // the wall top
+const ARENA=15780;                        // boss arena left edge
+const WATERS=[{x0:1390,x1:1970},{x0:8010,x1:8710}];   // moat, river (surface y≈672)
+const CHASMS=[[4400,6100],[11200,11440],[11840,12200]];
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 let viewScale=1;
 function fit(){
@@ -394,21 +396,22 @@ const CLASSES={
     title:'PYROMANCER', robe:'#a83c30', robeShade:'#8a2f28', cape:'#7a2622',
     dummyStep:'Burn the straw dummy — fire spreads',
     weapons:{
-      BOLT:  {name:'FIRE BOLT',     color:'rgb(255,154,60)',  rate:.14},
-      SPREAD:{name:'EMBER FAN',     color:'rgb(255,179,71)',  rate:.2},
-      LANCE: {name:'FLAME LANCE',   color:'rgb(255,94,60)'},
-      HEAVY: {name:'GREATFIRE',     color:'rgb(255,122,42)',  rate:.55},
-      BREATH:{name:"DRAKE'S BREATH",color:'rgb(255,196,107)'},
+      BOLT:  {name:'FIRE BOLT',     color:'rgb(255,154,60)',  rate:.14, spd:950, r:5,  dmg:1},
+      SPREAD:{name:'EMBER FAN',     color:'rgb(255,179,71)',  rate:.2,  spd:780, r:4,  dmg:.6, n:5, arc:.14, life:.44},
+      LANCE: {name:'FLAME LANCE',   color:'rgb(255,94,60)',   len:540, dps:9,  beamW:7},
+      HEAVY: {name:'GREATFIRE',     color:'rgb(255,122,42)',  rate:.55, spd:640, r:10, dmg:2.5, g:700, bounces:2},
+      BREATH:{name:"DRAKE'S BREATH",color:'rgb(255,196,107)', coneR:245, dps:12, half:.42},
     }},
   frost:{
     title:'CRYOMANCER', robe:'#3f6fa8', robeShade:'#33598a', cape:'#2c4a74',
     dummyStep:'Shatter the straw dummy with frost',
     weapons:{
-      BOLT:  {name:'FROST BOLT',      color:'rgb(140,205,255)', rate:.16},
-      SPREAD:{name:'SHARD FAN',       color:'rgb(175,225,255)', rate:.22},
-      LANCE: {name:'GLACIER LANCE',   color:'rgb(120,190,255)'},
-      HEAVY: {name:'COMET',           color:'rgb(150,210,250)', rate:.6},
-      BREATH:{name:"WINTER'S BREATH", color:'rgb(200,235,255)'},
+      /* frost hits heavier and slower, and its shards pass through men */
+      BOLT:  {name:'FROST BOLT',      color:'rgb(140,205,255)', rate:.19, spd:760, r:7,  dmg:1.4},
+      SPREAD:{name:'SHARD FAN',       color:'rgb(175,225,255)', rate:.24, spd:820, r:5,  dmg:.9, n:3, arc:.1, life:.5, pierce:1},
+      LANCE: {name:'GLACIER LANCE',   color:'rgb(120,190,255)', len:400, dps:11, beamW:12},
+      HEAVY: {name:'COMET',           color:'rgb(150,210,250)', rate:.65, spd:600, r:11, dmg:3.2, g:760, bounces:0, shatter:3},
+      BREATH:{name:"WINTER'S BREATH", color:'rgb(200,235,255)', coneR:200, dps:10, half:.5},
     }},
 };
 let cls='fire';
@@ -458,12 +461,12 @@ let state='title';        // title | charsel | intro | play | win
 let paused=false, settingsFrom=null;
 let solids=[], props=[], enemies=[], shots=[], eshots=[], parts=[], pickups=[], ambushes=[], decals=[];
 let boss=null, bossIntroT=0, mboss=null, mbIntroT=0;
-const MARENA={x0:5790, x1:7050, trig:6020, cam:5790};
+const MARENA={x0:9020, x1:10290, trig:9250, cam:9020};
 function addDecal(d){decals.push(d); if(decals.length>90) decals.shift();}
 let cam={x:0}, shakeMag=0, shakeX=0, shakeY=0;
 let gameTime=0, deaths=0, kills=0, relicsFound=0, cpFlashT=0, ambushT=0, bridgeTorched=false;
 let checkpoint={x:60};
-const CHECKPOINTS=[60,2060,3820,5600,7480];
+const CHECKPOINTS=[60,2060,4340,6300,8740,10650,12420,13140,15700];
 let player=null;
 
 function makePlayer(x){
@@ -491,47 +494,83 @@ function P(x,y,w,h,kind){const p={x,y,w,h,kind,flam:true,burn:0,spreadT:0,dead:f
 function buildLevel(){
   solids=[];props=[];enemies=[];shots=[];eshots=[];parts=[];pickups=[];ambushes=[];decals=[];
   boss=null;mboss=null;bossIntroT=0;mbIntroT=0;
-  /* --- ground --- */
-  S(-80,600,1480,240);                                   // field 0..1400
-  for(let i=0;i<7;i++) S(1400+i*80,600,80,16,{flam:true,plank:true}); // moat bridge
-  S(1548,646,74,180,{stone:true,pier:true});             // stone piers — the crossing
-  S(1756,646,74,180,{stone:true,pier:true});             // never depends on the bridge
-  S(1960,600,1940,240);                                  // forest road 1960..3900
+  /* ============ THE ROAD TO VHAL — ~17,000px ============ */
+  /* --- field 0..1400 --- */
+  S(-80,600,1480,240);
+  /* --- moat 1400..1960: bridge + piers --- */
+  for(let i=0;i<7;i++) S(1400+i*80,600,80,16,{flam:true,plank:true});
+  S(1548,646,74,180,{stone:true,pier:true});
+  S(1756,646,74,180,{stone:true,pier:true});
+  /* --- forest road 1960..4400 --- */
+  S(1960,600,2440,240);
   S(2480,470,150,14,{oneWay:true,flam:true,plank:true});
   S(3200,492,140,14,{oneWay:true,flam:true,plank:true});
+  S(3760,480,140,14,{oneWay:true,flam:true,plank:true});
   S(3080,516,34,84,{flam:true,barr:true,breakable:true,hp:6});
-  S(2940,430,42,170,{flam:true,breakable:true,hp:12,pal:true});   // palisade: burn it or blast it
-  /* --- the ravine: platforming, two dash-length gaps --- */
-  S(3990,560,120,280,{stone:true});
-  S(4200,500,110,340,{stone:true});
-  S(4400,540,100,300,{stone:true});
-  S(4860,520,130,320,{stone:true});    // dash gap: 4500 → 4860
-  S(5080,470,110,370,{stone:true});
-  /* --- siege camp 5560..7000 (dash gap: 5190 → 5560) --- */
-  S(5560,600,1440,240);
-  S(5900,480,150,14,{oneWay:true,flam:true,plank:true});
-  S(6230,410,140,14,{oneWay:true,flam:true,plank:true});
-  S(6420,516,34,84,{flam:true,barr:true,breakable:true,hp:6});
-  S(6940,450,46,150,{breakable:true,hp:20,stoneWall:true});       // rubble before the stair
-  /* --- stair + wall --- */
-  S(7000,552,140,300,{stone:true}); S(7140,504,140,340,{stone:true}); S(7280,456,140,380,{stone:true});
-  S(WALLX,WALLY,LEVEL-WALLX,420,{stone:true});           // wall top 7420..9200
-  S(7730,270,44,150,{breakable:true,hp:14,stoneWall:true});       // cracked blockade before the Warden
+  S(2940,430,42,170,{flam:true,breakable:true,hp:12,pal:true});
+  S(4160,430,42,170,{flam:true,breakable:true,hp:12,pal:true});   // second palisade at the ravine gate
+  /* --- the ravine 4400..6260: three hops, two dash gaps --- */
+  S(4490,560,120,280,{stone:true});
+  S(4700,500,110,340,{stone:true});
+  S(4900,540,100,300,{stone:true});
+  S(5360,520,130,320,{stone:true});    // dash gap: 5000 → 5360
+  S(5580,470,110,370,{stone:true});
+  S(6050,540,130,300,{stone:true});    // dash gap: 5690 → 6050
+  /* --- the burned village 6260..8000 --- */
+  S(6260,600,1740,240);
+  S(6510,470,160,14,{oneWay:true,flam:true,plank:true});   // surviving rooftop
+  S(7560,460,160,14,{oneWay:true,flam:true,plank:true});
+  S(7300,430,44,170,{flam:true,breakable:true,hp:12,pal:true});   // the village gate
+  /* --- the river 8000..8720: the bridge is long gone --- */
+  S(8000,600,60,16,{flam:true,plank:true});                // stub
+  S(8660,600,60,16,{flam:true,plank:true});
+  S(8150,646,70,180,{stone:true,pier:true});
+  S(8350,646,70,180,{stone:true,pier:true});
+  S(8550,646,70,180,{stone:true,pier:true});
+  /* --- siege camp 8720..10600 --- */
+  S(8720,600,1880,240);
+  S(9060,480,150,14,{oneWay:true,flam:true,plank:true});
+  S(9700,410,140,14,{oneWay:true,flam:true,plank:true});
+  S(10050,500,140,14,{oneWay:true,flam:true,plank:true});
+  S(9450,516,34,84,{flam:true,barr:true,breakable:true,hp:6});
+  /* --- the quarry 10600..12400: broken ground --- */
+  S(10600,600,600,240);
+  S(11020,480,130,14,{oneWay:true,flam:true,plank:true});  // scaffold
+  S(11440,560,400,280);                                    // jump gap: 11200 → 11440
+  S(11560,440,130,14,{oneWay:true,flam:true,plank:true});
+  S(12200,600,800,240);                                    // dash gap: 11840 → 12200
+  S(12520,450,46,150,{breakable:true,hp:20,stoneWall:true});
+  /* --- stair + the Wall of Vhal 13080..17100 --- */
+  S(12660,552,140,300,{stone:true}); S(12800,504,140,340,{stone:true}); S(12940,456,140,380,{stone:true});
+  S(WALLX,WALLY,LEVEL-WALLX,420,{stone:true});
+  S(15560,270,44,150,{breakable:true,hp:14,stoneWall:true});      // blockade before the Warden
   /* --- props --- */
   const grassAt=[120,260,380,520,700,830,980,1120,1290,
-    2050,2230,2380,2620,2760,2900,3300,3420,3540,3700,3840,
-    5620,5780,5960,6120,6280,6560,6720,6880];
+    2050,2230,2380,2620,2760,2900,3300,3420,3540,3700,3840,4000,4250,
+    6350,6520,6760,7050,7350,7680,7900,
+    8770,8950,9150,9400,9650,9900,10150,10450,
+    10700,10950,11500,11700,12250,12500,12700,12850];
   for(const gx of grassAt) P(gx,600-16,34,16,'grass');
-  P(5750,600-84,120,84,'tent'); P(6300,600-78,110,78,'tent');
-  P(6050,600-104,150,104,'catapult'); P(6550,600-100,150,100,'catapult');
+  P(8950,600-84,120,84,'tent'); P(9550,600-84,120,84,'tent'); P(10050,600-78,110,78,'tent');
+  P(9300,600-104,150,104,'catapult'); P(9750,600-100,150,100,'catapult'); P(10300,600-104,150,104,'catapult');
   P(1395,600-42,14,42,'post'); P(1955,600-42,14,42,'post');
-  P(7880,WALLY-66,96,66,'hoard'); P(8180,WALLY-66,96,66,'hoard'); P(8460,WALLY-66,96,66,'hoard');
-  for(const tx of [980,2320,3860,5640,6200,6700,7520,8000]){
+  P(7995,600-42,14,42,'post'); P(8705,600-42,14,42,'post');
+  for(const hx of [13540,13840,14200,14750,15300]) P(hx,WALLY-66,96,66,'hoard');
+  for(const tx of [980,2320,3860,4200,6350,6980,7560,8760,9200,10250,10700,12450,13200,13900,15100]){
     const b=P(tx,groundYAt(tx)-58,8,58,'banner'); b.flam=false;
   }
   P(430,groundYAt(430)-58,26,58,'dummy');
-  for(const fx of [200,760,2260,2700,3320,5700,6480]) P(fx,groundYAt(fx)-30,92,30,'fence');
-  for(const bx of [330,1090,2510,3460,5850,6620]) P(bx,groundYAt(bx)-26,52,26,'bush');
+  for(const fx of [200,760,2260,2700,3320,6350,6900,7600,8850,9850,10750,12550]) P(fx,groundYAt(fx)-30,92,30,'fence');
+  for(const bx of [330,1090,2510,3460,4050,6450,7200,8880,10200,10850,12300]) P(bx,groundYAt(bx)-26,52,26,'bush');
+  /* the village remembers being burned */
+  for(const [rx,rw,rh] of [[6480,150,96],[6960,140,88],[7540,150,92]]){
+    const r=P(rx,600-rh,rw,rh,'ruin'); r.flam=false;   // already burned once
+  }
+  P(6700,600-40,90,40,'cart'); P(7450,600-40,90,40,'cart');
+  const wl=P(7150,600-52,54,52,'well'); wl.flam=false;
+  addDecal({t:'scorch',x:6550,y:600,w:110});
+  addDecal({t:'scorch',x:7030,y:600,w:90});
+  addDecal({t:'scorch',x:7590,y:600,w:120});
   for(const cx of CHECKPOINTS){
     const s=P(cx-14,groundYAt(cx)-64,28,64,'shrine');
     s.flam=false; s.lit=(cx===60);
@@ -540,21 +579,30 @@ function buildLevel(){
   pickups=[
     {x:1240,y:groundYAt(1240)-64,type:'SPREAD',t:0,got:false},
     {x:2140,y:groundYAt(2140)-64,type:'HEAVY',t:0,got:false},
-    {x:4920,y:groundYAt(4920)-64,type:'LANCE',t:0,got:false},   // platforming reward
-    {x:6900,y:groundYAt(6900)-64,type:'BREATH',t:0,got:false},
+    {x:5425,y:groundYAt(5425)-64,type:'LANCE',t:0,got:false},   // ravine reward
+    {x:7900,y:groundYAt(7900)-64,type:'BREATH',t:0,got:false},
+    {x:11620,y:groundYAt(11620)-64,type:'HEAVY',t:0,got:false}, // quarry cache
+    {x:13260,y:groundYAt(13260)-64,type:'SPREAD',t:0,got:false},// wall stores
   ];
   /* --- ambient enemies --- */
   const amb=[['foot',900],['foot',1000],['arch',1150],
-    ['foot',2170],['arch',2460],['foot',2720],['arch',3370],['foot',3520],
-    ['arch',4030],['arch',4900],
-    ['foot',5750],['foot',6050],['arch',6150],['foot',6350],['arch',6650],['foot',6800],
-    ['foot',7550],['ball',7350,456],['ball',7630,WALLY]];
+    ['foot',2170],['arch',2460],['foot',2720],['arch',3370],['foot',3520],['foot',3950],['arch',4100],
+    ['arch',4530],['arch',5400],
+    ['foot',6400],['arch',6550],['foot',6800],['foot',7100],['arch',7380],['foot',7700],
+    ['arch',8760],
+    ['foot',8900],['arch',9120],['foot',9500],['foot',9900],['arch',10120],['foot',10400],
+    ['foot',10800],['arch',11000],['ball',11500,560],['foot',11650],['arch',12000],['foot',12300],
+    ['ball',13010,456],['ball',13560,WALLY],['foot',13700],['foot',14300],['arch',14800],['foot',15200]];
   for(const [t,x,y] of amb) spawnEnemy(t,x,y);
   /* --- ambush triggers (no camera lock — they come to you) --- */
   ambushes=[
     {x:3150,done:false,list:[['foot','L'],['foot','R'],['arch','R'],['foot','R']]},
-    {x:5800,done:false,list:[['foot','L'],['foot','R'],['arch','L'],['arch','R']]},
-    {x:7080,done:false,list:[['foot','R'],['foot','R'],['arch','R'],['foot','L'],['arch','L']]},
+    {x:6600,done:false,list:[['foot','L'],['foot','R'],['arch','R']]},
+    {x:7500,done:false,list:[['foot','R'],['foot','R'],['arch','L'],['arch','R']]},
+    {x:8850,done:false,list:[['foot','L'],['foot','R'],['arch','L'],['arch','R']]},
+    {x:10350,done:false,list:[['foot','R'],['foot','R'],['arch','R'],['foot','L']]},
+    {x:11550,done:false,list:[['foot','L'],['arch','R'],['foot','R']]},
+    {x:13700,done:false,list:[['foot','R'],['foot','R'],['arch','R'],['foot','L'],['arch','L']]},
   ];
 }
 
@@ -869,22 +917,24 @@ function updateFire(dt){
     }
   }
 }
-const MOAT={x0:1390,x1:1970,surface:672};
 function tryFreezeWater(x,y){
-  if(!isFire()&&x>MOAT.x0&&x<MOAT.x1&&y>MOAT.surface-14){
-    const floes=solids.filter(s=>s.ice&&!s.dead);
-    if(floes.length<6&&!floes.some(f=>Math.abs(f.x+46-x)<70)){
-      solids.push({x:x-46,y:668,w:92,h:12,ice:true,melt:9,oneWay:false,flam:false,burn:0,spreadT:0,dead:false});
-      SFX.freeze();
-      burst(x,670,10,'rgb(200,235,255)',.5);
-      spawnRing(x,670,'rgb(180,225,255)');
-      tip('floe','The moat bears your weight — for a while.');
+  for(const wtr of WATERS){
+    if(x<=wtr.x0||x>=wtr.x1) continue;
+    if(!isFire()&&y>658){
+      const floes=solids.filter(s=>s.ice&&!s.dead);
+      if(floes.length<8&&!floes.some(f=>Math.abs(f.x+46-x)<70)){
+        solids.push({x:x-46,y:668,w:92,h:12,ice:true,melt:9,oneWay:false,flam:false,burn:0,spreadT:0,dead:false});
+        SFX.freeze();
+        burst(x,670,10,'rgb(200,235,255)',.5);
+        spawnRing(x,670,'rgb(180,225,255)');
+        tip('floe','The water bears your weight — for a while.');
+      }
+      return true;
     }
-    return true;
-  }
-  if(isFire()&&x>MOAT.x0&&x<MOAT.x1&&y>MOAT.surface){
-    burst(x,MOAT.surface,5,'rgb(210,215,220)',.4);   // steam fizzle
-    return true;
+    if(isFire()&&y>672){
+      burst(x,672,5,'rgb(210,215,220)',.4);   // steam fizzle
+      return true;
+    }
   }
   return false;
 }
@@ -1027,18 +1077,19 @@ function updatePlayer(dt){
     }else if(p.fireT<=0){
       p.fireT=wp.rate;
       if(p.weapon==='BOLT'){
-        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*950,vy:Math.sin(aimA)*950,g:0,r:5,life:.9,dmg:1,c:wp.color});
+        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd,vy:Math.sin(aimA)*wp.spd,g:0,r:wp.r,life:.9,dmg:wp.dmg,c:wp.color});
         castSfx('BOLT'); kick(aimA,2);
         burst(tipX,tipY,2,wp.color,.4);
       }else if(p.weapon==='SPREAD'){
-        for(let i=-2;i<=2;i++){
-          const a=aimA+i*.14+rand(-.02,.02);
-          shots.push({x:tipX,y:tipY,vx:Math.cos(a)*780,vy:Math.sin(a)*780,g:0,r:4,life:.44,dmg:.6,c:wp.color});
+        const half=(wp.n-1)/2;
+        for(let i=-half;i<=half;i++){
+          const a=aimA+i*wp.arc+rand(-.02,.02);
+          shots.push({x:tipX,y:tipY,vx:Math.cos(a)*wp.spd,vy:Math.sin(a)*wp.spd,g:0,r:wp.r,life:wp.life,dmg:wp.dmg,c:wp.color,pierce:wp.pierce||0});
         }
         castSfx('SPREAD'); kick(aimA,3);
         burst(tipX,tipY,3,wp.color,.4);
       }else if(p.weapon==='HEAVY'){
-        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*640,vy:Math.sin(aimA)*640,g:700,r:10,life:2.4,dmg:2.5,c:wp.color,ball:true,bounces:2});
+        shots.push({x:tipX,y:tipY,vx:Math.cos(aimA)*wp.spd,vy:Math.sin(aimA)*wp.spd,g:wp.g,r:wp.r,life:2.4,dmg:wp.dmg,c:wp.color,ball:true,bounces:wp.bounces,shatter:wp.shatter||0});
         castSfx('HEAVY'); kick(aimA,5);
         spawnRing(tipX,tipY,wp.color);
       }
@@ -1080,7 +1131,8 @@ function fireLance(x,y,a,dt){
   p.lanceTick-=dt;
   if(p.lanceTick<=0){p.lanceTick=.09; isFire()?SFX.lance():SFX.iceLance();}
   const dx=Math.cos(a), dy=Math.sin(a);
-  const MAX=540; let end=MAX, endSolid=null;
+  const LW=WPN('LANCE');
+  const MAX=LW.len; let end=MAX, endSolid=null;
   for(let d=0;d<MAX;d+=14){
     const sx=x+dx*d, sy=y+dy*d;
     let hit=false;
@@ -1090,17 +1142,21 @@ function fireLance(x,y,a,dt){
     }
     if(hit){end=d;break;}
   }
-  if(endSolid&&endSolid.breakable) damageSolid(endSolid,9*dt,x+dx*end,y+dy*end);
+  if(endSolid&&endSolid.breakable) damageSolid(endSolid,LW.dps*dt,x+dx*end,y+dy*end);
+  const half=LW.beamW;
   for(let d=16;d<end;d+=16){
     const sx=x+dx*d, sy=y+dy*d;
     for(const e of enemies){
       if(e.dead) continue;
-      if(sx>e.x-e.w/2&&sx<e.x+e.w/2&&sy>e.y&&sy<e.y+e.h){damageEnemy(e,9*dt,sx,sy);}
+      if(sx>e.x-e.w/2-half&&sx<e.x+e.w/2+half&&sy>e.y-half&&sy<e.y+e.h+half){
+        damageEnemy(e,LW.dps*dt,sx,sy);
+        if(!isFire()) e.chillT=2.5;   // the glacier grips harder
+      }
     }
     if(boss&&!boss.dead&&sx>boss.x-boss.w/2&&sx<boss.x+boss.w/2&&sy>boss.y&&sy<boss.y+boss.h)
-      damageBoss(9*dt,sx,sy);
+      damageBoss(LW.dps*dt,sx,sy);
     if(mboss&&!mboss.dead&&sx>mboss.x-mboss.w/2&&sx<mboss.x+mboss.w/2&&sy>mboss.y&&sy<mboss.y+mboss.h)
-      damageMBoss(9*dt,sx,sy);
+      damageMBoss(LW.dps*dt,sx,sy);
     if(isFire()) for(const o of flammables()) if(sx>o.x-4&&sx<o.x+o.w+4&&sy>o.y-4&&sy<o.y+o.h+4) ignite(o);
     tryFreezeWater(sx,sy);
   }
@@ -1111,14 +1167,15 @@ function fireBreath(x,y,a,dt){
   const p=player;
   p.lanceTick-=dt;
   if(p.lanceTick<=0){p.lanceTick=.1; isFire()?SFX.breath():SFX.iceBreath();}
-  const R=245, HALF=.42;
+  const BW=WPN('BREATH');
+  const R=BW.coneR, HALF=BW.half;
   for(const e of enemies){
     if(e.dead) continue;
     const d2=dist2(x,y,e.x,e.y+e.h/2);
     if(d2<R*R){
       const ea=Math.atan2(e.y+e.h/2-y,e.x-x);
       let da=Math.abs(((ea-a+Math.PI*3)%TAU)-Math.PI);
-      if(da<HALF) damageEnemy(e,12*dt,e.x,e.y+e.h/2);
+      if(da<HALF) damageEnemy(e,BW.dps*dt,e.x,e.y+e.h/2);
     }
   }
   if(boss&&!boss.dead){
@@ -1126,7 +1183,7 @@ function fireBreath(x,y,a,dt){
     if(dist2(x,y,bx,by)<R*R){
       const sa=Math.atan2(by-y,bx-x);
       let da=Math.abs(((sa-a+Math.PI*3)%TAU)-Math.PI);
-      if(da<HALF) damageBoss(12*dt,bx,by);
+      if(da<HALF) damageBoss(BW.dps*dt,bx,by);
     }
   }
   if(mboss&&!mboss.dead){
@@ -1134,7 +1191,7 @@ function fireBreath(x,y,a,dt){
     if(dist2(x,y,bx,by)<R*R){
       const sa=Math.atan2(by-y,bx-x);
       let da=Math.abs(((sa-a+Math.PI*3)%TAU)-Math.PI);
-      if(da<HALF){damageMBoss(12*dt,bx,by); if(isFire()&&mboss.burn<=0){mboss.burn=4;SFX.ignite();}}
+      if(da<HALF){damageMBoss(BW.dps*dt,bx,by); if(isFire()&&mboss.burn<=0){mboss.burn=4;SFX.ignite();}}
     }
   }
   for(const o of flammables()){
@@ -1154,7 +1211,7 @@ function fireBreath(x,y,a,dt){
     if(dist2(x,y,cx,cy)<R*R){
       const sa2=Math.atan2(cy-y,cx-x);
       let da=Math.abs(((sa2-a+Math.PI*3)%TAU)-Math.PI);
-      if(da<HALF+.15) damageSolid(s,12*dt,cx,cy);
+      if(da<HALF+.15) damageSolid(s,BW.dps*dt,cx,cy);
     }
   }
   if(!isFire()) tryFreezeWater(x+Math.cos(a)*160,y+Math.sin(a)*160);
@@ -1201,9 +1258,12 @@ function updateShots(dt){
     }
     for(const e of enemies){
       if(e.dead) continue;
+      if(s.hitSet&&s.hitSet.includes(e)) continue;
       if(s.x>e.x-e.w/2-s.r&&s.x<e.x+e.w/2+s.r&&s.y>e.y-s.r&&s.y<e.y+e.h+s.r){
         damageEnemy(e,s.dmg,s.x,s.y);
-        if(s.ball){explodeBall(s);} s.dead=true; break;
+        if(s.ball){explodeBall(s); s.dead=true; break;}
+        if(s.pierce>0){s.pierce--; (s.hitSet=s.hitSet||[]).push(e); continue;}
+        s.dead=true; break;
       }
     }
     if(s.dead) continue;
@@ -1259,12 +1319,25 @@ function updateShots(dt){
       if(s.x>sol.x&&s.x<sol.x+sol.w&&s.y>sol.y&&s.y<sol.y+sol.h){
         if(s.boulder){
           SFX.explode(); shake(6);
-          burst(s.x,s.y,18,'rgb(255,140,58)');
-          spawnRing(s.x,s.y,'rgb(255,200,140)');
-          addDecal({t:'scorch',x:s.x,y:sol.y,w:60});
+          if(s.cold){
+            burst(s.x,s.y,16,'rgb(190,190,180)');
+            spawnRing(s.x,s.y,'rgb(220,220,210)');
+            // stone shot splinters the planks it lands on
+            for(const s2 of solids)
+              if(s2.plank&&!s2.oneWay&&!s2.dead&&Math.abs(s2.x+40-s.x)<110){
+                s2.dead=true;
+                burst(s2.x+40,s2.y,10,'rgb(150,110,70)',.7);
+              }
+          }else{
+            burst(s.x,s.y,18,'rgb(255,140,58)');
+            spawnRing(s.x,s.y,'rgb(255,200,140)');
+            addDecal({t:'scorch',x:s.x,y:sol.y,w:60});
+            for(const o of flammables()) if(dist2(s.x,s.y,o.x+o.w/2,o.y+o.h/2)<80*80) ignite(o);
+          }
           if(!player.dead&&dist2(s.x,s.y,player.x,player.y+27)<75*75) hitPlayer();
-          for(const o of flammables()) if(dist2(s.x,s.y,o.x+o.w/2,o.y+o.h/2)<80*80) ignite(o);
         }else if(s.arrow){
+          if(s.fireArr) for(const o of flammables())
+            if(dist2(s.x,s.y,o.x+o.w/2,o.y+o.h/2)<55*55) ignite(o);
           addDecal({t:'arrow',x:s.x,y:s.y,a:Math.atan2(s.vy,s.vx)});
         }
         s.dead=true; break;
@@ -1275,7 +1348,14 @@ function updateShots(dt){
 }
 function explodeBall(s){
   SFX.explode(); shake(7); burst(s.x,s.y,22,s.c);
-  spawnRing(s.x,s.y,'rgb(255,220,170)');
+  spawnRing(s.x,s.y,isFire()?'rgb(255,220,170)':'rgb(200,235,255)');
+  // frost comet shatters into shards
+  if(s.shatter){
+    for(let i=0;i<s.shatter;i++){
+      const a=-Math.PI/2+(i-(s.shatter-1)/2)*.55;
+      shots.push({x:s.x,y:s.y-4,vx:Math.cos(a)*420+(s.vx>0?120:-120),vy:Math.sin(a)*420,g:900,r:4,life:.7,dmg:.7,c:s.c});
+    }
+  }
   for(const e of enemies){
     if(e.dead) continue;
     if(dist2(s.x,s.y,e.x,e.y+e.h/2)<75*75) damageEnemy(e,1.5,e.x,e.y+e.h/2);
@@ -1302,7 +1382,7 @@ function updateAmbushes(dt){
     }
   }
   if(!mboss&&player.x>MARENA.trig) startMBoss();
-  if(!boss&&player.x>7860) startBoss();
+  if(!boss&&player.x>15860) startBoss();
 }
 
 /* ---------------- particles ---------------- */
@@ -1345,13 +1425,13 @@ function updateCam(dt){
 }
 
 /* ---------------- tutorial ---------------- */
-const tut={active:false, step:0, flags:{}, tipText:'', tipT:0, done:{}};
+const tut={active:false, step:0, stepT:0, flags:{}, tipText:'', tipT:0, done:{}};
 const TUT_STEPS=[
   {text:'Hold  A / D  to march',                        ok:()=>keys['KeyA']||keys['KeyD']},
   {text:'W  or  SPACE  to jump',                        ok:()=>!player.onGround&&player.vy<-80},
   {text:'Aim with the mouse — CLICK to cast',           ok:()=>tut.flags.fired},
   {text:'Destroy the straw dummy',                      ok:()=>tut.flags.burned},
-  {text:'SHIFT to dash — nothing can touch you mid-dash', ok:()=>player.dashT>0},
+  {text:'SHIFT to dash — untouchable mid-dash',         ok:()=>player.dashT>0},
 ];
 function tip(key,text){
   if(tut.done[key]||!SET.tut) return;
@@ -1360,11 +1440,14 @@ function tip(key,text){
 function updateTut(dt){
   tut.tipT-=dt;
   if(!tut.active) return;
+  tut.stepT+=dt;
   const st=TUT_STEPS[tut.step];
-  if(st&&st.ok()){
-    tut.step++; SFX.chime();
+  // each lesson holds the stage for a moment even if you already know it
+  if(st&&st.ok()&&tut.stepT>1.1){
+    tut.step++; tut.stepT=0; SFX.chime();
     if(tut.step>=TUT_STEPS.length) tut.active=false;
   }
+  if(player.x>1360) tut.active=false;   // school's out at the moat
 }
 
 /* ---------------- update root ---------------- */
@@ -1381,19 +1464,31 @@ function update(dt){
   updateCam(dt);
   updateTut(dt);
   cpFlashT-=dt;
-  // the defenders fire the bridge once you're committed
+  // the defenders answer the crossing — in your own element's opposite key
   if(!bridgeTorched&&player.x>1470&&player.x<1900&&!player.dead){
     bridgeTorched=true;
-    for(const s of solids) if(s.plank&&!s.oneWay&&(s.x<1440||s.x>1840)) ignite(s);
     SFX.ambush(); shake(5);
-    tut.done['bridge']=true;   // replace the generic bridge tip with the urgent one
-    tut.done['torch']=false;
-    tip('torch', isFire()
-      ? 'They fire the bridge! Run — or drop to the piers and let it burn.'
-      : 'They fire the bridge! Freeze the moat — the water will bear you.');
+    tut.done['bridge']=true;
+    if(isFire()){
+      // flaming arrows rain in and the bridge catches
+      for(const tx of [1420,1660,1900]){
+        eshots.push({x:tx+320,y:-40,vx:-230,vy:470,g:0,r:4,life:3,arrow:true,fireArr:true});
+      }
+      tip('torch','Fire arrows! The bridge burns — run, or drop to the piers.');
+    }else{
+      // stone shot smashes the planks — no flame for the frost mage's road
+      for(const tx of [1440,1660,1880]){
+        const sx=tx+520, sy=-60, T=1.25, g=620;
+        eshots.push({x:sx,y:sy,vx:(tx-sx)/T,vy:(600-sy)/T-.5*g*T,g,r:11,life:2.6,boulder:true,cold:true});
+      }
+      tip('torch','They shell the bridge! Freeze the moat — the water will bear you.');
+    }
   }
   if(Math.abs(player.x-2850)<110) tip('force','Splintered wood burns. Cracked stone breaks. Cast at it.');
-  if(Math.abs(player.x-3940)<70) tip('gap','Too far to jump? Jump, then DASH in the air.');
+  if(Math.abs(player.x-4440)<70) tip('gap','Too far to jump? Jump, then DASH in the air.');
+  if(Math.abs(player.x-8030)<70) tip('river', isFire()
+    ? 'The bridge is long gone. The stones remember one.'
+    : 'Still water ahead. You know what to do.');
   if(bossIntroT>0) bossIntroT-=dt;
   if(mbIntroT>0) mbIntroT-=dt;
 }
@@ -1486,7 +1581,9 @@ function drawDecals(){
     }
   }
 }
-const ZONES=[[0,[96,140,80],.05],[3900,[120,140,165],.09],[5560,[255,170,70],.08],[7100,[190,70,50],.11],[9200,[190,70,50],.11]];
+const ZONES=[[0,[96,140,80],.05],[4400,[120,140,165],.09],[6260,[150,110,85],.09],
+  [8000,[80,130,170],.08],[8720,[255,170,70],.08],[10600,[140,140,150],.09],
+  [12400,[190,70,50],.11],[17100,[190,70,50],.11]];
 function drawGrade(){
   const cx=cam.x+W/2;
   let i=0; while(i<ZONES.length-2&&cx>ZONES[i+1][0]) i++;
@@ -1693,21 +1790,24 @@ function drawTrees(t){
   }
 }
 function drawWater(t){
-  ctx.fillStyle='#2e6a8c';
-  ctx.fillRect(1380,688,600,140);
-  ctx.fillStyle='rgba(240,250,255,0.35)';
-  for(let i=0;i<7;i++){
-    const wx=1420+i*80+Math.sin(t*.001+i*2)*10;
-    ctx.fillRect(wx,694+Math.sin(t*.0016+i)*3,46,2);
+  for(const wtr of WATERS){
+    ctx.fillStyle='#2e6a8c';
+    ctx.fillRect(wtr.x0-10,688,wtr.x1-wtr.x0+20,140);
+    ctx.fillStyle='rgba(240,250,255,0.35)';
+    const n=Math.floor((wtr.x1-wtr.x0)/85);
+    for(let i=0;i<n;i++){
+      const wx=wtr.x0+30+i*85+Math.sin(t*.001+i*2)*10;
+      ctx.fillRect(wx,694+Math.sin(t*.0016+i)*3,46,2);
+    }
   }
 }
 function drawChasm(){
-  // mist rising from the ravine
+  // mist rising from broken ground
   const g=ctx.createLinearGradient(0,660,0,830);
   g.addColorStop(0,'rgba(210,228,236,0)');
   g.addColorStop(1,'rgba(210,228,236,.34)');
   ctx.fillStyle=g;
-  ctx.fillRect(3900,660,1660,180);
+  for(const [x0,x1] of CHASMS) ctx.fillRect(x0,660,x1-x0,180);
 }
 function drawShotCores(){
   for(const s of shots){
@@ -1890,6 +1990,34 @@ function drawProps(t){
         ctx.quadraticCurveTo(fx,fy-13-Math.sin(t*.015+x)*4,fx+6,fy+7);
         ctx.closePath();ctx.fill();
       }
+    }else if(p.kind==='ruin'){
+      // a burned-out house shell
+      ctx.fillStyle='#5a5248';
+      ctx.fillRect(x,y+18,14,h-18);
+      ctx.fillRect(x+w-14,y+30,14,h-30);
+      ctx.fillRect(x,y+h-16,w,16);
+      ctx.beginPath();ctx.moveTo(x,y+18);ctx.lineTo(x+w*.4,y);ctx.lineTo(x+w*.44,y+10);ctx.lineTo(x+8,y+26);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#3a342c';
+      ctx.fillRect(x+w*.35,y+h-52,26,36);   // doorway
+      ctx.fillRect(x+w*.68,y+h-60,18,18);   // window
+      ctx.strokeStyle='#2b2018'; ctx.lineWidth=3;   // charred beam
+      ctx.beginPath();ctx.moveTo(x+w*.5,y+8);ctx.lineTo(x+w-10,y+44);ctx.stroke();
+    }else if(p.kind==='cart'){
+      ctx.fillStyle='#5a4028';
+      ctx.fillRect(x,y+6,w,16);
+      ctx.beginPath();ctx.moveTo(x+w,y+8);ctx.lineTo(x+w+16,y-4);ctx.lineTo(x+w+2,y+2);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#4a3420';
+      ctx.beginPath();ctx.arc(x+18,y+h-8,10,0,TAU);ctx.arc(x+w-18,y+h-8,10,0,TAU);ctx.fill();
+      ctx.strokeStyle='#2c1e12'; ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(x+8,y+h-8);ctx.lineTo(x+28,y+h-8);ctx.stroke();
+    }else if(p.kind==='well'){
+      ctx.fillStyle='#6d7580';
+      ctx.fillRect(x,y+h-22,w,22);
+      ctx.fillStyle='rgba(24,26,34,.4)';
+      ctx.fillRect(x+8,y+h-16,w-16,10);
+      ctx.fillStyle='#4a3826';
+      ctx.fillRect(x+4,y,5,h-20); ctx.fillRect(x+w-9,y,5,h-20);
+      ctx.beginPath();ctx.moveTo(x,y+4);ctx.lineTo(x+w/2,y-8);ctx.lineTo(x+w,y+4);ctx.closePath();ctx.fill();
     }else if(p.kind==='dummy'){
       ctx.fillStyle='#4a3826';
       ctx.fillRect(x+w/2-3,y+18,6,h-18);
@@ -2190,14 +2318,18 @@ function drawShotsGlow(t){
       const l=Math.hypot(s.vx,s.vy)||1;
       ctx.lineTo(s.x-s.vx/l*18,s.y-s.vy/l*18);ctx.stroke();
     }else{
-      ctx.strokeStyle='#c9b8a0';ctx.lineWidth=2;
+      if(s.fireArr){
+        drawGlow(s.x,s.y,16,'rgb(255,150,60)',.8);
+        if(Math.random()<.5) spawnPart(s.x,s.y,rand(-10,10),rand(-30,-5),.25,2.5,'rgb(255,140,58)',0,true);
+      }
+      ctx.strokeStyle=s.fireArr?'#e8a86a':'#c9b8a0';ctx.lineWidth=2;
       const l=Math.hypot(s.vx,s.vy)||1;
       ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx/l*14,s.y-s.vy/l*14);ctx.stroke();
     }
   }
   if(lanceEnd&&lanceEnd.t>0&&player.weapon==='LANCE'&&mouse.down&&!player.dead){
     const le=lanceEnd, lc=WPN('LANCE').color;
-    ctx.strokeStyle=lc;ctx.lineWidth=7;ctx.globalAlpha=.9;
+    ctx.strokeStyle=lc;ctx.lineWidth=WPN('LANCE').beamW;ctx.globalAlpha=.9;
     ctx.beginPath();ctx.moveTo(le.x1,le.y1);ctx.lineTo(le.x2,le.y2);ctx.stroke();
     ctx.globalAlpha=1;
     ctx.strokeStyle='#fff2dd';ctx.lineWidth=2.5;
@@ -2308,10 +2440,43 @@ function drawHUD(t){
     const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
     ctx.fillText(m+':'+String(s).padStart(2,'0')+(deaths?'   deaths '+deaths:''), W-24, 36);
   }
-  // tutorial / tips
+  // tutorial checklist — a page from the drill manual, impossible to miss
+  if(tut.active&&SET.tut){
+    const cw=306, ch=TUT_STEPS.length*26+46, cx0=24, cy0=96;
+    ctx.fillStyle='rgba(233,220,188,.94)';
+    ctx.fillRect(cx0,cy0,cw,ch);
+    ctx.strokeStyle='#8a6f4a'; ctx.lineWidth=2;
+    ctx.strokeRect(cx0+.5,cy0+.5,cw-1,ch-1);
+    corners(cx0+4,cy0+4,cw-8,ch-8);
+    ctx.textAlign='left';
+    ctx.font='14px '+UIF; ctx.fillStyle='#5a3c1a';
+    ctx.fillText('FIRST STEPS', cx0+18, cy0+26);
+    ctx.font='14px Georgia';
+    for(let i=0;i<TUT_STEPS.length;i++){
+      const ry=cy0+50+i*26;
+      const done=i<tut.step, cur=i===tut.step;
+      // bullet
+      if(done){
+        ctx.strokeStyle='#4a7a3c'; ctx.lineWidth=2.5;
+        ctx.beginPath();ctx.moveTo(cx0+16,ry-4);ctx.lineTo(cx0+20,ry);ctx.lineTo(cx0+27,ry-9);ctx.stroke();
+      }else{
+        ctx.strokeStyle=cur?'#8a2f1a':'#8a6f4a'; ctx.lineWidth=1.5;
+        ctx.strokeRect(cx0+16.5,ry-9.5,9,9);
+      }
+      ctx.fillStyle=done?'rgba(90,80,60,.55)':(cur?'#7a2418':'#4a3826');
+      if(cur){ctx.globalAlpha=.75+.25*Math.sin(t*.006);}
+      ctx.fillText(TUT_STEPS[i].text, cx0+36, ry);
+      ctx.globalAlpha=1;
+      if(done){
+        ctx.strokeStyle='rgba(90,80,60,.5)'; ctx.lineWidth=1;
+        const tw2=ctx.measureText(TUT_STEPS[i].text).width;
+        ctx.beginPath();ctx.moveTo(cx0+36,ry-4);ctx.lineTo(cx0+36+tw2,ry-4);ctx.stroke();
+      }
+    }
+  }
+  // contextual tips
   let msg=null;
-  if(tut.active&&SET.tut&&TUT_STEPS[tut.step]) msg=TUT_STEPS[tut.step].text;
-  else if(tut.tipT>0) msg=tut.tipText;
+  if(!tut.active&&tut.tipT>0) msg=tut.tipText;
   if(msg){
     ctx.font='16px Georgia'; ctx.textAlign='center';
     const mw=ctx.measureText(msg).width+48;
@@ -2389,7 +2554,7 @@ function doWin(){
   const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
   document.getElementById('winStats').innerHTML=
     'time <b>'+m+':'+String(s).padStart(2,'0')+'</b> &nbsp;·&nbsp; deaths <b>'+deaths+
-    '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; relics <b>'+relicsFound+' / 4</b>'+
+    '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; relics <b>'+relicsFound+' / '+pickups.filter(p=>p.type!=='LIFE').length+'</b>'+
     ' &nbsp;·&nbsp; <b>'+CLASSES[cls].title+'</b>';
   show('win');
 }
