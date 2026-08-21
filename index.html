@@ -523,7 +523,7 @@ function castSfx(k){
 
 /* ---------------- input + rebindable keys ---------------- */
 const keys={}, mouse={x:W/2,y:H/2,down:false};
-const DEFAULT_BINDS={left:'KeyA',right:'KeyD',jump:'KeyW',drop:'KeyS',dash:'Space',swap:'KeyQ'};
+const DEFAULT_BINDS={left:'KeyA',right:'KeyD',jump:'KeyW',drop:'KeyS',dash:'Space',swap:'KeyQ',grab:'KeyF'};
 let BINDS={...DEFAULT_BINDS};
 try{Object.assign(BINDS,JSON.parse(localStorage.getItem('arcanade-binds')||'{}'));}catch(e){}
 function saveBinds(){
@@ -549,6 +549,7 @@ addEventListener('keydown',e=>{
   if(e.code===BINDS.swap&&!e.repeat) swapFire();
   if(e.code===BINDS.dash&&!e.repeat) tryDash();
   if(e.code===BINDS.jump&&!e.repeat&&player) player.jumpBufT=.12;
+  if(e.code===BINDS.grab&&!e.repeat) grabKey=true;
   if(['Space','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup',e=>{
@@ -599,6 +600,7 @@ function addDecal(d){decals.push(d); if(decals.length>90) decals.shift();}
 let cam={x:0}, shakeMag=0, shakeX=0, shakeY=0;
 let gameTime=0, deaths=0, kills=0, relicsFound=0, cpFlashT=0, ambushT=0, bridgeTorched=false;
 let hitstopT=0, dmgFlashT=0, tutorialMode=false, tutDoneT=0;
+let rescued=0, trialsFound=0, runners=[], sealFlashT=0, grabKey=false;
 function hitstop(s){hitstopT=Math.max(hitstopT,s);}
 let checkpoint={x:60};
 const CHECKPOINTS=[60,2060,4340,6300,8740,10650,12420,13140,15700];
@@ -606,7 +608,7 @@ let player=null;
 
 function makePlayer(x){
   return {x, y:400, vx:0, vy:0, w:26, h:54, onGround:false, face:1,
-    wards:DIFF().wards, invulnT:2, dashT:0, dashCd:0, dashDir:1, dropT:0,
+    wards:DIFF().wards, keg:false, invulnT:2, dashT:0, dashCd:0, dashDir:1, dropT:0,
     coyoteT:0, jumpBufT:0,
     weapon:'BOLT', slots:['BOLT',null,null], slot:0,
     fireT:0, lanceTick:0, dead:false, respawnT:0, animT:0, flashT:0};
@@ -627,6 +629,12 @@ function damageSolid(s,dmg,x,y){
     shake(9);
     burst(s.x+s.w/2,s.y+s.h/2,28,s.stoneWall?'rgb(170,170,160)':'rgb(200,150,90)');
     spawnRing(s.x+s.w/2,s.y+s.h/2,'rgb(255,220,170)');
+    if(s.seal){
+      trialsFound++; sealFlashT=2.2; SFX.chime(); SFX.pickup();
+      pickups.push({x:s.x+s.w/2,y:s.y+30,type:s.reward,t:0,got:false});
+    }
+  }else if(s.seal&&dmg>=.5){
+    tip('seal','The old stones answer only to magic. Keep casting.');
   }
 }
 function P(x,y,w,h,kind){const p={x,y,w,h,kind,flam:true,burn:0,spreadT:0,dead:false,ash:false};props.push(p);return p;}
@@ -711,6 +719,22 @@ function buildLevel(){
   }
   P(6700,600-40,90,40,'cart'); P(7450,600-40,90,40,'cart');
   const wl=P(7150,600-52,54,52,'well'); wl.flam=false;
+  /* powder kegs — the siege's own thunder, free for the taking */
+  for(const kx of [6650,6870,9250,9680,10230,11720])
+    P(kx,groundYAt(kx)-34,26,34,'keg');
+  /* iron cages — they cage those who fed them */
+  for(const cx2 of [6580,7080,7650,9180,9960,11760]){
+    const cg=P(cx2,groundYAt(cx2)-54,42,54,'cage');
+    cg.flam=false; cg.hp=2;
+  }
+  /* trial seals — old stones that answer only to magic, off the beaten road */
+  S(3730,368,150,14,{oneWay:true,flam:true,plank:true});          // forest sky ledge
+  S(3790,300,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});
+  S(5150,706,140,18,{stone:true});                                // ravine depths
+  S(5300,640,90,16,{stone:true});                                 // ...and the way back up
+  S(5180,638,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});
+  S(11540,330,150,14,{oneWay:true,flam:true,plank:true});         // quarry sky ledge
+  S(11600,262,40,68,{breakable:true,hp:8,seal:true,reward:'BREATH'});
   addDecal({t:'scorch',x:6550,y:600,w:110});
   addDecal({t:'scorch',x:7030,y:600,w:90});
   addDecal({t:'scorch',x:7590,y:600,w:120});
@@ -768,6 +792,7 @@ function startTutorialYard(){
   gameTime=0; deaths=0; kills=0; relicsFound=0; checkpoint={x:60};
   cpFlashT=0; ambushT=0; hitstopT=0; dmgFlashT=0; tutDoneT=0;
   bridgeTorched=true;                 // the defenders leave the drill yard alone
+  rescued=0; trialsFound=0; runners=[]; sealFlashT=0; grabKey=false;
   lives=DIFF().lives;
   tutorialMode=true; forceTut=false;
   setTutSteps(true);
@@ -1097,10 +1122,27 @@ function flammables(){
 }
 function ignite(o){
   if(o.burn>0||o.dead||o.ash) return;
-  o.burn=o.plank?3.2:(o.kind==='grass'?3.6:5);
+  o.burn=o.kind==='keg'?1.1:(o.plank?3.2:(o.kind==='grass'?3.6:5));  // kegs have a short fuse
   o.spreadT=.5; SFX.ignite();
   if(o.kind==='dummy') tut.flags.burned=true;
   if(o.plank) tip('bridge','The bridge is fuel too. The stone piers below will still carry you.');
+}
+function explodeKegAt(x,y){
+  SFX.explode(); SFX.stoneCrack(); shake(11); hitstop(.05);
+  burst(x,y,30,'rgb(255,150,60)');
+  burst(x,y,10,'rgb(120,90,70)',.8);
+  spawnRing(x,y,'rgb(255,220,170)');
+  addDecal({t:'scorch',x,y:y+16,w:90});
+  for(const e of enemies)
+    if(!e.dead&&dist2(x,y,e.x,e.y+e.h/2)<110*110) damageEnemy(e,4,e.x,e.y+e.h/2,false,2.4);
+  if(boss&&!boss.dead&&dist2(x,y,boss.x,boss.y+boss.h/2)<120*120) damageBoss(4,boss.x,boss.y+40);
+  if(mboss&&!mboss.dead&&dist2(x,y,mboss.x,mboss.y+mboss.h/2)<120*120) damageMBoss(4,mboss.x,mboss.y+30);
+  if(!player.dead&&dist2(x,y,player.x,player.y+27)<90*90) hitPlayer();   // powder is impartial
+  for(const sol of solids)
+    if(sol.breakable&&!sol.dead&&dist2(x,y,sol.x+sol.w/2,sol.y+sol.h/2)<120*120)
+      damageSolid(sol,6,sol.x+sol.w/2,sol.y+sol.h/2);
+  for(const o of flammables())
+    if(dist2(x,y,o.x+o.w/2,o.y+o.h/2)<110*110) ignite(o);
 }
 function updateFire(dt){
   for(const o of flammables()){
@@ -1123,6 +1165,7 @@ function updateFire(dt){
     }
     // your own fire never hurts you — its price is what it burns down
     if(o.burn<=0){
+      if(o.kind==='keg'){o.dead=true; explodeKegAt(cx,cy); continue;}
       if(o.kind){o.ash=true;}
       else {o.dead=true;}
       burst(cx,cy,10,'rgb(120,90,70)',.5);
@@ -1241,7 +1284,7 @@ function updatePlayer(dt){
     ? {x:p.x+gp.aimX*400, y:p.y+22+gp.aimY*400}   // right stick owns the aim while it moves
     : {x:mouse.x+cam.x, y:mouse.y};
   p.face=wm.x>=p.x?1:-1;
-  const sp=380;
+  const sp=p.keg?320:380;   // the keg is heavy
   if(p.dashT>0){
     p.dashT-=dt; p.vx=p.dashDir*900; p.vy=0;
     if(Math.random()<.85) spawnPart(p.x,p.y+26,0,0,.22,9,WPN('BOLT').color,0,true);
@@ -1296,12 +1339,28 @@ function updatePlayer(dt){
   if(mboss&&!mboss.dead) p.x=clamp(p.x, MARENA.x0+16, MARENA.x1-16);
   p.x=clamp(p.x, 12, LEVEL-12);
   if(p.y>830) killPlayer();
+  /* powder kegs: hoist, lug, hurl */
+  if(grabKey){
+    grabKey=false;
+    if(p.keg){
+      const a2=p.aimA||0;
+      shots.push({x:p.x+Math.cos(a2)*20,y:p.y-6,vx:Math.cos(a2)*520+p.vx*.5,vy:Math.sin(a2)*520-140,
+        g:1000,r:9,life:3,dmg:0,c:'rgb(200,150,90)',kegShot:true,spinA:0});
+      p.keg=false;
+      SFX.thud(); kick(a2,3);
+    }else{
+      const kg=props.find(q=>q.kind==='keg'&&!q.dead&&!q.ash&&q.burn<=0&&
+        Math.abs(q.x+13-p.x)<60&&Math.abs(q.y-p.y)<80);
+      if(kg){kg.dead=true; p.keg=true; SFX.thud();
+        tip('keg','A powder keg. '+lbl('grab')+' again hurls it where it will do the most good.');}
+    }
+  }
   /* firing */
   p.fireT-=dt;
   const wp=WPN(p.weapon);
   const aimA=Math.atan2(wm.y-(p.y+22), wm.x-p.x);
   const tipX=p.x+Math.cos(aimA)*30, tipY=p.y+22+Math.sin(aimA)*30;
-  if((mouse.down||gp.fire)&&state==='play'&&!paused){
+  if((mouse.down||gp.fire)&&state==='play'&&!paused&&!p.keg){
     tut.flags.fired=true;
     if(p.weapon==='LANCE'){
       fireLance(tipX,tipY,aimA,dt);
@@ -1498,6 +1557,32 @@ function updateShots(dt){
     s.x+=s.vx*dt; s.y+=s.vy*dt;
     if(Math.random()<(s.ball?.7:.3)*pMul())
       spawnPart(s.x,s.y,rand(-15,15),rand(-15,15),.22,s.ball?4:2.5,s.c,0,true);
+    // a hurled keg answers to nothing but impact
+    if(s.kegShot){
+      s.spinA+=9*dt;
+      let boom=s.life<=.05;
+      for(const e of enemies){
+        if(e.dead) continue;
+        if(s.x>e.x-e.w/2-10&&s.x<e.x+e.w/2+10&&s.y>e.y-10&&s.y<e.y+e.h+10){boom=true;break;}
+      }
+      if(!boom&&boss&&!boss.dead&&s.x>boss.x-boss.w/2-10&&s.x<boss.x+boss.w/2+10&&s.y>boss.y-10&&s.y<boss.y+boss.h+10) boom=true;
+      if(!boom&&mboss&&!mboss.dead&&s.x>mboss.x-mboss.w/2-10&&s.x<mboss.x+mboss.w/2+10&&s.y>mboss.y&&s.y<mboss.y+mboss.h) boom=true;
+      if(!boom) for(const sol of solids){
+        if(sol.dead) continue;
+        if(s.x>sol.x&&s.x<sol.x+sol.w&&s.y>sol.y&&s.y<sol.y+sol.h){boom=true;break;}
+      }
+      if(boom){explodeKegAt(s.x,s.y); s.dead=true;}
+      continue;
+    }
+    // iron cages crack under any spell
+    {
+      const cg=props.find(q=>q.kind==='cage'&&!q.dead&&s.x>q.x-4&&s.x<q.x+q.w+4&&s.y>q.y-4&&s.y<q.y+q.h+4);
+      if(cg){
+        cg.hp--; SFX.clink(); burst(s.x,s.y,3,'rgb(205,205,215)',.4);
+        if(cg.hp<=0) freeVillager(cg);
+        s.dead=true; continue;
+      }
+    }
     // dummy shatter (frost path — fire ignites it via the flammable check)
     if(!isFire()){
       const d=props.find(p=>p.kind==='dummy'&&!p.ash);
@@ -1586,6 +1671,7 @@ function updateShots(dt){
     if(s.wave&&Math.random()<.5) spawnPart(s.x,s.y+6,rand(-30,30),rand(-70,-20),.3,3,'rgb(205,195,170)',300,true);
     if(!s.bomb&&!player.dead&&s.x>player.x-player.w/2-s.r&&s.x<player.x+player.w/2+s.r&&
         s.y>player.y-s.r&&s.y<player.y+player.h+s.r){
+      if(player.keg){player.keg=false; explodeKegAt(player.x,player.y+10);}  // they hit the keg.
       hitPlayer(); s.dead=true; continue;
     }
     if(!s.wave) for(const sol of solids){
@@ -1643,6 +1729,23 @@ function explodeBall(s){
   for(const sol of solids)
     if(sol.breakable&&!sol.dead&&dist2(s.x,s.y,sol.x+sol.w/2,sol.y+sol.h/2)<100*100)
       damageSolid(sol,2,sol.x+sol.w/2,sol.y+sol.h/2);
+}
+
+/* ---------------- freed villagers ---------------- */
+function freeVillager(cg){
+  cg.dead=true; rescued++;
+  runners.push({x:cg.x+20,y:cg.y+cg.h,vx:-(160+rand(0,80)),t:3.5,ph:rand(0,9)});
+  SFX.chime(); shake(2);
+  burst(cg.x+20,cg.y+20,14,'rgb(255,220,170)');
+  spawnRing(cg.x+20,cg.y+24,'rgb(255,235,200)');
+  if(rescued%3===0){
+    pickups.push({x:cg.x+20,y:cg.y+6,type:'LIFE',t:0,got:false});
+    tip('grat','Their gratitude, forged into another chance.');
+  }else tip('cage1','Freed. Somewhere behind the lines, a family waits.');
+}
+function updateRunners(dt){
+  for(const r of runners){r.x+=r.vx*dt; r.t-=dt;}
+  runners=runners.filter(r=>r.t>0);
 }
 
 /* ---------------- ambushes (no camera lock — they come to you) ---------------- */
@@ -1754,6 +1857,7 @@ function update(dt){
   updateShots(dt);
   updateFire(dt);
   updateAmbushes(dt);
+  updateRunners(dt);
   updateParts(dt);
   updateCam(dt);
   updateTut(dt);
@@ -1864,6 +1968,7 @@ function render(t){
   drawEnemies(t);
   drawMBoss(t);
   drawBoss(t);
+  drawRunners(t);
   drawPlayer(t);
   ctx.globalCompositeOperation='lighter';
   drawShotsGlow(t);
@@ -2193,8 +2298,39 @@ function drawShadowAt(x,feetY,w){
   ctx.ellipse(x,sy+4,w*.55*(0.65+0.35*a),4.5,0,0,TAU);
   ctx.fill();
 }
+function drawRunners(t){
+  for(const r of runners){
+    if(r.x<cam.x-60||r.x>cam.x+W+60) continue;
+    const st=Math.sin(t*.03+r.ph)*7;
+    ctx.strokeStyle='#3f342c'; ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(r.x,r.y-26); ctx.lineTo(r.x-4+st,r.y);
+    ctx.moveTo(r.x,r.y-26); ctx.lineTo(r.x+4-st,r.y);
+    ctx.stroke();
+    ctx.fillStyle='#8a6a52';
+    ctx.fillRect(r.x-6,r.y-40,12,16);
+    ctx.fillStyle='#e0b990';
+    ctx.beginPath();ctx.arc(r.x,r.y-46,6,0,TAU);ctx.fill();
+    ctx.strokeStyle='#8a6a52'; ctx.lineWidth=2.5;   // arms flailing overhead — the classic
+    ctx.beginPath();
+    ctx.moveTo(r.x-4,r.y-38); ctx.lineTo(r.x-10,r.y-50-st*.4);
+    ctx.moveTo(r.x+4,r.y-38); ctx.lineTo(r.x+10,r.y-50+st*.4);
+    ctx.stroke();
+    if(Math.random()<.3*pMul()) spawnPart(r.x+8,r.y,rand(-20,20),rand(-30,-5),.3,2.5,'rgb(205,195,170)',200,true);
+  }
+}
 function drawShotCores(){
   for(const s of shots){
+    if(s.kegShot){
+      ctx.save();
+      ctx.translate(s.x,s.y); ctx.rotate(s.spinA||0);
+      ctx.fillStyle='#6b4a2e';
+      ctx.beginPath();ctx.ellipse(0,0,9,12,0,0,TAU);ctx.fill();
+      ctx.strokeStyle='#3a2a1a'; ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(-8,-5);ctx.lineTo(8,-5);ctx.moveTo(-8,5);ctx.lineTo(8,5);ctx.stroke();
+      ctx.restore();
+      continue;
+    }
     ctx.fillStyle='#fff6e0';
     ctx.beginPath();ctx.arc(s.x,s.y,s.r*.65+1.2,0,TAU);ctx.fill();
     ctx.strokeStyle='rgba(90,40,10,.5)';ctx.lineWidth=1.5;ctx.stroke();
@@ -2222,7 +2358,30 @@ function drawTerrain(t){
       }
     }else if(s.breakable){
       const fr=clamp(s.hp/s.maxHp,0,1);
-      if(s.pal){
+      if(s.seal){
+        // a trial stone, humming in your element's key
+        const c=WPN('BOLT').color;
+        drawGlow(s.x+s.w/2,s.y+s.h/2,34,c,.35+.15*Math.sin(t*.004+s.x));
+        ctx.fillStyle='#4e5560';
+        ctx.beginPath();
+        ctx.moveTo(s.x,s.y+s.h);ctx.lineTo(s.x+4,s.y+8);ctx.lineTo(s.x+s.w/2,s.y);
+        ctx.lineTo(s.x+s.w-4,s.y+8);ctx.lineTo(s.x+s.w,s.y+s.h);
+        ctx.closePath();ctx.fill();
+        ctx.strokeStyle=c; ctx.lineWidth=2;
+        ctx.globalAlpha=.6+.3*Math.sin(t*.004+s.x);
+        ctx.beginPath();                                  // the rune
+        ctx.arc(s.x+s.w/2,s.y+26,8,0,TAU);
+        ctx.moveTo(s.x+s.w/2,s.y+34);ctx.lineTo(s.x+s.w/2,s.y+48);
+        ctx.moveTo(s.x+s.w/2-6,s.y+42);ctx.lineTo(s.x+s.w/2+6,s.y+42);
+        ctx.stroke();
+        ctx.globalAlpha=1;
+        if(fr<1){
+          ctx.strokeStyle='rgba(20,16,12,.85)'; ctx.lineWidth=2;
+          ctx.beginPath();
+          ctx.moveTo(s.x+8,s.y+12);ctx.lineTo(s.x+s.w/2,s.y+30);ctx.lineTo(s.x+10,s.y+56);
+          ctx.stroke();
+        }
+      }else if(s.pal){
         ctx.fillStyle=s.burn>0?'#4a2410':'#6b4a2e';
         for(let lx=s.x;lx<s.x+s.w-2;lx+=11){
           ctx.fillRect(lx,s.y+6,9,s.h-6);
@@ -2295,6 +2454,7 @@ function drawTerrain(t){
 }
 function drawProps(t){
   for(const p of props){
+    if(p.dead) continue;
     if(p.x+p.w<cam.x-40||p.x>cam.x+W+40) continue;
     if(p.ash){
       ctx.fillStyle='#2b2018';
@@ -2359,6 +2519,35 @@ function drawProps(t){
         ctx.fillStyle='#d86a8a';
         ctx.fillRect(x+12,y+6,3,3); ctx.fillRect(x+34,y+2,3,3); ctx.fillRect(x+44,y+10,3,3);
       }
+    }else if(p.kind==='keg'){
+      ctx.fillStyle=burning?'#4a2410':'#6b4a2e';
+      ctx.beginPath();ctx.ellipse(x+13,y+17,13,17,0,0,TAU);ctx.fill();
+      ctx.strokeStyle='#3a2a1a'; ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(x+1,y+10);ctx.lineTo(x+25,y+10);ctx.moveTo(x+1,y+24);ctx.lineTo(x+25,y+24);ctx.stroke();
+      ctx.fillStyle='#2a2018';
+      ctx.fillRect(x+10,y-2,6,4);
+      if(burning){
+        drawGlow(x+13,y-4,18,'rgb(255,180,90)',.8);
+        ctx.fillStyle=Math.random()<.5?'#ffe9a0':'#ff9a3c';
+        ctx.fillRect(x+11,y-8,4,5);
+      }
+    }else if(p.kind==='cage'){
+      // an iron cage, and someone inside it
+      ctx.fillStyle='#8a6a52';
+      ctx.fillRect(x+13,y+h-24,16,14);                       // huddled body
+      ctx.fillStyle='#e0b990';
+      ctx.beginPath();ctx.arc(x+21,y+h-28,6,0,TAU);ctx.fill();
+      ctx.strokeStyle=p.hp<2?'#7a8288':'#565e6a'; ctx.lineWidth=3;
+      ctx.beginPath();
+      ctx.arc(x+21,y+16,20,Math.PI,0);                        // dome
+      ctx.stroke();
+      for(let bx3=x+3;bx3<=x+w-3;bx3+=9){
+        ctx.beginPath();
+        ctx.moveTo(bx3+(p.hp<2?Math.sin(bx3)*2:0),y+14);
+        ctx.lineTo(bx3,y+h);
+        ctx.stroke();
+      }
+      ctx.beginPath();ctx.moveTo(x,y+h-1.5);ctx.lineTo(x+w,y+h-1.5);ctx.stroke();
     }else if(p.kind==='brazier'){
       ctx.fillStyle='#565e6a';
       ctx.fillRect(x+10,y+18,8,h-18);
@@ -2740,6 +2929,14 @@ function drawPlayer(t){
   ctx.moveTo(x-9,y+11);ctx.lineTo(x-9,y+3);ctx.lineTo(x+p.face*2,y-9);
   ctx.lineTo(x+9,y+2);ctx.lineTo(x+9,y+6);ctx.lineTo(x+p.face*7,y+2);
   ctx.lineTo(x-p.face*2,y+11);ctx.closePath();ctx.fill();
+  if(p.keg){   // the whole plan, held overhead
+    ctx.fillStyle='#6b4a2e';
+    ctx.beginPath();ctx.ellipse(x,y-24,11,14,0,0,TAU);ctx.fill();
+    ctx.strokeStyle='#3a2a1a'; ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(x-10,y-30);ctx.lineTo(x+10,y-30);ctx.moveTo(x-10,y-18);ctx.lineTo(x+10,y-18);ctx.stroke();
+    ctx.strokeStyle=C(CL.robeShade); ctx.lineWidth=3.5;
+    ctx.beginPath();ctx.moveTo(x-6,y+2);ctx.lineTo(x-8,y-14);ctx.moveTo(x+6,y+2);ctx.lineTo(x+8,y-14);ctx.stroke();
+  }
   const a=p.aimA||0;
   const wpn=WPN(p.weapon);
   const rec=(wpn.rate&&p.fireT>0)?clamp(p.fireT/wpn.rate,0,1)*5:0;   // staff kicks back on cast
@@ -2778,6 +2975,7 @@ function drawPlayer(t){
 }
 function drawShotsGlow(t){
   for(const s of shots){
+    if(s.kegShot){drawGlow(s.x,s.y,14,'rgb(255,200,120)',.3); continue;}
     drawGlow(s.x,s.y,s.r*4.2,s.c,.9);
     ctx.fillStyle='#fff2dd';
     ctx.beginPath();ctx.arc(s.x,s.y,s.r*.6+1,0,TAU);ctx.fill();
@@ -3018,6 +3216,18 @@ function drawHUD(t){
     ctx.font='30px '+UIF; ctx.fillStyle='#7a2418';
     ctx.fillText('DRILL COMPLETE — TO THE WALL', W/2, H/2-70);
   }
+  if(sealFlashT>0){
+    sealFlashT-=1/60;
+    ctx.textAlign='center';
+    ctx.globalAlpha=clamp(sealFlashT/.6,0,1);
+    ctx.font='20px '+UIF; ctx.fillStyle='#8a5a1a';
+    ctx.fillText('— A TRIAL ANSWERED —', W/2, H/2-100);
+    ctx.globalAlpha=1;
+  }
+  if(rescued>0){
+    ctx.textAlign='left'; ctx.font='12px Georgia'; ctx.fillStyle='#4a3826';
+    ctx.fillText('rescued  '+rescued, 30, 92);
+  }
   if(cpFlashT>0){
     ctx.textAlign='center';
     ctx.globalAlpha=clamp(cpFlashT/.6,0,1);
@@ -3103,7 +3313,8 @@ function doWin(){
   document.getElementById('winStats').innerHTML=
     '<span style="font-family:Cinzel,Georgia,serif;font-size:22px;letter-spacing:.2em;color:#ffe9c9">'+rank+'</span><br>'+
     'time <b>'+m+':'+String(s).padStart(2,'0')+'</b> &nbsp;·&nbsp; deaths <b>'+deaths+
-    '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; relics <b>'+relicsFound+' / '+pickups.filter(p=>p.type!=='LIFE').length+'</b>'+
+    '</b> &nbsp;·&nbsp; kills <b>'+kills+'</b> &nbsp;·&nbsp; rescued <b>'+rescued+
+    '</b> &nbsp;·&nbsp; trials <b>'+trialsFound+' / 3</b>'+
     ' &nbsp;·&nbsp; <b>'+CLASSES[cls].title+' · '+DIFF().label+'</b>'+bestLine;
   show('win');
 }
@@ -3342,6 +3553,7 @@ function startGame(){
   bridgeTorched=false;
   lives=DIFF().lives;
   tutorialMode=false; tutDoneT=0;
+  rescued=0; trialsFound=0; runners=[]; sealFlashT=0; grabKey=false;
   tut.active=SET.tut||forceTut; forceTut=false;
   tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   setTutSteps(false);
@@ -3412,7 +3624,7 @@ document.querySelectorAll('#sPart span').forEach(s=>s.onclick=()=>{SET.particles
 applySet();
 
 /* ---------------- key rebinding UI ---------------- */
-const BIND_LABELS=[['left','Move left'],['right','Move right'],['jump','Jump'],['drop','Drop down'],['dash','Dodge dash'],['swap','Cycle mode']];
+const BIND_LABELS=[['left','Move left'],['right','Move right'],['jump','Jump'],['drop','Drop down'],['dash','Dodge dash'],['swap','Cycle mode'],['grab','Grab / throw']];
 function refreshBindUI(){
   const box=document.getElementById('bindRows');
   if(!box) return;
