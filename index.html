@@ -575,8 +575,9 @@ function killPlayer(){
   if(boss&&!boss.dead){boss=null;bossIntroT=0;}
 }
 function respawn(){
-  const cx=checkpoint.x;
+  const cx=checkpoint.x, keep=player.weapon; // relics never respawn, so death keeps yours
   player=makePlayer(cx);
+  player.weapon=keep;
   player.y=groundYAt(cx)-56;
   eshots=[];
   // clear enemies crowding the checkpoint
