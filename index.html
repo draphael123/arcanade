@@ -74,6 +74,8 @@
   .card-ch.fire h3{color:#ffb267}
   .card-ch.frost h3{color:#a8d8ff}
   .card-ch p{font-size:13px;line-height:1.6;color:#c4b09a;font-style:italic}
+  .card-ch .cstats{font-size:10px;letter-spacing:.1em;color:#8a7260;margin-top:10px;line-height:1.8}
+  .card-ch .cstats b{color:#ffd9a8;font-weight:normal}
   .card-ch canvas{background:radial-gradient(circle at 50% 35%, rgba(255,240,210,.1), transparent)}
   /* intro — a page from the war chronicle */
   #intro .card{background:#e9dcbc;color:#4a3826;border:3px double #8a6f4a;
@@ -169,22 +171,26 @@
       <canvas id="csF" width="120" height="140"></canvas>
       <h3>PYROMANCER</h3>
       <p>Fire spreads. Bridges, barricades, siege engines &mdash; all of it is fuel. Burn the road open.</p>
+      <div class="cstats">SPEED &#9679;&#9679;&#9679;&#9675; &nbsp;JUMP &#9679;&#9679;&#9679;&#9675; &nbsp;DASH &#9679;&#9679;&#9679;&#9679; &nbsp;WARDS 2<br>FLASHSTEP &middot; DETONATING WARD &middot; HEAT<br><b>HOLD E &mdash; SIPHON</b></div>
     </div>
     <div class="card-ch frost" id="chFrost">
       <canvas id="csI" width="120" height="140"></canvas>
       <h3>CRYOMANCER</h3>
       <p>Frost slows everything it touches &mdash; and the moat itself will bear your weight. Walk where none can.</p>
+      <div class="cstats">SPEED &#9679;&#9679;&#9675;&#9675; &nbsp;JUMP &#9679;&#9679;&#9679;&#9679; &nbsp;DASH &#9679;&#9679;&#9675;&#9675; &nbsp;WARDS 2 (regrow)<br>GLIDE &middot; FREEZING WARD &middot; RIME<br><b>HOLD E &mdash; SIPHON</b></div>
     </div>
     <div class="card-ch storm" id="chStorm">
       <canvas id="csS" width="120" height="140"></canvas>
       <h3>STORMCALLER</h3>
       <p>Lightning is quick, and it jumps &mdash; every hit arcs to the next man and holds him still. Charged sap throws you skyward.</p>
+      <div class="cstats">SPEED &#9679;&#9679;&#9679;&#9679; &nbsp;JUMP &#9679;&#9679;&#9675;&#9675; &nbsp;DASH &#9679;&#9679;&#9679;&#9679; &nbsp;WARDS 2<br>BLINK &middot; REFLECTING WARD &middot; CHARGE<br><b>HOLD E &mdash; SIPHON</b></div>
       <div class="lock" id="chStormLock">take the crown of the Thornwood to unlock</div>
     </div>
     <div class="card-ch paladin" id="chPaladin">
       <canvas id="csP" width="120" height="140"></canvas>
       <h3>PALADIN</h3>
       <p>Sword and shield. Light thrown close and hard, a third ward, and a guard that turns anything &mdash; at the cost of reach and a lighter step.</p>
+      <div class="cstats">SPEED &#9679;&#9679;&#9675;&#9675; &nbsp;JUMP &#9679;&#9679;&#9675;&#9675; &nbsp;DASH &#9679;&#9675;&#9675;&#9675; &nbsp;WARDS 3<br>SHIELD BASH &middot; SMITING WARD<br><b>HOLD E &mdash; GUARD</b></div>
       <div class="lock" id="chPaladinLock">silence the horn to unlock</div>
     </div>
   </div>
@@ -626,7 +632,7 @@ function drawGlow(x,y,r,color,alpha=1){
 /* ---------------- classes ---------------- */
 const CLASSES={
   fire:{
-    title:'PYROMANCER', robe:'#a83c30', robeShade:'#8a2f28', cape:'#7a2622', dashKind:'flash', wardKind:'detonate',
+    title:'PYROMANCER', robe:'#a83c30', robeShade:'#8a2f28', cape:'#7a2622', dashKind:'flash', wardKind:'detonate', spd:385, dashCd:.5, jumpMul:1,
     dashName:'FLASHSTEP', wardName:'DETONATING WARD',
     dummyStep:'Burn the straw dummy — fire spreads',
     ranks:['CINDER NOVICE','TORCHBEARER','SIEGEBREAKER','THE ETERNAL FLAME'],
@@ -641,7 +647,7 @@ const CLASSES={
       NOVA:  {name:'CINDER RING',   color:'rgb(255,140,60)',  rate:.95, dmg:2,  novaR:150},
     }},
   frost:{
-    title:'CRYOMANCER', robe:'#3f6fa8', robeShade:'#33598a', cape:'#2c4a74', dashKind:'glide', wardKind:'freeze',
+    title:'CRYOMANCER', robe:'#3f6fa8', robeShade:'#33598a', cape:'#2c4a74', dashKind:'glide', wardKind:'freeze', spd:355, dashCd:.6, jumpMul:1.06,
     dashName:'GLIDE', wardName:'FREEZING WARD',
     dummyStep:'Shatter the straw dummy with frost',
     ranks:['HOARFROST NOVICE','WINTERBORN','GLACIER LORD','THE UNMELTING'],
@@ -657,7 +663,7 @@ const CLASSES={
       NOVA:  {name:"WINTER'S GRASP",  color:'rgb(200,240,255)', rate:1,   dmg:1.8, novaR:160},
     }},
   storm:{
-    title:'STORMCALLER', robe:'#6a4aa8', robeShade:'#55388a', cape:'#3f2a6a', unlock:'l2Cleared', dashKind:'blink', wardKind:'reflect',
+    title:'STORMCALLER', robe:'#6a4aa8', robeShade:'#55388a', cape:'#3f2a6a', unlock:'l2Cleared', dashKind:'blink', wardKind:'reflect', spd:420, dashCd:.45, jumpMul:.94,
     dashName:'BLINK', wardName:'REFLECTING WARD',
     dummyStep:'Shock the straw dummy — lightning jumps',
     ranks:['SPARK NOVICE','STORMBORN','THUNDERLORD','THE UNBROKEN SKY'],
@@ -675,7 +681,7 @@ const CLASSES={
   paladin:{
     title:'PALADIN', robe:'#cfd4dc', robeShade:'#a8aeb8', cape:'#c9a227', unlock:'l4Cleared',
     dashKind:'bash', wardKind:'smite', dashName:'SHIELD BASH', wardName:'SMITING WARD',
-    wardBonus:1, jumpMul:.85, dashMul:.6, melee:true,
+    wardBonus:1, jumpMul:.85, dashMul:.6, melee:true, spd:340, dashCd:.7,
     dummyStep:'Cleave the straw dummy with light',
     ranks:['SQUIRE OF DAWN','SWORN SHIELD','LIGHTBRINGER','THE UNBOWED'],
     weapons:{
@@ -1271,13 +1277,15 @@ function buildLevel2(){
   S(11230,312,40,68,{breakable:true,hp:8,seal:true,reward:'HEAVY'});
   /* --- THE GREAT TREE 12400..14000: the climb --- */
   {
-    const xs=[12550,12800,13050,12800,12550,12800,13050,13250,13000,12750,12950,13150,12900,12650,12850,13050];
-    let by=480;
-    for(const bx of xs){
-      S(bx,by,160,16,{oneWay:true,plank:true,bough:true});   // living wood: it chars, it never falls — the climb must survive your own fire
-      by-=120;
+    // every bough grows out of the trunk (12920..13110): left, then right, 112px a step, the last one 78px under the crown
+    const TX0=12920, TW=190;
+    let by=470;
+    for(let i=0;i<17;i++){
+      if(i%2===0) S(TX0-150,by,190,16,{oneWay:true,plank:true,bough:true,rootRight:true});        // living wood: it chars, it never falls
+      else        S(TX0+TW-40,by,190,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+      by-=112;
     }
-    S(12520,-1400,1260,40,{stone:true});                          // the crown
+    S(12520,-1400,1260,40,{stone:true,oneWay:true});              // the crown — you come up through it from the last bough
   }
   /* --- props --- */
   const grassAt=[150,320,520,760,980,1250,1600,1950,2350,2700,3050,4450,4700,4950,5150,
@@ -1320,7 +1328,7 @@ function buildLevel2(){
     ['weave',7120],['hound',7320],['hound',7390],['arch',7560],['shield',7920],['hound',8120],['arch',8320],['weave',8620],
     ['foot',9020],['bomb',9220],['hound',9460],['foot',9720],['arch',9880],['shield',10120],['hound',10320],
     ['hound',10820],['arch',11120],['weave',11420],['hound',11820],['bomb',12120],
-    ['arch',13070,120],['hound',13130,-240],['arch',13060,-480],['arch',12950,-960]];
+    ['arch',13165,134],['hound',13165,-314],['arch',12865,-650],['arch',13165,-986]];
   spawnAmbient(amb);
   /* --- ambushes: the forest hunts in packs --- */
   ambushes=[
@@ -2636,12 +2644,12 @@ function tryDash(){
       if(e.x>lo&&e.x<hi&&Math.abs((e.y+e.h/2)-(p.y+27))<60){ damageEnemy(e,1,e.x,e.y+e.h/2,false); e.shockT=.5; }
     }
     burst(p.x,p.y+27,8,'rgb(225,205,255)',.6); p.x=ex; burst(p.x,p.y+27,8,'rgb(225,205,255)',.6);
-    p.dashT=.06; p.dashCd=.6; p.dashDir=dir; p.dashKind=kind; p.dashSpd=0; p.invulnT=Math.max(p.invulnT,.3);
+    p.dashT=.06; p.dashCd=CL.dashCd||.6; p.dashDir=dir; p.dashKind=kind; p.dashSpd=0; p.invulnT=Math.max(p.invulnT,.3);
     tone('square',1200,2600,.1,.08); hiss(.08,.05,5000);
     return;
   }
   const mul=CL.dashMul||1;
-  p.dashT=.16*(kind==='glide'?1.35:mul); p.dashCd=.55; p.dashDir=dir; p.dashKind=kind;
+  p.dashT=.16*(kind==='glide'?1.35:mul); p.dashCd=CL.dashCd||.55; p.dashDir=dir; p.dashKind=kind;
   p.dashSpd=kind==='glide'?680:(kind==='bash'?820:900);
   p.invulnT=Math.max(p.invulnT,.24); p.trailX=p.x;
   if(kind==='bash'){ SFX.clang(); p.bashed=[]; }
@@ -2768,7 +2776,7 @@ function updatePlayer(dt){
     p.rime=clamp(p.rime+((still||onIce)?.32:-.22)*dt,0,1);
     if(p.rime>=.6&&Math.random()<.12*pMul()) spawnPart(p.x+rand(-12,12),p.y+rand(0,50),rand(-6,6),rand(-18,-4),.6,1.6,'rgb(220,240,255)',0,true);
   }
-  const sp=(p.keg?320:380)*(inSap?.32:1)*(p.guarding||p.siphoning?.3:1)*(p.frozenT>0?0:1);   // the keg is heavy; the sap is heavier
+  const sp=(p.keg?320:(CLASSES[cls].spd||380))*(inSap?.32:1)*(p.guarding||p.siphoning?.3:1)*(p.frozenT>0?0:1);   // the keg is heavy; the sap is heavier
   if(p.dashT>0){
     p.dashT-=dt; p.vx=p.dashDir*(p.dashSpd||900); p.vy=0;
     if(p.dashKind==='flash'&&Math.abs(p.x-(p.trailX||p.x))>16){ p.trailX=p.x; fireTrail.push({x:p.x,y:p.y+p.h,t:1.3}); }
@@ -3353,6 +3361,11 @@ function updateShots(dt){
     }
     s.vy+=(s.g||0)*dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
     if(s.wave&&Math.random()<.5) spawnPart(s.x,s.y+6,rand(-30,30),rand(-70,-20),.3,3,'rgb(205,195,170)',300,true);
+    if(!player.dead&&!player.abilTipped&&(s.bolt||s.jav||s.arrow)&&dist2(s.x,s.y,player.x,player.y+27)<260*260){
+      player.abilTipped=true;
+      tip('abil',isPaladin()?'Hold '+lbl('ability')+' to GUARD — the shield turns anything, while its strength lasts.'
+                           :'Hold '+lbl('ability')+' to SIPHON — a ring that unmakes bolts. Three woven, one ward back.');
+    }
     if(player.siphoning&&!player.dead&&!s.bomb&&!s.wave&&!s.boulder&&dist2(s.x,s.y,player.x,player.y+27)<74*74){
       // the ring takes it apart and keeps the thread
       s.dead=true; player.siphon++;
@@ -3576,6 +3589,7 @@ function setTutSteps(yard){
     {text:'Aim with the mouse — CLICK to cast',                     ok:()=>tut.flags.fired},
     {text:CLASSES[cls].dummyStep,                                   ok:()=>tut.flags.burned},
     {text:()=>lbl('dash')+' to dash — untouchable mid-dash',        ok:()=>player.dashT>0},
+    {text:()=>'Hold '+lbl('ability')+' to '+(isPaladin()?'GUARD — block anything':'SIPHON — unmake bolts, re-weave wards'), ok:()=>player.siphoning||player.guarding},
   );
   if(yard) TUT_STEPS.push(
     {text:()=>'Take the relic, then '+lbl('swap')+' to swap modes', ok:()=>tut.flags.swapped},
@@ -5714,7 +5728,7 @@ function drawPaladinBody(p,x,y,t,C,fl,casting){
   ctx.fillStyle=C('#6b4a2e'); ctx.fillRect(sx-7,sy,14,g?30:22);
   ctx.strokeStyle=C('#c9a227'); ctx.lineWidth=2; ctx.strokeRect(sx-6.5,sy+.5,13,(g?30:22)-1);
   ctx.fillStyle=C('#ffe9b0'); ctx.fillRect(sx-1,sy+6,2,g?14:8);
-  if(g) drawGlow(sx,sy+15,22+Math.sin(t*.01)*3,'rgb(255,230,170)',.45);
+  if(g){ drawGlow(sx,sy+15,22+Math.sin(t*.01)*3,'rgb(255,230,170)',.45); ctx.font='10px '+UIF; ctx.textAlign='center'; ctx.fillStyle='rgba(255,235,190,.9)'; ctx.fillText('GUARD',x,y-14); }
   // sword arm along the aim; the blade throws light
   const rec=(WPN(p.weapon).rate&&p.fireT>0)?clamp(p.fireT/WPN(p.weapon).rate,0,1):0;
   const swing=a+(rec>0?-F*(rec-.5)*1.2:0);
@@ -5864,6 +5878,7 @@ function drawPlayer(t){
     for(let i=0;i<3;i++){ const aa=i*TAU/3; ctx.fillStyle=i<p.siphon?'#9fd4ff':'rgba(140,200,255,.3)'; ctx.beginPath(); ctx.arc(Math.cos(aa)*64,Math.sin(aa)*64,4,0,TAU); ctx.fill(); }
     ctx.restore();
     drawGlow(x,y+27,50,'rgb(140,200,255)',.18);
+    ctx.font='10px '+UIF; ctx.textAlign='center'; ctx.fillStyle='rgba(200,230,255,.9)'; ctx.fillText('SIPHONING  '+p.siphon+'/3',x,y-14);
   }
   if(p.frozenT>0){ ctx.fillStyle='rgba(200,235,255,.45)'; ctx.fillRect(x-12,y-4,24,p.h+6); }
   if(p.wards>0){
@@ -6119,22 +6134,30 @@ function drawHUD(t){
   }
   ctx.font='13px Georgia'; ctx.fillStyle='#4a3826'; ctx.textAlign='left';
   // the held ability: guard meter for the paladin, siphon pips for the mages
-  if(isPaladin()){
-    ctx.fillStyle='rgba(20,10,25,.6)'; ctx.fillRect(30,88,80,6);
-    ctx.fillStyle=player.guarding?'#ffe9b0':'#c9a227'; ctx.fillRect(30,88,80*clamp(player.guardM,0,1),6);
-    ctx.font='9px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText('GUARD  '+lbl('ability'),116,95);
-  }else{
-    for(let i=0;i<3;i++){ ctx.fillStyle=i<player.siphon?'#9fd4ff':'rgba(20,10,25,.5)'; ctx.beginPath(); ctx.arc(36+i*14,91,4,0,TAU); ctx.fill(); }
-    ctx.font='9px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText('SIPHON  '+lbl('ability'),80,95);
+  {  // the held ability, with its key where you can't miss it
+    const on=player.guarding||player.siphoning;
+    const kx=30, ky=84, kl=lbl('ability');
+    ctx.fillStyle=on?'#ffe9b0':'rgba(233,220,188,.85)'; ctx.fillRect(kx,ky,22,18);
+    ctx.strokeStyle='#8a6f4a'; ctx.lineWidth=1.5; ctx.strokeRect(kx+.5,ky+.5,21,17);
+    ctx.font='bold 11px '+UIF; ctx.fillStyle='#4a3826'; ctx.textAlign='center'; ctx.fillText(kl.length>2?kl.slice(0,2):kl,kx+11,ky+13);
+    ctx.font='11px '+UIF; ctx.fillStyle=on?'#ffe9b0':'#c9a887'; ctx.textAlign='left';
+    ctx.fillText(isPaladin()?'HOLD — GUARD':'HOLD — SIPHON',kx+30,ky+13);
+    if(isPaladin()){
+      ctx.fillStyle='rgba(20,10,25,.6)'; ctx.fillRect(kx+30,ky+22,80,5);
+      ctx.fillStyle=player.guarding?'#ffe9b0':'#c9a227'; ctx.fillRect(kx+30,ky+22,80*clamp(player.guardM,0,1),5);
+    }else{
+      for(let i=0;i<3;i++){ ctx.fillStyle=i<player.siphon?'#9fd4ff':'rgba(20,10,25,.5)'; ctx.beginPath(); ctx.arc(kx+36+i*14,ky+25,4,0,TAU); ctx.fill(); }
+      ctx.font='9px '+UIF; ctx.fillStyle='#8a7260'; ctx.fillText('3 bolts = 1 ward',kx+82,ky+28);
+    }
   }
   if(!isPaladin()){
     const v=isFire()?player.heat:(isFrost()?player.rime:player.charge/5);
     const hot=isFire()?player.heat>=.8:(isFrost()?player.rime>=.6:player.charge>=5);
-    ctx.fillStyle='rgba(20,10,25,.6)'; ctx.fillRect(30,104,80,5);
-    ctx.fillStyle=player.ventT>0?'#8a8a90':(hot?'#fff2dd':WPN('BOLT').color); ctx.fillRect(30,104,80*clamp(v,0,1),5);
-    if(isFire()) {ctx.fillStyle='rgba(255,240,220,.7)'; ctx.fillRect(30+64-1,102,2,9);}
-    if(isFrost()) {ctx.fillStyle='rgba(255,240,220,.7)'; ctx.fillRect(30+48-1,102,2,9);}
-    ctx.font='9px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText(player.ventT>0?'VENTING':RES_NAME[cls],116,110);
+    ctx.fillStyle='rgba(20,10,25,.6)'; ctx.fillRect(30,120,80,5);
+    ctx.fillStyle=player.ventT>0?'#8a8a90':(hot?'#fff2dd':WPN('BOLT').color); ctx.fillRect(30,120,80*clamp(v,0,1),5);
+    if(isFire()) {ctx.fillStyle='rgba(255,240,220,.7)'; ctx.fillRect(30+64-1,118,2,9);}
+    if(isFrost()) {ctx.fillStyle='rgba(255,240,220,.7)'; ctx.fillRect(30+48-1,118,2,9);}
+    ctx.font='9px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText(player.ventT>0?'VENTING':RES_NAME[cls],116,126);
   }
   ctx.fillText(player.wards>0?'WARD'+(player.wards>1?' ×'+player.wards:''):(DIFF().wards===0?'NO WARD':'WARD DOWN'), 30+Math.max(maxW,1)*24, 38);
   // lives — wax-seal tokens
