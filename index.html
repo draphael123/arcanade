@@ -759,7 +759,7 @@ const CLASSES={
       NOVA:  {name:"WINTER'S GRASP",  color:'rgb(200,240,255)', rate:1,   dmg:1.8, novaR:160},
       SIGIL: {name:'RAMPART',         color:'rgb(200,240,255)', rate:1.1, dmg:.5,  spd:520},
     },
-    sigilDesc:'a wall of ice where it lands — a platform, a shield, a floe in midair'},
+    sigilDesc:'a slab of ice where it lands — one at a time, a step above you at most, seven breaths'},
   storm:{
     title:'STORMCALLER', robe:'#6a4aa8', robeShade:'#55388a', cape:'#3f2a6a', unlock:'l2Cleared', dashKind:'blink', wardKind:'reflect', spd:420, dashCd:.45, jumpMul:.94,
     dashName:'BLINK', wardName:'REFLECTING WARD',
@@ -858,7 +858,25 @@ const LEVEL_SPELLS={
   SAPLING:{name:'SAP-SLING',   color:'rgb(255,196,92)',  rate:1.2, dmg:.4, spd:520, level:3, desc:'a pool of the tree\'s sap, anywhere: foes stick in it, and it answers your element'},
   ECHO:   {name:'HORN-ECHO',   color:'rgb(235,225,200)', rate:1.6, dmg:1,  spd:900, level:4, desc:'the horn\'s own note, turned: the struck summon falls, and its fellows nearby pay for it'},
 };
-let rods=[], consec=null;
+let rods=[], consec=null, rootsFx=[];
+/* ---- the loadout: three spells per hero, chosen in the Armory; the road hands out bonuses, not spells ---- */
+const BASE_SPELLS=['BOLT','SPREAD','LANCE','HEAVY','BREATH'];
+function availableSpells(c){ const L=[...BASE_SPELLS]; for(const k of ['CRAWLER','MORTAR','NOVA']) if(shop.owned['sp_'+k]) L.push(k); if(relicSeen[c+':SIGIL']) L.push('SIGIL'); return L; }
+function loadoutFor(c){ const d=['BOLT','SPREAD','LANCE']; const L=(shop.loadout&&shop.loadout[c])||d; const av=availableSpells(c); const out=L.map(k=>av.includes(k)?k:null); for(let i=0;i<3;i++) if(!out[i]) out[i]=av.find(k=>!out.includes(k))||'BOLT'; return out; }
+const BONUS={
+  WARD:  {name:'WARDSTONE',   color:'rgb(140,200,255)', desc:'a ward mended'},
+  FURY:  {name:'EMBER OF FURY',color:'rgb(255,120,60)', desc:'+30% damage for twenty-five breaths'},
+  HASTE: {name:'WIND-CHARM',  color:'rgb(150,230,140)', desc:'+20% speed and half the dash wait, twenty-five breaths'},
+  EMBERS:{name:'EMBER CACHE', color:'rgb(255,215,120)', desc:'forty embers for the wagon'},
+};
+function bonusDur(){ return 25*(shop.equip.charm==='keepsake'?1.5:1); }
+function levelRelicEffect(k){
+  const p=player;
+  if(k==='TORCH'){ for(const o of flammables()) if(Math.abs(o.x+o.w/2-p.x)<W*.55) ignite(o); for(const sol of solids) if(sol.breakable&&!sol.dead&&Math.abs(sol.x-p.x)<W*.55&&Math.abs(sol.y-p.y)<H*.6) damageSolid(sol,8,sol.x+sol.w/2,sol.y+sol.h/2); SFX.explode(); burst(p.x,p.y+20,30,'rgb(255,200,90)'); kickCam(p.x+p.face*40,p.y); }
+  else if(k==='THORN'){ for(const ox of [-110,-170,-230]){ const bx=p.x+ox*(p.face||1)*-1; const gy=platformYAt(bx,p.y-40); solids.push({x:bx-15,y:gy-90,w:30,h:90,bram:true,flam:true,breakable:true,hp:6,maxHp:6,grow:0,oneWay:false,burn:0,spreadT:0,dead:false}); } SFX.ignite(); hiss(.3,.1,600); }
+  else if(k==='SAPLING'){ const gy=platformYAt(p.x,p.y-40); SAPS.push({x0:p.x-70,x1:p.x+70,y:gy-28,d:28,temp:12}); SFX.thud(); burst(p.x,gy-10,14,'rgb(255,196,92)',.5); }
+  else if(k==='ECHO'){ let best=null,bd=400*400; for(const e of enemies){ if(e.dead||!(e.horn||e.wave)) continue; const d=dist2(p.x,p.y,e.x,e.y); if(d<bd){bd=d;best=e;} } if(best) echoStrike(best,null); else { tone('sawtooth',196,196,.5,.09); floatText(p.x,p.y-30,'THE HORN ANSWERS NOTHING','#e8e0cc',false); } }
+}
 const WPN=k=>{const w=CLASSES[cls].weapons[k]||LEVEL_SPELLS[k]||CLASSES[cls].weapons.BOLT; const t=shop.tiers[k]||0; return t?tierApply(k,w,t):w;};
 function castSigil(wp,tipX,tipY,aimA){
   const vx=Math.cos(aimA)*wp.spd, vy=Math.sin(aimA)*wp.spd;
@@ -875,9 +893,11 @@ function castLevelSpell(k,wp,tipX,tipY,aimA){
   castSfx(k==='TORCH'?'HEAVY':'BOLT'); kick(aimA,3);
 }
 function plantEffect(sh,gy){
-  const x=sh.x, y=gy;
+  const x=sh.x; let y=gy;
   if(sh.plant==='RAMPART'){
-    solids.push({x:x-40,y:y-6,w:80,h:10,ice:true,oneWay:true,rampart:true,melt:14,flam:false,burn:0,spreadT:0,dead:false});
+    for(const o of solids) if(o.rampart&&!o.dead) o.dead=true;                              // one at a time
+    y=Math.max(y,player.y+player.h-150);                                                    // never higher than a step above your feet
+    solids.push({x:x-40,y:y-6,w:80,h:10,ice:true,oneWay:true,rampart:true,melt:7,flam:false,burn:0,spreadT:0,dead:false});
     SFX.freeze(); burst(x,y,12,'rgb(200,235,255)',.5); spawnRing(x,y,'rgb(200,240,255)');
   }else if(sh.plant==='ROD'){
     rods.push({x,y,t:10}); SFX.clang(); tone('square',1600,900,.15,.08); burst(x,y,8,'rgb(210,190,255)',.5);
@@ -965,7 +985,7 @@ const CHARMS=[
   {id:'long_arc',name:'Long Arc',desc:'The chain reaches 220 — half again as far.',price:160,cls:'storm'},
   {id:'oath',name:'The Oath',desc:'The guard recovers twice as fast.',price:160,cls:'paladin'},
   {id:'quick_feet',name:'Quick Feet',desc:'Every dash comes back 15% sooner. Anyone may wear it.',price:140},
-  {id:'memory',name:'Memory',desc:'Begin each level holding the spell you ended the last one with. Anyone may wear it.',price:120},
+  {id:'keepsake',name:'Keepsake',desc:'Every bonus you find on the road lasts half again as long. Anyone may wear it.',price:120},
 ];
 function saveShop(){try{localStorage.setItem('arcanade-shop',JSON.stringify(shop));}catch(e){}}
 let runEmbers=0;
@@ -1293,7 +1313,7 @@ function trySap(x,y){
       const stack=solids.filter(c=>c.crust&&!c.dead&&c.pool===sp&&Math.abs(c.x+46-x)<70);
       if(stack.length>=4) return true;
       const top=stack.length?Math.min(...stack.map(c=>c.y)):null;
-      const ny=top===null?sp.y-10:top-95;
+      const ny=top===null?sp.y-10:top-80;   // 80 a step: one Paladin jump, with room
       const cx=clamp(x,sp.x0+46,sp.x1-46);
       solids.push({x:cx-46,y:ny,w:92,h:12,crust:true,pool:sp,melt:45,oneWay:true,flam:false,burn:0,spreadT:0,dead:false});   // one-way: a stair is climbed from beneath
       SFX.freeze(); burst(cx,ny+4,10,'rgb(255,225,170)',.5); spawnRing(cx,ny+4,'rgb(255,230,180)');
@@ -1505,12 +1525,12 @@ function loadLevel(n){
     WATERS=[{x0:5610,x1:5890},{x0:6210,x1:6490}];
     CHASMS=[[5400,6800]];
     CHECKPOINTS=[60,1900,3300,4390,5450,6900,8900,10500,12350,12860,12700];
-    CP_Y={12860:-426,12700:-1400};
+    CP_Y={12860:-128,12700:-1400};
     MARENA={x0:4420,x1:5390,trig:4650,cam:4420};
     ZONES=[[0,[60,115,70],.10],[3200,[80,95,50],.11],[4400,[210,180,90],.08],
       [5400,[70,125,115],.10],[6800,[40,85,60],.13],[8800,[135,115,90],.09],
       [10400,[115,95,60],.10],[12400,[235,175,95],.09],[14000,[235,175,95],.09]];
-    buildLevel2(); BOSS_MARK=12550; CP_Y={12860:-426,12700:-1400};
+    buildLevel2(); BOSS_MARK=12550; CP_Y={12860:-128,12700:-1400};
   }else if(n===3){
     LEVEL=14000; WALLX=1e9; ARENA=12600; BOSS_TRIG=12700; CAM_MIN_Y=-2200-Math.round(H*.62)-110;
     WATERS=[{x0:9900,x1:10200},{x0:10700,x1:11000},{x0:12600,x1:13960}];
@@ -1532,16 +1552,6 @@ function loadLevel(n){
   bakeBackdrop();
   bakeForeground();
   seedCritters();
-  // bought spells join the relic pool — duplicates make way for your grimoire
-  const pool=ownedSpells();
-  if(pool.length){
-    const seen={}; let k=0;
-    for(const pk of pickups){
-      if(pk.type==='LIFE') continue;
-      if(seen[pk.type]){pk.type=pool[k%pool.length]; k++;}
-      else seen[pk.type]=true;
-    }
-  }
 }
 function buildLevel2(){
   resetWorld();
@@ -1553,7 +1563,7 @@ function buildLevel2(){
   S(6800,600,5600,240);                                  // canopy run → scar → roots
   S(12400,600,1600,240);                                 // beneath the Great Tree
   /* --- canopy highway A: the hollow way 1200..3200 --- */
-  for(const [bx,by,bw] of [[1450,470,150],[1700,438,140],[1980,470,160],[2260,432,150],[2540,470,150],[2830,440,150],[3080,470,140]])
+  for(const [bx,by,bw] of [[1450,512,150],[1700,480,140],[1980,512,160],[2260,480,150],[2540,512,150],[2830,480,150],[3080,512,140]])
     S(bx,by,bw,14,{oneWay:true,flam:true,plank:true});
   /* --- the bramble maze 3200..4400 --- */
   for(const bx of [3300,3480,3660,3980,4160])
@@ -1561,12 +1571,12 @@ function buildLevel2(){
   for(const bx of [1620,1760,1900]) S(bx,510,30,90,{bram:true,flam:true,breakable:true,hp:5});   // the hollow way's floor is choked — the boughs above are clear
   S(3800,430,42,170,{flam:true,breakable:true,hp:12,pal:true});   // foresters' gate
   /* --- canopy highway B: the deep wood 6800..8800 --- */
-  for(const [bx,by,bw] of [[6900,468,150],[7150,430,150],[7420,462,140],[7690,428,150],[7960,462,150],[8230,430,140],[8500,464,150],[8750,470,120]])
+  for(const [bx,by,bw] of [[6900,512,150],[7150,480,150],[7420,512,140],[7690,480,150],[7960,512,150],[8230,480,140],[8500,512,150],[8750,512,120]])
     S(bx,by,bw,14,{oneWay:true,flam:true,plank:true});
   for(const bx of [7000,7350,7700,8050,8400])
     S(bx,510,30,90,{bram:true,flam:true,breakable:true,hp:5});
-  S(7660,338,150,14,{oneWay:true,flam:true,plank:true});          // trial ledge
-  S(7710,270,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});
+  S(7660,392,150,14,{oneWay:true,flam:true,plank:true});          // trial ledge
+  S(7710,324,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});
   /* --- the roots 10400..12400 --- */
   S(10700,540,220,300,{stone:true,root:true});
   S(11150,500,200,340,{stone:true,root:true});
@@ -1575,37 +1585,33 @@ function buildLevel2(){
   S(10880,470,300,16,{oneWay:true,plank:true,bough:true,rootRight:true});   // root arches: the climb begins before the tree
   S(11330,430,290,16,{oneWay:true,plank:true,bough:true,rootRight:false});
   S(11820,460,260,16,{oneWay:true,plank:true,bough:true,rootRight:true});
-  S(11180,380,140,14,{oneWay:true,flam:true,plank:true});         // root-top trial
-  S(11230,312,40,68,{breakable:true,hp:8,seal:true,reward:'HEAVY'});
+  S(11180,404,140,14,{oneWay:true,flam:true,plank:true});         // root-top trial
+  S(11230,336,40,68,{breakable:true,hp:8,seal:true,reward:'HEAVY'});
   /* --- THE GREAT TREE 12400..14000: the climb --- */
   {
-    // every bough grows out of the trunk (12920..13110): left, then right, 112px a step — and six of them ask something of you
-    const TX0=12920, TW=190;
-    const THORNED=[3,13], SWAY=[5,12,15], NESTS=[6,14], GATE=8;
-    let by=470;
-    for(let i=0;i<17;i++){
-      if(i===9||i===10){ by-=112; continue; }                      // the gap the sap gate spans
-      const left=i%2===0, bx=left?TX0-150:TX0+TW-40;
-      const b=S(bx,by,190,16,{oneWay:true,plank:true,bough:true,rootRight:left});   // living wood: it chars, it never falls
-      if(THORNED.includes(i)){                                     // choked: you cannot stand on thorns — burn, shatter, shock or cleave them
-        const th=S(bx+8,by-34,174,34,{bram:true,flam:true,breakable:true,hp:6,thornBough:true,grow:1});
-        b.thorned=th;
-      }
-      if(SWAY.includes(i)){ b.sway={cx:bx,amp:22,ph:i*1.7,spd:.8+i*.05}; }   // the wind moves these — enough to time, not enough to miss
-      if(NESTS.includes(i)){ const nx=bx+(left?120:40); const ns=P(nx,by+16,24,32,'nest'); ns.hp=2; ns.flam=true; }
-      if(i===GATE){ SAPS.push({x0:bx+30,x1:bx+160,y:by-28,d:28}); }           // the sap pocket — three boughs' height in one go
-      if(i===7){ S(bx+190-30,by,170,16,{oneWay:true,plank:true,bough:true,rootRight:true});   // a side bough, and someone on it
-        const cg=P(bx+190-30+70,by-54,42,54,'cage'); cg.flam=false; cg.hp=2; }
-      if(i===8){ const sh=P(bx+20-14,by-64,28,64,'shrine'); sh.flam=false; sh.lit=false; }   // a rest, halfway
-      if(i===16){ const sh2=P(12700-14,-1400-64,28,64,'shrine'); sh2.flam=false; sh2.lit=false; }   // and one at the top, before the old tree
-      if(i===15){ const wv=spawnEnemy('weave',bx+95,by); wv.perch=true; }                     // the gardener, above you
-      by-=112;
+    // every bough grows out of the trunk (12920..13110): left, then right, 90px a step and 90px across — one jump, any class
+    const TX0=12920, TW=190, STEP=80, NB=24;
+    const THORNED=[3,13], SWAY=[5,14,17], NESTS=[6,15], GATE=8;
+    let by=512;                                                   // the first bough is one jump from the ground
+    for(let i=0;i<NB;i++){
+      if(i===9||i===10||i===11){ by-=STEP; continue; }           // the gap the sap gate spans (320px): the next hold is straight up, on the gate's side
+      const left=i%2===0, bx=left?TX0-150:TX0+TW-70;            // 200 wide, into the trunk: 70px between tips
+      const b=S(bx,by,200,16,{oneWay:true,plank:true,bough:true,rootRight:left});
+      if(THORNED.includes(i)){ const th=S(bx+8,by-34,184,34,{bram:true,flam:true,breakable:true,hp:6,thornBough:true,grow:1}); b.thorned=th; }
+      if(SWAY.includes(i)){ b.sway={cx:bx,amp:14,ph:i*1.7,spd:.8+i*.05}; }
+      if(NESTS.includes(i)){ const nx=bx+(left?130:40); const ns=P(nx,by+16,24,32,'nest'); ns.hp=2; ns.flam=true; }
+      if(i===GATE){ SAPS.push({x0:bx+40,x1:bx+170,y:by-28,d:28}); }
+      if(i===7){ S(bx+200-30,by,170,16,{oneWay:true,plank:true,bough:true,rootRight:true}); const cg=P(bx+200-30+70,by-54,42,54,'cage'); cg.flam=false; cg.hp=2; }
+      if(i===8){ const sh=P(bx+20-14,by-64,28,64,'shrine'); sh.flam=false; sh.lit=false; }
+      if(i===20){ const wv=spawnEnemy('weave',bx+100,by); wv.perch=true; }
+      if(i===NB-1){ const sh2=P(12700-14,-1400-64,28,64,'shrine'); sh2.flam=false; sh2.lit=false; }
+      by-=STEP;
     }
     /* the living crown: the trunk's top and the boughs that fan from it. Bark, not stone; gaps you can drop and shoot through. */
-    S(12520,-1400,420,18,{oneWay:true,plank:true,bough:true,rootRight:true});     // 12520..12940 — into the trunk
-    S(12900,-1406,230,40,{bark:true,oneWay:true});                               // the trunk's crown — up through it, like everything else here
-    S(13090,-1400,470,18,{oneWay:true,plank:true,bough:true,rootRight:false});    // 13090..13560
-    S(13520,-1400,260,16,{oneWay:true,plank:true,bough:true,rootRight:false});    // 13520..13780 — the far bough, where the old tree waits
+    S(12520,-1400,420,18,{oneWay:true,plank:true,bough:true,rootRight:true});
+    S(12900,-1406,230,40,{bark:true,oneWay:true});
+    S(13090,-1400,470,18,{oneWay:true,plank:true,bough:true,rootRight:false});
+    S(13520,-1400,260,16,{oneWay:true,plank:true,bough:true,rootRight:false});
   }
   /* --- props --- */
   const grassAt=[150,320,520,760,980,1250,1600,1950,2350,2700,3050,4450,4700,4950,5150,
@@ -1638,13 +1644,13 @@ function buildLevel2(){
   }
   /* --- pickups --- */
   pickups=[
-    {x:13330,y:-314-64,type:'SIGIL',t:0,got:false},   // on the side bough, by the cage
+    {x:13330,y:-48-64,type:'SIGIL',t:0,got:false},   // on the side bough, by the cage
     {x:3250,y:600-64,type:'THORN',t:0,got:false},
-    {x:1520,y:groundYAt(1520)-64,type:'SPREAD',t:0,got:false},
-    {x:2900,y:438-64,type:'LANCE',t:0,got:false},                 // on the canopy road
-    {x:5340,y:groundYAt(5340)-64,type:'HEAVY',t:0,got:false},
-    {x:8770,y:470-64,type:'BREATH',t:0,got:false},
-    {x:10480,y:groundYAt(10480)-64,type:'SPREAD',t:0,got:false},
+    {x:1520,y:groundYAt(1520)-64,type:'FURY',t:0,got:false},
+    {x:2900,y:480-64,type:'WARD',t:0,got:false},                  // on the canopy road
+    {x:5340,y:groundYAt(5340)-64,type:'HASTE',t:0,got:false},
+    {x:8770,y:512-64,type:'EMBERS',t:0,got:false},
+    {x:10480,y:groundYAt(10480)-64,type:'WARD',t:0,got:false},
   ];
   /* --- ambient enemies --- */
   const amb=[['hound',700],['hound',770],['arch',1550],['hound',1900],['arch',2150],
@@ -1655,7 +1661,7 @@ function buildLevel2(){
     ['weave',7120],['hound',7320],['hound',7390],['arch',7560],['shield',7920],['hound',8120],['arch',8320],['weave',8620],
     ['foot',9020],['bomb',9220],['hound',9460],['foot',9720],['arch',9880],['shield',10120],['hound',10320],
     ['hound',10820],['arch',11120],['weave',11420],['hound',11820],['bomb',12120],
-    ['arch',13165,134],['hound',13165,-314],['arch',12865,-650],['arch',13165,-986]];
+    ['arch',13165,272],['hound',13165,-48],['arch',12865,-448],['arch',13165,-528]];
   spawnAmbient(amb);
   /* --- ambushes: the forest hunts in packs --- */
   ambushes=[
@@ -1674,11 +1680,11 @@ function buildLevel3(){
   /* ============ III · THE HEARTWOOD — inside the Great Tree ============ */
   const HW=-2200;                         // the heartwood floor, high in the trunk
   const CEIL=HW-560;                      // its ceiling, where the grubs hang (just inside the camera's top)
-  CP_Y={60:600,1900:600,2300:440,2620:-340,3000:HW,4400:HW,5300:HW,6500:HW,7250:HW,9450:600,10300:600,11600:600,12450:600};
+  CP_Y={60:600,1900:600,2300:360,2620:-200,3000:HW,4400:HW,5300:HW,6500:HW,7250:HW,9450:600,10300:600,11600:600,12450:600};
   /* --- I. the Hollow 0..2000: the tree's open throat --- */
   S(-80,600,2140,240,{bark:true});
-  S(600,470,170,16,{oneWay:true,plank:true,bough:true,rootRight:false});
-  S(900,340,170,16,{oneWay:true,plank:true,bough:true,rootRight:true});
+  S(600,512,170,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+  S(900,424,170,16,{oneWay:true,plank:true,bough:true,rootRight:true});
   S(1140,420,60,60,{bark:true});                                  // a knuckle of root
   SAPS.push({x0:1450,x1:1870,y:572,d:28});                        // the first pool: slow, sticky, a lesson
   S(1450,600,420,240,{bark:true});
@@ -1686,28 +1692,32 @@ function buildLevel3(){
   S(2060,600,740,240,{bark:true});
   S(1960,-2400,60,2850,{bark:true});                              // left wall (open at the floor)
   S(2800,HW,4500,2900,{bark:true});                               // right wall = the heartwood floor's block (ends where the rot begins)
-  const L=(y,w)=>S(2020,y,w||240,16,{oneWay:true,plank:true,bough:true,rootRight:false});
-  const R=(y,w)=>S(2560,y,w||240,16,{oneWay:true,plank:true,bough:true,rootRight:true});
-  L(440); R(280);
-  S(2020,120,380,50,{bark:true}); SAPS.push({x0:2140,x1:2300,y:100,d:30});          // gate one — 300 up
-  R(-180); L(-340); R(-500);
-  S(2020,-660,380,50,{bark:true}); SAPS.push({x0:2140,x1:2300,y:-680,d:30});        // gate two
-  R(-960); L(-1120); R(-1280); L(-1440);
-  S(2420,-1600,380,50,{bark:true}); SAPS.push({x0:2500,x1:2660,y:-1620,d:30});      // gate three, on the right
-  L(-1900); R(-2050);
+  // the shaft: shelves 92px apart and 90px across, left and right — one jump, any class; three gates 276px tall
+  { const GATES=[4,12,20]; let i=0, y=520;
+    while(y>-2150){
+      if(!(i===5||i===6||i===7||i===13||i===14||i===15||i===21||i===22||i===23)){
+        const left=i%2===0, bx=left?2020:2410, bw=left?320:390;
+        S(bx,y,bw,16,{oneWay:true,plank:true,bough:true,rootRight:!left});
+        if(GATES.includes(i)) SAPS.push({x0:bx+60,x1:bx+200,y:y-28,d:28});
+      }
+      i++; y-=80;
+    }
+    S(2020,-2140,320,16,{oneWay:true,plank:true,bough:true,rootRight:false});   // the last step under the heartwood floor
+  }
   /* --- III. the Heartwood 2800..7300: the lungs of the tree --- */
   S(2800,CEIL-100,4700,100,{bark:true});                          // ceiling
   S(7300,HW,300,2900,{bark:true,trapFloor:true});                 // the floor that gives way
-  S(3600,HW-120,180,16,{oneWay:true,plank:true,bough:true,rootRight:false});
-  S(4100,HW-200,180,16,{oneWay:true,plank:true,bough:true,rootRight:true});
-  S(4150,HW-268,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});                // trial on the high bough
+  S(3600,HW-96,180,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+  S(4100,HW-96,180,16,{oneWay:true,plank:true,bough:true,rootRight:true});
+  S(4300,HW-186,180,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+  S(4350,HW-254,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});                // trial on the high bough
   SAPS.push({x0:3300,x1:3500,y:HW-28,d:28}); S(3300,HW-28,200,30,{bark:true});
   S(3800,HW-190,420,80,{bark:true});                             // a low lintel: a root grown here seals the corridor
   SAPS.push({x0:4700,x1:4900,y:HW-28,d:28}); S(4700,HW-28,200,30,{bark:true});
   S(5400,HW-420,70,420,{bark:true,crush:'L',bx:5400});            // the Gall's walls
   S(6330,HW-420,70,420,{bark:true,crush:'R',bx:6330});
-  S(6800,HW-150,180,16,{oneWay:true,plank:true,bough:true,rootRight:true});
-  S(6840,HW-218,40,68,{breakable:true,hp:8,seal:true,reward:'SPREAD'});
+  S(6800,HW-96,180,16,{oneWay:true,plank:true,bough:true,rootRight:true});
+  S(6840,HW-164,40,68,{breakable:true,hp:8,seal:true,reward:'SPREAD'});
   /* --- IV. the Descent 7300..9400: down through the rotten core --- */
   S(7240,-2100,60,2700,{bark:true});                              // no way back up
   S(9380,CEIL-100,60,440-(CEIL-100),{bark:true});                 // far wall, open at the floor
@@ -1721,7 +1731,7 @@ function buildLevel3(){
   S(9400,600,500,240,{bark:true}); S(10200,600,500,240,{bark:true}); S(11000,600,1600,240,{bark:true});
   S(10000,646,70,150,{stone:true,pier:true}); S(10800,646,70,150,{stone:true,pier:true});
   S(11300,540,180,300,{stone:true,root:true}); S(11900,500,180,340,{stone:true,root:true}); S(12300,560,200,280,{stone:true,root:true});
-  S(11340,380,140,14,{oneWay:true,plank:true,bough:true,rootRight:false});
+  S(11340,404,140,14,{oneWay:true,plank:true,bough:true,rootRight:false});
   for(const [kx,kw,edge] of [[12620,180,true],[12880,180,false],[13180,180,false],[13480,180,false],[13740,180,true]])
     S(kx,600,kw,120,{bark:true,knot:true,edge});
   S(13960,-400,80,1100,{bark:true});                              // the end of the world
@@ -1741,16 +1751,16 @@ function buildLevel3(){
   pickups=[
     {x:11900,y:500-64,type:'SIGIL',t:0,got:false},
     {x:3000,y:HW-64,type:'SAPLING',t:0,got:false},
-    {x:1000,y:340-64,type:'SPREAD',t:0,got:false},
-    {x:2120,y:-1440-64,type:'LANCE',t:0,got:false},
-    {x:4200,y:HW-64,type:'BREATH',t:0,got:false},
-    {x:7000,y:HW-64,type:'HEAVY',t:0,got:false},
-    {x:9600,y:600-64,type:'SPREAD',t:0,got:false},
-    {x:12000,y:500-64,type:'LANCE',t:0,got:false},
+    {x:1000,y:424-64,type:'FURY',t:0,got:false},
+    {x:2120,y:-920-64,type:'WARD',t:0,got:false},
+    {x:4200,y:HW-64,type:'HASTE',t:0,got:false},
+    {x:7000,y:HW-64,type:'EMBERS',t:0,got:false},
+    {x:9600,y:600-64,type:'WARD',t:0,got:false},
+    {x:12000,y:500-64,type:'FURY',t:0,got:false},
   ];
   /* --- the tree's own --- */
   const amb=[['root',700],['root',1250],['hound',1700],
-    ['root',2400,440],['weave',2620,-500],['hound',2200,-1120],['root',2640,-2050],
+    ['root',2200,360],['weave',2620,-200],['hound',2200,-760],['root',2640,-1640],
     ['root',3200,HW],['root',3720,HW],['root',3980,HW],['weave',3900,HW],['root',4500,HW],['hound',4800,HW],['hound',4860,HW],['weave',5000,HW],
     ['root',6700,HW],['weave',7000,HW],
     ['root',7900,600],['root',8900,600],
@@ -1763,7 +1773,7 @@ function buildLevel3(){
   { const pool=SAPS[0];
     if(isFire()) drafts.push({pool,t:1e9});
     else if(isStorm()) pool.charge=1e9;
-    else for(let k=0;k<3;k++) solids.push({x:1640-46,y:pool.y-10-k*95,w:92,h:12,crust:true,pool,melt:1e9,oneWay:true,flam:false,burn:0,spreadT:0,dead:false}); }
+    else for(let k=0;k<3;k++) solids.push({x:1640-46,y:pool.y-10-k*80,w:92,h:12,crust:true,pool,melt:1e9,oneWay:true,flam:false,burn:0,spreadT:0,dead:false}); }
   ambushes=[
     {x:1500,done:false,list:[['hound','L'],['hound','R'],['root','R']]},
     {x:3700,done:false,list:[['hound','L'],['hound','R'],['weave','R']]},
@@ -1791,7 +1801,7 @@ function buildLevel4(){
   /* --- II. the ridge 3400..5500: the canopy road it rides --- */
   {
     let k=0;
-    for(let bx=3500;bx<=5300;bx+=260){ S(bx,k%2?470:440,160,14,{oneWay:true,flam:true,plank:true,bough:true,rootRight:!!(k%2)}); k++; }
+    for(let bx=3500;bx<=5300;bx+=260){ S(bx,k%2?484:512,160,14,{oneWay:true,flam:true,plank:true,bough:true,rootRight:!!(k%2)}); k++; }
     for(const kx of [3900,4420,4940]) S(kx,380,180,16,{oneWay:true,flam:true,plank:true,bough:true,breakable:true,hp:7,keyBough:true,rootRight:kx>4400});
     for(const tx of [3560,4080,4600,5120]) P(tx,380,44,220,'trunkS');
   }
@@ -1803,12 +1813,12 @@ function buildLevel4(){
   S(8850,600,1550,240);
   {
     const L=(y)=>S(9380,y,180,16,{oneWay:true,plank:true,bough:true,rootRight:true});
-    const R=(y)=>S(9650,y,180,16,{oneWay:true,plank:true,bough:true,rootRight:false});
-    let y=470, side=0;
-    for(let i=0;i<13;i++){ (side?R:L)(y); y-=125; side^=1; }     // 470 .. -1030
+    const R=(y)=>S(9630,y,180,16,{oneWay:true,plank:true,bough:true,rootRight:false});
+    let y=512, side=0;
+    for(let i=0;i<22;i++){ (side?R:L)(y); y-=80; side^=1; }      // 512 .. -1168, 80px a step; the crown is 32 above the last
   }
   /* --- V. the crown 10400..12000 --- */
-  S(9400,-1200,2600,60,{bark:true});
+  S(9400,-1200,2600,60,{bark:true,oneWay:true});
   S(10400,600,1600,240);                                           // the lowland under the crown — you can fall and climb back
   S(11960,-1600,80,1000,{bark:true});
   /* --- props --- */
@@ -1823,10 +1833,10 @@ function buildLevel4(){
   pickups=[
     {x:11500,y:-1200-64,type:'SIGIL',t:0,got:false},
     {x:2500,y:600-64,type:'ECHO',t:0,got:false},
-    {x:700,y:600-64,type:'SPREAD',t:0,got:false},
-    {x:3200,y:600-64,type:'LANCE',t:0,got:false},
-    {x:5900,y:600-64,type:'HEAVY',t:0,got:false},
-    {x:8300,y:600-64,type:'BREATH',t:0,got:false},
+    {x:700,y:600-64,type:'FURY',t:0,got:false},
+    {x:3200,y:600-64,type:'WARD',t:0,got:false},
+    {x:5900,y:600-64,type:'HASTE',t:0,got:false},
+    {x:8300,y:600-64,type:'EMBERS',t:0,got:false},
     {x:10470,y:-1200-64,type:'LIFE',t:0,got:false},
   ];
   ambushes=[];                                                     // nothing lives here but what the horn calls
@@ -1842,9 +1852,9 @@ function buildLevel1(){
   S(1756,646,74,180,{stone:true,pier:true});
   /* --- forest road 1960..4400 --- */
   S(1960,600,2440,240);
-  S(2480,470,150,14,{oneWay:true,flam:true,plank:true});
-  S(3200,492,140,14,{oneWay:true,flam:true,plank:true});
-  S(3760,480,140,14,{oneWay:true,flam:true,plank:true});
+  S(2480,512,150,14,{oneWay:true,flam:true,plank:true});
+  S(3200,512,140,14,{oneWay:true,flam:true,plank:true});
+  S(3760,512,140,14,{oneWay:true,flam:true,plank:true});
   S(3080,516,34,84,{flam:true,barr:true,breakable:true,hp:6});
   S(2940,430,42,170,{flam:true,breakable:true,hp:12,pal:true});
   S(4160,430,42,170,{flam:true,breakable:true,hp:12,pal:true});   // second palisade at the ravine gate
@@ -1857,8 +1867,8 @@ function buildLevel1(){
   S(6050,540,130,300,{stone:true});    // dash gap: 5690 → 6050
   /* --- the burned village 6260..8000 --- */
   S(6260,600,1740,240);
-  S(6510,470,160,14,{oneWay:true,flam:true,plank:true});   // surviving rooftop
-  S(7560,460,160,14,{oneWay:true,flam:true,plank:true});
+  S(6510,512,160,14,{oneWay:true,flam:true,plank:true});   // surviving rooftop
+  S(7560,512,160,14,{oneWay:true,flam:true,plank:true});
   S(7300,430,44,170,{flam:true,breakable:true,hp:12,pal:true});   // the village gate
   /* --- the river 8000..8720: the bridge is long gone --- */
   S(8000,600,60,16,{flam:true,plank:true});                // stub
@@ -1868,23 +1878,23 @@ function buildLevel1(){
   S(8550,646,70,180,{stone:true,pier:true});
   /* --- siege camp 8720..10600 --- */
   S(8720,600,1880,240);
-  S(9060,480,150,14,{oneWay:true,flam:true,plank:true});
-  S(9700,410,140,14,{oneWay:true,flam:true,plank:true});
-  S(10050,500,140,14,{oneWay:true,flam:true,plank:true});
+  S(9060,512,150,14,{oneWay:true,flam:true,plank:true});
+  S(9700,512,140,14,{oneWay:true,flam:true,plank:true});
+  S(10050,512,140,14,{oneWay:true,flam:true,plank:true});
   S(9450,516,34,84,{flam:true,barr:true,breakable:true,hp:6});
   /* --- the quarry 10600..12400: broken ground --- */
   S(10600,600,600,240);
   const bl=P(10680,600-60,120,60,'bally'); bl.flam=false;       // an abandoned siege ballista — it still works, for whoever loads it
-  S(11020,480,130,14,{oneWay:true,flam:true,plank:true});  // scaffold
+  S(11020,512,130,14,{oneWay:true,flam:true,plank:true});  // scaffold
   S(11440,560,400,280);                                    // jump gap: 11200 → 11440
-  S(11560,440,130,14,{oneWay:true,flam:true,plank:true});
+  S(11560,470,130,14,{oneWay:true,flam:true,plank:true});
   S(12200,600,800,240);                                    // dash gap: 11840 → 12200
   S(12520,450,46,150,{breakable:true,hp:20,stoneWall:true});
   /* --- stair + the Wall of Vhal 13080..17100 --- */
   S(12660,552,140,300,{stone:true}); S(12800,504,140,340,{stone:true}); S(12940,456,140,380,{stone:true});
   S(WALLX,WALLY,LEVEL-WALLX,420,{stone:true});
   S(15560,270,44,150,{breakable:true,hp:14,stoneWall:true});      // blockade before the Warden
-  for(const hx of [ARENA+180,ARENA+560,ARENA+940]) S(hx,WALLY-118,170,14,{oneWay:true,stone:true});   // hoarding roofs — fight above the volley
+  for(const hx of [ARENA+180,ARENA+560,ARENA+940]) S(hx,WALLY-92,170,14,{oneWay:true,stone:true});   // hoarding roofs — fight above the volley
   /* --- props --- */
   const grassAt=[120,260,380,520,700,830,980,1120,1290,
     2050,2230,2380,2620,2760,2900,3300,3420,3540,3700,3840,4000,4250,
@@ -1921,13 +1931,13 @@ function buildLevel1(){
     cg.flam=false; cg.hp=2;
   }
   /* trial seals — old stones that answer only to magic, off the beaten road */
-  S(3730,368,150,14,{oneWay:true,flam:true,plank:true});          // forest sky ledge
-  S(3790,300,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});
+  S(3730,424,150,14,{oneWay:true,flam:true,plank:true});          // forest sky ledge
+  S(3790,356,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});
   S(5150,706,140,18,{stone:true});                                // ravine depths
   S(5300,640,90,16,{stone:true});                                 // ...and the way back up
   S(5180,638,40,68,{breakable:true,hp:8,seal:true,reward:'LIFE'});
-  S(11540,330,150,14,{oneWay:true,flam:true,plank:true});         // quarry sky ledge
-  S(11600,262,40,68,{breakable:true,hp:8,seal:true,reward:'BREATH'});
+  S(11540,382,150,14,{oneWay:true,flam:true,plank:true});         // quarry sky ledge
+  S(11600,314,40,68,{breakable:true,hp:8,seal:true,reward:'BREATH'});
   addDecal({t:'scorch',x:6550,y:600,w:110});
   addDecal({t:'scorch',x:7030,y:600,w:90});
   addDecal({t:'scorch',x:7590,y:600,w:120});
@@ -1937,14 +1947,14 @@ function buildLevel1(){
   }
   /* --- pickups --- */
   pickups=[
-    {x:11600,y:440-64,type:'SIGIL',t:0,got:false},   // the signature, hidden on the scaffold
+    {x:11600,y:382-64,type:'SIGIL',t:0,got:false},   // the signature, hidden on the sky ledge
     {x:2200,y:600-64,type:'TORCH',t:0,got:false},     // the level's own
-    {x:1240,y:groundYAt(1240)-64,type:'SPREAD',t:0,got:false},
-    {x:2140,y:groundYAt(2140)-64,type:'HEAVY',t:0,got:false},
-    {x:5425,y:groundYAt(5425)-64,type:'LANCE',t:0,got:false},   // ravine reward
-    {x:7900,y:groundYAt(7900)-64,type:'BREATH',t:0,got:false},
-    {x:11620,y:groundYAt(11620)-64,type:'HEAVY',t:0,got:false}, // quarry cache
-    {x:13260,y:groundYAt(13260)-64,type:'SPREAD',t:0,got:false},// wall stores
+    {x:1240,y:groundYAt(1240)-64,type:'FURY',t:0,got:false},
+    {x:2140,y:groundYAt(2140)-64,type:'WARD',t:0,got:false},
+    {x:5425,y:groundYAt(5425)-64,type:'HASTE',t:0,got:false},   // ravine reward
+    {x:7900,y:groundYAt(7900)-64,type:'EMBERS',t:0,got:false},
+    {x:11620,y:groundYAt(11620)-64,type:'WARD',t:0,got:false}, // quarry cache
+    {x:13260,y:groundYAt(13260)-64,type:'FURY',t:0,got:false},// wall stores
   ];
   /* --- ambient enemies --- */
   const amb=[['foot',900],['foot',1000],['arch',1150],
@@ -2271,7 +2281,7 @@ function startBoss(){
 function damageBoss(dmg,x,y){
   const b=boss;
   if(!b||b.dead) return;
-  let mult=(b.st==='winded'?2:1)*(b.chillT>0?1.2:1)*(isFire()&&player&&player.heat>=.8?1.4:1)*(shop.curses.glass?2:1);
+  let mult=(b.st==='winded'?2:1)*(b.chillT>0?1.2:1)*(isFire()&&player&&player.heat>=.8?1.4:1)*(shop.curses.glass?2:1)*(player&&player.furyT>0?1.3:1);
   if(b.type==='taproot'&&b.st!=='gape'&&b.st!=='winded'){mult*=.35; if(dmg>=.5&&Math.random()<.25) tip('shut','Its mouth is shut — the bark turns your spells. Wait for it to gape.');}
   if(b.type==='horn'){
     if(b.mode==='flee') return;                                   // you cannot shoot a thing that is leaving
@@ -2570,8 +2580,11 @@ function updateBoss(dt){
         else{
           const minions=enemies.filter(e=>!e.dead&&e.sapling).length;
           const r=Math.random();
-          if(r<.38){b.st='slamPrep'; b.stT=.6*enraged;}
-          else if(r<.72||minions>=2){b.st='branchPrep'; b.stT=.9*enraged;
+          if(r<.2){b.st='slamPrep'; b.stT=.6*enraged;}
+          else if(r<.38){b.st='graspPrep'; b.stT=.85*enraged; b.marks=[player.x+player.vx*.3, player.x-150, player.x+150].map(v=>clamp(v,ARENA+60,ARENA+W-60));}
+          else if(r<.54){b.st='sweepPrep'; b.stT=.9*enraged; b.sweepSide=player.x<b.x?-1:1;}
+          else if(r<.66){b.st='rainPrep'; b.stT=.7*enraged;}
+          else if(r<.86||minions>=2){b.st='branchPrep'; b.stT=.9*enraged;
             b.marks=(b.phase2?[player.x+player.vx*.4, player.x-170, player.x+170, player.x-340, player.x+340]
                              :[player.x+player.vx*.4, player.x-170, player.x+170]).map(v=>clamp(v,ARENA+60,ARENA+W-60));}
           else{b.st='summonPrep'; b.stT=.7*enraged;}
@@ -2602,6 +2615,23 @@ function updateBoss(dt){
         burst(ARENA+140,FLOOR-20,10,'rgb(150,210,110)');
         burst(ARENA+W-160,FLOOR-20,10,'rgb(150,210,110)');
       }
+    }else if(b.st==='graspPrep'){
+      // roots will come up through the marks: stand there when they do and they hold you
+      if(b.stT<=0){ b.st='idle'; b.stT=rand(1.3,1.9)*enraged; SFX.woodCrack(); shake(6);
+        for(const mx of b.marks){ rootsFx.push({x:mx,y:FLOOR,t:.9});
+          if(!player.dead&&Math.abs(player.x-mx)<44&&player.y+player.h>FLOOR-40){ player.frozenT=.8; player.vx=0; hitPlayer(); floatText(player.x,player.y-24,'HELD','#8fd28a',true); } }
+        b.marks=null; }
+    }else if(b.st==='sweepPrep'){
+      if(b.stT<=0){ b.st='sweep'; b.stT=.4; SFX.slam(); shake(9); }
+    }else if(b.st==='sweep'){
+      // a bough drags across one half of the crown, low: jump it
+      const x0=b.sweepSide<0?ARENA:b.x, x1=b.sweepSide<0?b.x:ARENA+W;
+      if(!player.dead&&player.x>x0&&player.x<x1&&player.y+player.h>FLOOR-70) hitPlayer();
+      if(Math.random()<.8) spawnPart(rand(x0,x1),FLOOR-30-rand(0,40),b.sweepSide*200,rand(-30,30),.2,3,'rgb(150,120,80)',0,true);
+      if(b.stT<=0){ b.st='idle'; b.stT=rand(1.4,2)*enraged; }
+    }else if(b.st==='rainPrep'){
+      if(b.stT<=0){ b.st='idle'; b.stT=rand(1.6,2.2)*enraged; SFX.breath();
+        for(let k=0;k<6;k++) eshots.push({x:rand(ARENA+60,ARENA+W-60),y:FLOOR-620-rand(0,200),vx:0,vy:120,g:500,r:7,life:5,sapdrop:true}); }
     }else if(b.st==='collapsePrep'){
       if(b.stT<=0){
         b.st='idle'; b.stT=1.6;
@@ -2613,6 +2643,7 @@ function updateBoss(dt){
     }else if(b.st==='winded'){
       if(b.stT<=0){b.st='idle'; b.stT=1.2*enraged;}
     }
+    for(const s2 of eshots) if(s2.sapdrop&&!s2.dead&&s2.y>=FLOOR-8){ s2.dead=true; puddles.push({x:s2.x,y:FLOOR,w:110,t:6}); burst(s2.x,FLOOR-6,8,'rgb(240,180,80)',.5); }
     if(!player.dead&&rectsOverlap(b.x-b.w/2,b.y,b.w,b.h,player.x-player.w/2,player.y,player.w,player.h))
       hitPlayer();
     return;
@@ -2690,10 +2721,10 @@ function updateBoss(dt){
 function startMBoss(){
   if(LVL===3){
     const hp=Math.round(150*DIFF().bossHp);
-    mboss={type:'gall',x:MARENA.x1+36,y:HW3()-96,w:90,h:96,hp,max:hp,face:-1,vx:0,
+    mboss={type:'gall',x:MARENA.x1-190,y:HW3()-330,w:90,h:96,hp,max:hp,face:-1,vx:0,
       st:'brood',stT:1.4,spitT:2,dropT:3.4,drops:0,pulse:0,burn:0,chillT:0,hurtT:0,dead:false,deadT:0,dropped:false,walkT:0};
     mbIntroT=2; SFX.roar(); tone('sine',60,40,.6,.2);
-    tip('gall','The Gall-Mother is grown into the wall. Her heart beats; the walls answer it. Watch the light.');
+    tip('gall','The Gall-Mother hangs from the wall above the floor. Shoot UP at her between the beats — the walls answer her heart.');
   }else if(LVL===2){
     const hp=Math.round(120*DIFF().bossHp);
     mboss={type:'hunt',x:5150,y:600-78,w:36,h:78,hp,max:hp,face:-1,vx:0,
@@ -3031,12 +3062,12 @@ function tryDash(){
       if(e.x>lo&&e.x<hi&&Math.abs((e.y+e.h/2)-(p.y+27))<60){ damageEnemy(e,1,e.x,e.y+e.h/2,false); e.shockT=.5; }
     }
     burst(p.x,p.y+27,8,'rgb(225,205,255)',.6); p.x=ex; burst(p.x,p.y+27,8,'rgb(225,205,255)',.6);
-    p.dashT=.06; p.dashCd=(CL.dashCd||.6)*(shop.equip.charm==='quick_feet'?.85:1); p.dashDir=dir; p.dashKind=kind; p.dashSpd=0; p.invulnT=Math.max(p.invulnT,.3);
+    p.dashT=.06; p.dashCd=(CL.dashCd||.6)*(shop.equip.charm==='quick_feet'?.85:1)*(p.hasteT>0?.5:1); p.dashDir=dir; p.dashKind=kind; p.dashSpd=0; p.invulnT=Math.max(p.invulnT,.3);
     tone('square',1200,2600,.1,.08); hiss(.08,.05,5000);
     return;
   }
   const mul=CL.dashMul||1;
-  p.dashT=.16*(kind==='glide'?1.35:mul); p.dashCd=(CL.dashCd||.55)*(shop.equip.charm==='quick_feet'?.85:1); p.dashDir=dir; p.dashKind=kind;
+  p.dashT=.16*(kind==='glide'?1.35:mul); p.dashCd=(CL.dashCd||.55)*(shop.equip.charm==='quick_feet'?.85:1)*(p.hasteT>0?.5:1); p.dashDir=dir; p.dashKind=kind;
   p.dashSpd=kind==='glide'?680:(kind==='bash'?820:900);
   p.invulnT=Math.max(p.invulnT,.24); p.trailX=p.x;
   if(kind==='bash'){ SFX.clang(); p.bashed=[]; }
@@ -3154,6 +3185,7 @@ function updatePlayer(dt){
   if(p.frozenT>0) p.frozenT-=dt;
   if(p.wardRegenT>0){ p.wardRegenT-=dt; if(p.wardRegenT<=0&&p.wards<maxWards()){ p.wards++; SFX.chime(); spawnRing(p.x,p.y+24,'rgb(140,200,255)'); floatText(p.x,p.y-20,'THE WARD REGROWS','#9fd4ff',true); } }
   if(p.smiteT>0) p.smiteT-=dt;
+  if(p.furyT>0) p.furyT-=dt; if(p.hasteT>0) p.hasteT-=dt;
   // the element idles with you
   if(p.onGround&&Math.abs(p.vx)<20&&!p.dead&&Math.random()<.14*pMul()){
     if(isFire()) spawnPart(p.x+rand(-9,9),p.y+rand(6,22),rand(-8,8),-rand(22,48),rand(.5,.9),rand(1.4,2.2),'rgb(255,160,70)',0,true);
@@ -3173,7 +3205,7 @@ function updatePlayer(dt){
     if(p.rime>=.6&&Math.random()<.12*pMul()) spawnPart(p.x+rand(-12,12),p.y+rand(0,50),rand(-6,6),rand(-18,-4),.6,1.6,'rgb(220,240,255)',0,true);
   }
   if(LVL===2&&p.y<-140&&p.x>12400&&gust>0&&!p.onGround) p.x+=gust*70*dt;   // the wind has opinions up here
-  const sp=(p.keg?320:(CLASSES[cls].spd||380))*(inSap?.32:1)*(p.guarding||p.siphoning?.3:1)*(p.frozenT>0?0:1);   // the keg is heavy; the sap is heavier
+  const sp=(p.keg?320:(CLASSES[cls].spd||380))*(p.hasteT>0?1.2:1)*(inSap?.32:1)*(p.guarding||p.siphoning?.3:1)*(p.frozenT>0?0:1);   // the keg is heavy; the sap is heavier
   if(p.dashT>0){
     p.dashT-=dt; p.vx=p.dashDir*(p.dashSpd||900); p.vy=0;
     if(p.dashKind==='flash'&&Math.abs(p.x-(p.trailX||p.x))>16){ p.trailX=p.x; fireTrail.push({x:p.x,y:p.y+p.h,t:1.3}); }
@@ -3220,7 +3252,7 @@ function updatePlayer(dt){
       }
     }
     if(p.jumpBufT>0&&(p.onGround||p.coyoteT>0)&&p.frozenT<=0&&!p.guarding&&!p.siphoning){
-      p.vy=(inSap?-420:-810)*(CLASSES[cls].jumpMul||1); p.onGround=false; p.coyoteT=0; p.jumpBufT=0;
+      p.vy=(inSap?-600:-810)*(CLASSES[cls].jumpMul||1); p.onGround=false; p.coyoteT=0; p.jumpBufT=0;
       hiss(.07,.04,2000);
     }else if(p.jumpBufT>0&&SET.doubleJump&&p.airJumps<1&&!p.onGround&&p.coyoteT<=0&&p.dashT<=0){
       // the second step: a sigil flares underfoot and the air takes the mage's weight
@@ -3381,23 +3413,32 @@ function updatePlayer(dt){
         continue;
       }
       pk.got=true; relicsFound++;
-      // a relic fills an empty slot; with all three full it replaces the next in the cycle
-      const empty=p.slots.indexOf(null); let lostName=null;
-      if(empty!==-1){p.slots[empty]=pk.type; p.slot=empty;}
-      else { lostName=WPN(p.slots[p.slot]).name; p.slots[p.slot]=pk.type; }   // it replaces what you hold — a trade, not a collection
-      p.weapon=p.slots[p.slot];
-      p.wards=Math.max(p.wards,DIFF().wards);
-      p.invulnT=Math.max(p.invulnT,.6);
-      SFX.pickup(); burst(pk.x,pk.y,20,WPN(pk.type).color);
-      spawnRing(pk.x,pk.y,WPN(pk.type).color);
-      tone('sine',880,1760,.25,.05);
-      const firstTime=!relicSeen[cls+':'+pk.type];
-      if(firstTime){relicSeen[cls+':'+pk.type]=true; try{localStorage.setItem('arcanade-relics',JSON.stringify(relicSeen));}catch(e){}}
-      const rdesc=pk.type==='SIGIL'?(CLASSES[cls].sigilDesc||''):(LEVEL_SPELLS[pk.type]?LEVEL_SPELLS[pk.type].desc:(SPELL_DESC[pk.type]||''));
-      relicCard={name:WPN(pk.type).name,desc:rdesc,slot:p.slot+1,t:firstTime?6:3.4,total:firstTime?6:3.4,first:firstTime,lost:lostName,rare:pk.type==='SIGIL'||!!LEVEL_SPELLS[pk.type]};
+      p.invulnT=Math.max(p.invulnT,.6); SFX.pickup(); tone('sine',880,1760,.25,.05);
+      const col=BONUS[pk.type]?BONUS[pk.type].color:(LEVEL_SPELLS[pk.type]?LEVEL_SPELLS[pk.type].color:WPN(pk.type).color);
+      burst(pk.x,pk.y,20,col); spawnRing(pk.x,pk.y,col);
       runLog.push({f:p.x/LEVEL,k:'relic'});
-      if(relicsFound===1) tip('relic','A second mode! Press '+lbl('swap')+' or right-click to cycle. Relics also mend your ward.');
-      else tip('relic2','Three slots ride with you — a new relic replaces the next in the cycle.');
+      let cardName, cardDesc, rare=false, first=false;
+      if(pk.type==='SIGIL'){   // the signature: learned for good, and in your hand now
+        first=!relicSeen[cls+':SIGIL'];
+        relicSeen[cls+':SIGIL']=true; try{localStorage.setItem('arcanade-relics',JSON.stringify(relicSeen));}catch(e){}
+        p.slots[p.slot]='SIGIL'; p.weapon='SIGIL'; rare=true;
+        cardName=CLASSES[cls].weapons.SIGIL.name; cardDesc=CLASSES[cls].sigilDesc||'';
+        floatText(p.x,p.y-40,'SIGNATURE LEARNED','#ffd27a',true);
+        tip('sigil','Your signature. It is yours now — equip it in the Armory, in any slot.');
+      }else if(LEVEL_SPELLS[pk.type]){   // the level's own: it happens, now
+        levelRelicEffect(pk.type); rare=true;
+        cardName=LEVEL_SPELLS[pk.type].name; cardDesc=LEVEL_SPELLS[pk.type].desc;
+      }else{   // a bonus
+        const b=BONUS[pk.type]||BONUS.FURY; cardName=b.name; cardDesc=b.desc;
+        if(pk.type==='WARD'||!BONUS[pk.type]&&false){ p.wards=Math.min(maxWards(),p.wards+1); spawnRing(p.x,p.y+24,'rgb(140,200,255)'); }
+        else if(pk.type==='FURY'){ p.furyT=bonusDur(); }
+        else if(pk.type==='HASTE'){ p.hasteT=bonusDur(); }
+        else if(pk.type==='EMBERS'){ earnEmbers(40); }
+        else { p.furyT=bonusDur(); }   // anything old on the road is fury now
+        p.wards=Math.max(p.wards,Math.min(maxWards(),p.wards));
+      }
+      relicCard={name:cardName,desc:cardDesc,slot:p.slot+1,t:first?6:3.4,total:first?6:3.4,first,lost:null,rare};
+      if(relicsFound===1) tip('relic','The road gives bonuses. Your three spells ride with you — '+lbl('swap')+' or right-click to cycle, the Armory to choose.');
     }
   }
 }
@@ -3566,6 +3607,7 @@ function damageEnemy(e,dmg,x,y,silent,launch){
   if(e.brandT>0&&isFire()&&!silent) dmg*=1.6;                          // the mark opens them to fire
   if(player&&player.smiteT>0&&!silent){ dmg*=3; player.smiteT=0; floatText(x,y-22,'SMITE','#ffe9b0',true); SFX.clang(); hitstop(.06); }
   if(shop.curses.glass) dmg*=2;
+  if(player&&player.furyT>0&&!silent) dmg*=1.3;
   if(consec&&dist2(e.x,e.y+e.h/2,consec.x,consec.y)<consec.r*consec.r) dmg*=1.25;   // on holy ground
   e.hp-=dmg;
   if(!silent){
@@ -4155,6 +4197,7 @@ function update(dt){
   if(relicCard){relicCard.t-=dt; if(relicCard.t<=0) relicCard=null;}
   for(const d of drafts) d.t-=dt; drafts=drafts.filter(d=>d.t>0);
   for(const a of arcs) a.t-=dt; arcs=arcs.filter(a=>a.t>0);
+  for(const r of rootsFx) r.t-=dt; rootsFx=rootsFx.filter(r=>r.t>0);
   for(const r of rods){ r.t-=dt; r.zapT=(r.zapT||0)-dt;
     if(r.zapT<=0&&(mouse.down||gp.fire)&&player&&!player.dead){ let best=null,bd=220*220; for(const e of enemies){ if(e.dead||e.emerge>0) continue; const d=dist2(r.x,r.y-30,e.x,e.y+e.h/2); if(d<bd){bd=d;best=e;} }
       if(best){ r.zapT=.4; arcs.push({x1:r.x,y1:r.y-34,x2:best.x,y2:best.y+best.h/2,t:.14}); chainDepth++; damageEnemy(best,1,best.x,best.y+best.h/2,false); chainDepth--; best.shockT=.35; tone('square',2200,700,.05,.03); } } }
@@ -5732,6 +5775,12 @@ function drawPickups(t){
     if(pk.got) continue;
     if(pk.x<cam.x-60||pk.x>cam.x+W+60) continue;
     const bob=Math.sin(t*.003+pk.x)*7;
+    if(BONUS[pk.type]){ const b=BONUS[pk.type]; drawGlow(pk.x,pk.y+bob,30,b.color,.7); ctx.fillStyle=b.color; ctx.save(); ctx.translate(pk.x,pk.y+bob); ctx.rotate(t*.002);
+      if(pk.type==='WARD'){ ctx.beginPath(); ctx.moveTo(0,-12); ctx.lineTo(9,0); ctx.lineTo(0,12); ctx.lineTo(-9,0); ctx.closePath(); ctx.fill(); }
+      else if(pk.type==='EMBERS'){ ctx.beginPath(); ctx.arc(0,0,10,0,TAU); ctx.fill(); ctx.fillStyle='#7a5a16'; ctx.beginPath(); ctx.arc(0,0,5,0,TAU); ctx.fill(); }
+      else if(pk.type==='HASTE'){ ctx.beginPath(); ctx.moveTo(-10,4); ctx.quadraticCurveTo(0,-14,12,-4); ctx.quadraticCurveTo(2,-2,-10,4); ctx.fill(); }
+      else { ctx.beginPath(); ctx.moveTo(-7,8); ctx.quadraticCurveTo(-2,-6,0,-13); ctx.quadraticCurveTo(2,-6,7,8); ctx.closePath(); ctx.fill(); }
+      ctx.restore(); ctx.fillStyle='#fff6e0'; ctx.beginPath(); ctx.arc(pk.x-3,pk.y+bob-4,2,0,TAU); ctx.fill(); continue; }
     if(pk.type==='SIGIL'||LEVEL_SPELLS[pk.type]){ drawGlow(pk.x,pk.y+bob,46,'rgb(255,215,120)',.5); ctx.strokeStyle='rgba(255,215,120,'+(.5+.3*Math.sin(t*.006))+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(pk.x,pk.y+bob,22+Math.sin(t*.004)*3,0,TAU); ctx.stroke(); }
     if(pk.type==='LIFE'){
       drawGlow(pk.x,pk.y+bob,36,'rgb(255,160,70)',.85);
@@ -6155,6 +6204,10 @@ function drawBoss(t){
     return;
   }
   if(b.type==='thorn'){
+    if(b.st==='sweepPrep'||b.st==='sweep'){ const x0=b.sweepSide<0?ARENA:b.x, x1=b.sweepSide<0?b.x:ARENA+W; const q=b.st==='sweep'?1:1-clamp(b.stT/.9,0,1);
+      ctx.fillStyle='rgba(255,255,255,'+(.06+.12*q)+')'; ctx.fillRect(x0,-1400-70,x1-x0,70);
+      ctx.save(); ctx.translate(b.x,-1400-120); ctx.rotate(b.sweepSide*(b.st==='sweep'?1.35:.35+q*.5)); ctx.fillStyle=b.st==='sweep'?'#54402a':'#f2f4f6'; ctx.fillRect(0,-9,Math.abs(x1-x0)*.9,18); ctx.restore(); }
+    for(const r of rootsFx){ const q=clamp(r.t/.9,0,1); ctx.strokeStyle='rgba(90,120,70,'+q+')'; ctx.lineWidth=4; ctx.beginPath(); for(let k=-1;k<=1;k++){ ctx.moveTo(r.x+k*14,r.y); ctx.quadraticCurveTo(r.x+k*20,r.y-40*q,r.x+k*8,r.y-70*q); } ctx.stroke(); }
     let falling=false;
     if(b.dead){
       const f=clamp(b.deadT/2,0,1);
@@ -6517,7 +6570,7 @@ function drawShotsGlow(t){
     ctx.beginPath();ctx.arc(s.x,s.y,s.r*.6+1,0,TAU);ctx.fill();
   }
   for(const s of eshots){
-    if(s.boulder){
+    if(s.sapdrop){ drawGlow(s.x,s.y,12,'rgb(255,190,90)',.5); ctx.fillStyle='rgb(255,196,92)'; ctx.beginPath(); ctx.ellipse(s.x,s.y,5,8,0,0,TAU); ctx.fill(); }else if(s.boulder){
       if(s.wood){
         ctx.save();
         ctx.translate(s.x,s.y); ctx.rotate(s.y*.02);
@@ -6828,6 +6881,7 @@ function drawHUD(t){
     }
   }
   if(rush.on){ ctx.font='11px '+UIF; ctx.fillStyle='#ffd9a8'; ctx.textAlign='right'; ctx.fillText('BOSS RUSH  '+(rush.i+1)+' / '+RUSH_STAGES.length, W-30, 60); }
+  { const bf=[]; if(player.furyT>0) bf.push('FURY '+Math.ceil(player.furyT)+'s'); if(player.hasteT>0) bf.push('HASTE '+Math.ceil(player.hasteT)+'s'); if(bf.length){ ctx.font='10px '+UIF; ctx.fillStyle='#c9a887'; ctx.textAlign='left'; ctx.fillText(bf.join('  ·  '),30,142); } }
   if(!isPaladin()){
     const v=isFire()?player.heat:(isFrost()?player.rime:player.charge/5);
     const hot=isFire()?player.heat>=.8:(isFrost()?player.rime>=.6:player.charge>=5);
@@ -7061,7 +7115,6 @@ function gameOver(){
 /* ---------------- win ---------------- */
 function doWin(){
   const rushWasRun=rush.done||rush.on;
-  if(player&&!tutorialMode){ const held=player.weapon; shop.lastHeld=(held&&held!=='BOLT'&&!LEVEL_SPELLS[held])?held:null; saveShop(); }
   if(rush.on&&!tutorialMode&&rushNext()) return;
   state='win';
   stopMusic(); stopDrums(); stopAmbience();
@@ -7888,6 +7941,14 @@ function renderArmory(){
   mkSel('Previewing',CLASSES[armCls].title,
     ()=>{const L=availableClasses(); armCls=L[(L.indexOf(armCls)-1+L.length)%L.length];SFX.clink();renderArmory();},
     ()=>{const L=availableClasses(); armCls=L[(L.indexOf(armCls)+1)%L.length];SFX.clink();renderArmory();});
+  // the three spells this hero rides out with
+  { shop.loadout=shop.loadout||{}; const cur=loadoutFor(armCls); shop.loadout[armCls]=cur; const av=availableSpells(armCls);
+    for(let i=0;i<3;i++){
+      const cyc=d=>{ let idx=av.indexOf(cur[i]); for(let k=0;k<av.length;k++){ idx=(idx+d+av.length)%av.length; if(!cur.includes(av[idx])||av[idx]===cur[i]) break; } cur[i]=av[idx]; shop.loadout[armCls]=cur; saveShop(); SFX.chime(); renderArmory(); };
+      const nm=CLASSES[armCls].weapons[cur[i]]?CLASSES[armCls].weapons[cur[i]].name:cur[i];
+      mkSel('Spell '+['I','II','III'][i],'<span style="color:'+(CLASSES[armCls].weapons[cur[i]]||{}).color+'">&#9679;</span> '+nm+(shop.tiers[cur[i]]?' <span style="font-size:10px;color:#8a6f4a">tier '+['','II','III'][shop.tiers[cur[i]]]+'</span>':''),()=>cyc(-1),()=>cyc(1));
+    }
+    const note=document.createElement('div'); note.style.cssText='font-size:11px;font-style:italic;color:#8a6f4a;padding:4px 0 8px'; note.innerHTML=av.length+' spells known'+(relicSeen[armCls+':SIGIL']?'':' &middot; the signature is hidden somewhere on the road')+(shop.owned.sp_NOVA&&shop.owned.sp_MORTAR&&shop.owned.sp_CRAWLER?'':' &middot; more at the wagon'); box.appendChild(note); }
   for(const [slot,label,opts,ownedFn,forCls] of ARM_SLOTS){
     if(forCls&&forCls!==armCls) continue;
     const avail=opts.filter(ownedFn);
@@ -7968,14 +8029,12 @@ function startGame(){
   tut.step=0; tut.stepT=0; tut.flags={}; tut.done={}; tut.tipT=0;
   setTutSteps(false);
   player=makePlayer(60); player.y=groundYAt(60)-56;
-  const startSpell='BOLT';
-  player.slots=Array.from({length:DIFF().slots||2},(_,i)=>i?null:startSpell); player.slot=0; player.weapon=startSpell;
-  if(shop.equip.charm==='memory'&&shop.lastHeld&&player.slots.length>1&&CLASSES[cls].weapons[shop.lastHeld]&&!tutorialMode){ player.slots[1]=shop.lastHeld; }   // Memory: what you ended with, you begin with
+  player.slots=loadoutFor(cls); player.slot=0; player.weapon=player.slots[0];   // three spells, chosen in the Armory
   runEmbers=0; petPos={x:60,y:player.y+player.h};
   streakN=0; streakT=0; floaters=[]; debris=[]; relicCard=null; runLog=[]; punchX=punchY=0; rainAmt=0; stopDrums(); wisps=[]; hornProp=null; fireTrail=[]; arcs=[]; gust=0; gustT=6; gustOn=0; stings=[]; rods=[]; consec=null;
   startAmbience();
   cam.x=0; cam.y=0; state='play'; paused=false; hideAll();
-  playMusic('field');
+  playMusic(LVL===4?'horn':(LVL===3?'heart':'field'));
 }
 let introStep=0;
 const INTROS={
