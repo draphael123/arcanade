@@ -115,6 +115,11 @@
   .bst h3{font-weight:normal;font-size:18px;letter-spacing:.1em;color:#5a3c1a;margin-bottom:4px}
   .bst p{font-size:13.5px;line-height:1.55;color:#4a3826}
   .bst .tip{font-style:italic;color:#8a4020;margin-top:4px}
+  #wmCanvas{background:transparent}
+  .wmNode{position:absolute;background:transparent;border:2px solid transparent;border-radius:10px;
+    cursor:pointer;transition:border-color .15s}
+  .wmNode:hover{border-color:rgba(138,47,26,.55)}
+  .wmNode:disabled{cursor:not-allowed}
   .btn.parch{border-color:#8a6f4a;color:#5a3c1a;background:rgba(90,60,30,.06)}
   .btn.parch:hover{background:rgba(90,60,30,.16);color:#3a2c1a;box-shadow:none;text-shadow:none;border-color:#5a3c1a}
   /* pause */
@@ -181,6 +186,20 @@
   <div class="btnrow">
     <button class="btn" id="bRetry">March Again</button>
     <button class="btn" id="bGoTitle">Return to Title</button>
+  </div>
+</div>
+
+<div id="worldmap" class="overlay hidden">
+  <div class="panel" style="background:#e9dcbc;border:3px double #8a6f4a;padding:26px 34px 20px;box-shadow:0 0 70px rgba(0,0,0,.55)">
+    <h2 style="font-weight:normal;letter-spacing:.32em;color:#5a3c1a;font-size:20px;margin-bottom:4px">THE LOWLANDS CAMPAIGN</h2>
+    <div style="font-style:italic;color:#8a6f4a;font-size:12px;margin-bottom:12px">choose where the road takes you</div>
+    <div style="position:relative;width:780px;height:400px">
+      <canvas id="wmCanvas" width="780" height="400"></canvas>
+      <button class="wmNode" id="bWmDrill" style="left:60px;top:280px;width:130px;height:90px"></button>
+      <button class="wmNode" id="bWmL1" style="left:320px;top:150px;width:150px;height:110px"></button>
+      <button class="wmNode" id="bWmL2" style="left:590px;top:60px;width:150px;height:110px"></button>
+    </div>
+    <button class="btn small parch" id="bWmBack" style="margin-top:10px">Back</button>
   </div>
 </div>
 
@@ -3298,6 +3317,7 @@ function gameOver(){
 function doWin(){
   state='win';
   stopMusic();
+  if(!tutorialMode){campaign.l1Cleared=true; saveCampaign();}
   const m=Math.floor(gameTime/60), s=Math.floor(gameTime%60);
   // rank: deaths decide the title, dawdling costs a step
   let idx=deaths===0?3:(deaths===1?2:(deaths<=3?1:0));
@@ -3525,9 +3545,89 @@ function drawCharPortraits(tt){
   }
 }
 
+/* ---------------- the campaign map ---------------- */
+let campaign={l1Cleared:false};
+try{Object.assign(campaign,JSON.parse(localStorage.getItem('arcanade-campaign')||'{}'));}catch(e){}
+function saveCampaign(){try{localStorage.setItem('arcanade-campaign',JSON.stringify(campaign));}catch(e){}}
+function drawWorldMap(tt){
+  const c=document.getElementById('wmCanvas'); if(!c) return;
+  const g=c.getContext('2d'), t=tt||0;
+  g.clearRect(0,0,780,400);
+  // faint sketched terrain
+  g.strokeStyle='rgba(90,60,30,.2)'; g.lineWidth=1.5;
+  for(let i=0;i<5;i++){
+    g.beginPath();
+    for(let x=0;x<=780;x+=26)
+      g.lineTo(x, 330-i*60+Math.sin(x*.02+i*2.4)*9);
+    g.stroke();
+  }
+  // the road, dashed, through the three stations
+  const pts=[[125,320],[395,205],[665,115]];
+  g.strokeStyle='#8a5a2a'; g.lineWidth=3; g.setLineDash([2,9]); g.lineCap='round';
+  g.beginPath();
+  g.moveTo(pts[0][0],pts[0][1]);
+  g.quadraticCurveTo(250,300,pts[1][0],pts[1][1]);
+  g.quadraticCurveTo(520,150,pts[2][0],pts[2][1]);
+  g.stroke();
+  g.setLineDash([]);
+  const node=(x,y,open,current)=>{
+    g.fillStyle=open?'#a03028':'#8a8272';
+    g.beginPath();g.arc(x,y,9,0,TAU);g.fill();
+    g.strokeStyle='rgba(230,180,120,.8)'; g.lineWidth=2;
+    g.beginPath();g.arc(x,y,9,0,TAU);g.stroke();
+    if(current){
+      g.strokeStyle='rgba(160,48,40,'+(0.5+0.4*Math.sin(t*.004))+')';
+      g.beginPath();g.arc(x,y,15,0,TAU);g.stroke();
+    }
+  };
+  g.textAlign='center';
+  /* drill yard */
+  node(125,320,true,false);
+  g.strokeStyle='#5a4a36'; g.lineWidth=3;
+  g.beginPath();g.moveTo(95,300);g.lineTo(95,276);g.stroke();      // dummy pole
+  g.fillStyle='#b8934a'; g.beginPath();g.arc(95,272,7,0,TAU);g.fill();
+  g.font="13px 'Cinzel',Georgia"; g.fillStyle='#5a3c1a';
+  g.fillText('THE DRILL YARD',125,352);
+  g.font='italic 10px Georgia'; g.fillStyle='#8a6f4a';
+  g.fillText('practice, unjudged',125,366);
+  /* the Wall */
+  node(395,205,true,!campaign.l1Cleared);
+  g.fillStyle='#6d7580';
+  g.fillRect(360,146,18,34); g.fillRect(412,146,18,34); g.fillRect(376,156,38,24);
+  g.fillStyle='#565e6a';
+  for(const bx of [360,412]) g.beginPath(),g.moveTo(bx-3,146),g.lineTo(bx+9,134),g.lineTo(bx+21,146),g.closePath(),g.fill();
+  const fl=Math.sin(t*.004)*3;
+  g.strokeStyle='#565e6a'; g.lineWidth=1.5;
+  g.beginPath();g.moveTo(395,156);g.lineTo(395,140);g.stroke();
+  g.fillStyle='#b8504a';
+  g.beginPath();g.moveTo(395,140);g.lineTo(409+fl,144);g.lineTo(395,149);g.closePath();g.fill();
+  g.font="13px 'Cinzel',Georgia"; g.fillStyle='#5a3c1a';
+  g.fillText('I · THE WALL OF VHAL',395,238);
+  g.font='italic 10px Georgia'; g.fillStyle='#8a6f4a';
+  g.fillText(campaign.l1Cleared?'the wall has fallen':'one mage against the siege',395,252);
+  if(campaign.l1Cleared){
+    g.strokeStyle='#4a7a3c'; g.lineWidth=3;
+    g.beginPath();g.moveTo(424,196);g.lineTo(430,203);g.lineTo(442,187);g.stroke();
+  }
+  /* the Thornwood — the road continues */
+  node(665,115,false,false);
+  g.fillStyle='#5f7350';
+  for(const [px,ph] of [[634,26],[652,36],[672,30],[692,38],[708,24]]){
+    g.beginPath();g.moveTo(px-9,96);g.lineTo(px,96-ph);g.lineTo(px+9,96);g.closePath();g.fill();
+  }
+  g.font="13px 'Cinzel',Georgia"; g.fillStyle='#8a8272';
+  g.fillText('II · THE THORNWOOD',665,148);
+  g.font='italic 10px Georgia';
+  g.fillText('the road continues soon',665,162);
+  // rope across the locked path
+  g.strokeStyle='rgba(90,60,30,.55)'; g.lineWidth=2;
+  g.beginPath();g.moveTo(540,160);g.lineTo(580,130);g.stroke();
+  g.beginPath();g.moveTo(545,128);g.lineTo(578,162);g.stroke();
+}
+
 /* ---------------- overlays / flow ---------------- */
 const ov=id=>document.getElementById(id);
-const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover'];
+const OVERLAYS=['title','charsel','intro','settings','pause','win','bestiary','gameover','worldmap'];
 function refreshBestLine(){
   const el=document.getElementById('bestLine');
   if(!el) return;
@@ -3581,8 +3681,14 @@ ov('intro').addEventListener('click',()=>{
 let forceTut=false;
 document.getElementById('bStart').onclick=()=>{initAudio();SFX.pickup();forceTut=false;state='charsel';show('charsel');};
 document.getElementById('bTutorial').onclick=()=>{initAudio();SFX.chime();forceTut=true;state='charsel';show('charsel');};
-document.getElementById('chFire').onclick=()=>{cls='fire';SFX.ignite();forceTut?startTutorialYard():runIntro();};
-document.getElementById('chFrost').onclick=()=>{cls='frost';SFX.freeze();forceTut?startTutorialYard():runIntro();};
+document.getElementById('chFire').onclick=()=>{cls='fire';SFX.ignite();forceTut?startTutorialYard():(state='map',show('worldmap'));};
+document.getElementById('chFrost').onclick=()=>{cls='frost';SFX.freeze();forceTut?startTutorialYard():(state='map',show('worldmap'));};
+document.getElementById('bWmDrill').onclick=()=>{startTutorialYard();};
+document.getElementById('bWmL1').onclick=()=>{SFX.chime();runIntro();};
+document.getElementById('bWmL2').onclick=()=>{SFX.clink();tipMapLocked();};
+document.getElementById('bWmBack').onclick=()=>{state='charsel';show('charsel');};
+let mapLockT=0;
+function tipMapLocked(){mapLockT=Date.now();}
 document.getElementById('bCharBack').onclick=()=>{state='title';show('title');};
 document.getElementById('bSettingsT').onclick=()=>{initAudio();settingsFrom='title';show('settings');};
 let bestFrom='title';
@@ -3674,6 +3780,15 @@ function frame(t){
   // living portraits while their pages are open
   if(!ov('bestiary').classList.contains('hidden')) drawPortraits(t);
   if(!ov('charsel').classList.contains('hidden')) drawCharPortraits(t);
+  if(!ov('worldmap').classList.contains('hidden')){
+    drawWorldMap(t);
+    if(Date.now()-mapLockT<1600){
+      const g=document.getElementById('wmCanvas').getContext('2d');
+      g.font="italic 13px Georgia"; g.textAlign='center';
+      g.fillStyle='rgba(138,47,26,'+(1-(Date.now()-mapLockT)/1600)+')';
+      g.fillText('the Thornwood is still being cut… soon', 665, 186);
+    }
+  }
 }
 rafId=requestAnimationFrame(frame);
 setInterval(()=>{
