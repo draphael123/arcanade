@@ -944,7 +944,7 @@ function buildLevel2(){
     const xs=[12550,12800,13050,12800,12550,12800,13050,13250,13000,12750,12950,13150,12900,12650,12850,13050];
     let by=480;
     for(const bx of xs){
-      S(bx,by,160,16,{oneWay:true,flam:true,plank:true});
+      S(bx,by,160,16,{oneWay:true,plank:true,bough:true});   // living wood: it chars, it never falls — the climb must survive your own fire
       by-=120;
     }
     S(12520,-1400,1260,40,{stone:true});                          // the crown
